@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-live = ["maigret==0.6.5", "sherlock-project==0.16.0", "social-analyzer==0.45"]
+live = ["maigret==0.6.5", "sherlock-project==0.16.0", "social-analyzer==0.45", "google-genai>=1.0,<2"]
 dev = [
     "pytest>=8.3,<10",
     "pytest-asyncio>=0.25,<2",

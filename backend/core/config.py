@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     github_token: SecretStr | None = None
     text_embeddings_enabled: bool = True
     ai_adviser_enabled: bool = False
-    openai_api_key: SecretStr | None = None
-    ai_model: str | None = None
+    gemini_api_key: SecretStr | None = None
+    ai_model: str = "gemini-2.5-flash"
     connector_concurrency: int = Field(default=4, ge=1, le=64)
     connector_timeout_seconds: float = Field(default=30.0, gt=0)
 

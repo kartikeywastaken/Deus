@@ -1,9 +1,8 @@
-"""Optional bounded adviser. It can only prioritize already eligible pivot IDs."""
+"""Optional bounded adviser using Gemini. Only pivot metadata is sent — no personal data."""
 
 import json
 from dataclasses import replace
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -16,48 +15,43 @@ class Advice(BaseModel):
 async def advise(decision, settings):
     if not settings.ai_adviser_enabled:
         return decision, {"status": "DISABLED"}
-    if not settings.openai_api_key or not settings.ai_model:
-        return decision, {"status": "AUTH_REQUIRED", "reason": "Configure key and model"}
+    if not settings.gemini_api_key:
+        return decision, {"status": "AUTH_REQUIRED", "reason": "Set GEMINI_API_KEY in .env"}
     if len(decision.pivots) < 2:
         return decision, {"status": "NOT_NEEDED"}
+
     options = [
         dict(id=i, connector=p.connector_name, input_type=p.connector_input.type, stage=p.stage)
         for i, p in enumerate(decision.pivots)
     ]
-    # No biographies, images, identifiers, or raw source text leave the machine.
+    # Only structured pivot metadata leaves the machine. No bios, names, URLs, or raw data.
+    prompt = (
+        "You are an OSINT collection adviser. "
+        "Choose ONE pivot_id from the list to prioritize next. "
+        "Do not invent actions, connectors, or evidence. "
+        "Respond with JSON only.\n\nPivots:\n" + json.dumps(options)
+    )
+    model = settings.ai_model or "gemini-2.5-flash"
     try:
-        async with httpx.AsyncClient(timeout=12, trust_env=False) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/responses",
-                headers={"Authorization": f"Bearer {settings.openai_api_key.get_secret_value()}"},
-                json={
-                    "model": settings.ai_model,
-                    "store": False,
-                    "max_output_tokens": 300,
-                    "instructions": "Choose a supplied pivot ID to prioritize for public "
-                    "collection. Do not invent actions or evidence. Explain briefly.",
-                    "input": json.dumps(options),
-                    "text": {
-                        "format": {
-                            "type": "json_schema",
-                            "name": "pivot_advice",
-                            "strict": True,
-                            "schema": Advice.model_json_schema(),
-                        }
-                    },
-                },
-            )
-            response.raise_for_status()
-            payload = response.json()
-        output = "".join(
-            part.get("text", "")
-            for item in payload.get("output", [])
-            for part in item.get("content", [])
-            if part.get("type") == "output_text"
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=Advice,
+                max_output_tokens=256,
+                temperature=0.0,
+            ),
         )
-        advice = Advice.model_validate_json(output)
+        advice = response.parsed
+        if not isinstance(advice, Advice):
+            raise ValueError("Model returned unexpected schema")
         if advice.pivot_id >= len(decision.pivots):
-            raise ValueError("Ineligible action")
+            raise ValueError("Adviser returned out-of-range pivot_id")
         chosen = decision.pivots[advice.pivot_id]
         pivots = (chosen,) + tuple(p for i, p in enumerate(decision.pivots) if i != advice.pivot_id)
         return replace(decision, pivots=pivots), {"status": "APPLIED", **advice.model_dump()}
