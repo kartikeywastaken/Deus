@@ -77,6 +77,10 @@ button:disabled { cursor: wait; opacity: .6; }
 
 .candidate strong { display: block; }
 .candidate span { color: #637181; }
+.candidate a { display: inline-block; margin-top: 8px; }
+.candidate p { font-size: .9rem; color: #576575; margin: 6px 0; }
+.controls { margin: 12px 0 20px; }
+#question-form { padding: 16px; }
 
 .strong { border-left-color: #24765d; }
 .likely { border-left-color: #4c7cab; }

@@ -31,6 +31,10 @@
 
       <p id="status" aria-live="polite">Ready</p>
       <p id="error" role="alert"></p>
+      <div class="options controls">
+        <button id="continue-search" type="button">Skip question / continue</button>
+        <button id="stop-search" type="button">Stop search</button>
+      </div>
 
       <section>
         <h2>Candidates</h2>
@@ -50,6 +54,7 @@
         <div id="report" class="report empty">The report appears after the investigation completes.</div>
       </section>
     </main>
+    <script src="/api/config.js" onerror="console.warn('config.js not loaded; using default API base')"></script>
     <script src="./app.js" defer></script>
   </body>
 </html>

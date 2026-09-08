@@ -586,6 +586,47 @@ class InvestigationAnswer(Base):
     question: Mapped[InvestigationQuestion] = relationship(back_populates="answers")
 
 
+class UserSearchContext(Base):
+    __tablename__ = "user_search_context"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    search_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("search_runs.id", ondelete="CASCADE"), index=True
+    )
+    question_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("investigation_questions.id"))
+    answer_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("investigation_answers.id"), unique=True
+    )
+    context_type: Mapped[str] = mapped_column(String(64))
+    value: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class InvestigationJob(Base):
+    __tablename__ = "investigation_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING','RUNNING','WAITING','COMPLETED','FAILED','CANCELLED')",
+            name="job_status",
+        ),
+        Index("ix_jobs_claim", "status", "available_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    search_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("search_runs.id", ondelete="CASCADE"), index=True
+    )
+    job_type: Mapped[str] = mapped_column(String(64), default="INVESTIGATE")
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(64), default="PENDING")
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    worker_id: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    runtime_seconds: Mapped[float] = mapped_column(Float, default=0)
+
+
 class Report(Base):
     __tablename__ = "reports"
     __table_args__ = (Index("ix_reports_search_run_id", "search_run_id"),)
@@ -620,6 +661,7 @@ class TextEmbedding(Base):
         Uuid(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE")
     )
     source_field: Mapped[str] = mapped_column(String(128))
+    content_hash: Mapped[str | None] = mapped_column(String(64))
     model_name: Mapped[str] = mapped_column(String(255))
     model_version: Mapped[str] = mapped_column(String(128))
     embedding: Mapped[list[float]] = mapped_column(Vector(TEXT_EMBEDDING_DIMENSION))

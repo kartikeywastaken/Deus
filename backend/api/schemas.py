@@ -126,7 +126,7 @@ class QuestionEnvelope(BaseModel):
 
 class QuestionAnswerCreate(BaseModel):
     question_id: UUID
-    value: str = Field(min_length=1, max_length=500)
+    value: str | list[str] = Field(min_length=1, max_length=500)
 
 
 class ReportEnvelope(BaseModel):

@@ -44,6 +44,7 @@ class ConnectorStatus(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
     DISABLED = "DISABLED"
     FAILED = "FAILED"
+    MANUAL = "MANUAL"
 
 
 class EvidenceDirection(StrEnum):

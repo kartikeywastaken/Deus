@@ -17,6 +17,8 @@ from backend.db.models import (
 )
 
 EXPECTED_TABLES = {
+    "user_search_context",
+    "investigation_jobs",
     "connector_runs",
     "evidence_signals",
     "hypothesis_memberships",

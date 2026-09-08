@@ -28,7 +28,6 @@ class GitHubConnector(BaseConnector):
             {ProducedArtifactType.PROFILE, ProducedArtifactType.OBSERVATION}
         ),
         live_supported=True,
-        mock_supported=False,
     )
 
     def __init__(

@@ -61,15 +61,19 @@ async def postgres_session():
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_repository_provenance_correlation_question_and_vector_round_trip(
     postgres_session: AsyncSession,
 ) -> None:
     repository = PostgresInvestigationRepository(postgres_session)
-    search = await repository.create_search("USERNAME", "alice_dev")
-    connector_input = ConnectorInput(type=ConnectorInputType.USERNAME, value="alice_dev")
-    registry = build_default_registry(mock_connectors=True)
+    seed = os.getenv("DEUS_TEST_USERNAME")
+    if not seed:
+        pytest.skip("Set DEUS_TEST_USERNAME for real connector persistence")
+    search = await repository.create_search("USERNAME", seed)
+    connector_input = ConnectorInput(type=ConnectorInputType.USERNAME, value=seed)
+    registry = build_default_registry()
 
-    for connector_name in ("maigret", "sherlock"):
+    for connector_name in ("github",):
         connector = registry.get(connector_name)
         run = await repository.create_connector_run(
             search.id,
@@ -77,13 +81,14 @@ async def test_repository_provenance_correlation_question_and_vector_round_trip(
             connector_version=connector.version,
             input_data=connector_input.model_dump(mode="json"),
         )
-        await repository.persist_connector_result(
-            run.id,
-            await connector.discover(connector_input),
-        )
+        result = await connector.discover(connector_input)
+        if result.status in {"AUTH_REQUIRED", "RATE_LIMITED", "UNAVAILABLE", "NO_RESULTS"}:
+            pytest.skip(f"Live seed unavailable: {result.status}")
+        assert result.status in {"SUCCESS", "PARTIAL"}, result.message
+        await repository.persist_connector_result(run.id, result)
 
     profiles = await repository.list_profiles_for_search(search.id)
-    assert len(profiles) == 3
+    assert len(profiles) >= 1
     observation_count = await postgres_session.scalar(
         select(func.count(ProfileObservation.id)).where(
             ProfileObservation.search_run_id == search.id
@@ -92,8 +97,8 @@ async def test_repository_provenance_correlation_question_and_vector_round_trip(
     identifier_link_count = await postgres_session.scalar(
         select(func.count()).select_from(ProfileIdentifier)
     )
-    assert observation_count and observation_count >= 10
-    assert identifier_link_count and identifier_link_count >= 3
+    assert observation_count and observation_count >= 1
+    assert identifier_link_count and identifier_link_count >= 1
 
     snapshots = await repository.list_profile_snapshots_for_search(search.id)
     normalized = tuple(normalize_profile(item) for item in snapshots)
@@ -103,8 +108,8 @@ async def test_repository_provenance_correlation_question_and_vector_round_trip(
     stored_evidence = await repository.replace_pair_assessments(search.id, assessments)
     hypotheses = build_identity_hypotheses(normalized, assessments)
     stored_hypotheses = await repository.replace_hypotheses(search.id, hypotheses)
-    assert stored_evidence
-    assert len(stored_hypotheses) == 2
+    assert len(stored_evidence) == sum(len(a.evidence) for a in assessments)
+    assert len(stored_hypotheses) >= 1
 
     question = await repository.create_question(
         search.id,
@@ -122,13 +127,13 @@ async def test_repository_provenance_correlation_question_and_vector_round_trip(
     await vector_repository.upsert_text(
         profile_id=profiles[0].id,
         source_field="bio",
-        model_name="fixture-model",
+        model_name="vector-arithmetic-test",
         model_version="v1",
         embedding=vector,
     )
     neighbors = await vector_repository.nearest_text(
         vector,
-        model_name="fixture-model",
+        model_name="vector-arithmetic-test",
         model_version="v1",
         source_field="bio",
         platform=profiles[0].platform,

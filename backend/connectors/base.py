@@ -55,15 +55,13 @@ class BaseConnector(ABC):
     """Small base class shared by deterministic adapter implementations."""
 
     name: str
-    version = "mock-v1"
+    version = "live-adapter-v1"
     capabilities: ConnectorCapabilities
     live_status = ConnectorRunStatus.DISABLED
     live_message = "This live connector is not implemented. No collection was performed."
 
-    def __init__(self, mode: ConnectorMode | str = ConnectorMode.MOCK) -> None:
+    def __init__(self, mode: ConnectorMode | str = ConnectorMode.LIVE) -> None:
         self.mode = ConnectorMode(mode)
-        if self.mode is ConnectorMode.LIVE and self.version == "mock-v1":
-            self.version = "live-adapter-v1"
 
     @property
     def availability(self) -> ConnectorAvailability:
@@ -77,11 +75,11 @@ class BaseConnector(ABC):
                 version(packages[self.name])
             except PackageNotFoundError:
                 return ConnectorAvailability.UNAVAILABLE
-        if self.mode is ConnectorMode.MOCK or self.capabilities.live_supported:
+        if self.capabilities.live_supported:
             return ConnectorAvailability.AVAILABLE
         if self.live_status is ConnectorRunStatus.UNAVAILABLE:
             return ConnectorAvailability.UNAVAILABLE
-        return ConnectorAvailability.DISABLED
+        return ConnectorAvailability(self.live_status.value)
 
     @property
     def accepts(self) -> frozenset[ConnectorInputType]:
@@ -116,7 +114,19 @@ class BaseConnector(ABC):
             f"{self.name} cannot normalize payload type {type(raw).__name__}"
         )
 
-    def _live_placeholder(self) -> ConnectorResult:
+    async def healthcheck(self) -> dict:
+        return {
+            "name": self.name,
+            "status": self.availability.value,
+            "version": self.version,
+            "reason": None
+            if self.availability == ConnectorAvailability.AVAILABLE
+            else self.live_message,
+            "documentation_url": getattr(self, "documentation_url", None),
+            "capabilities": self.capabilities.model_dump(mode="json"),
+        }
+
+    def _unavailable(self) -> ConnectorResult:
         return self._result(self.live_status, message=self.live_message)
 
     def _unsupported_input(self, connector_input: ConnectorInput) -> ConnectorResult:

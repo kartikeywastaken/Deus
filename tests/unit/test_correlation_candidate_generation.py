@@ -46,9 +46,7 @@ def test_pgvector_neighbor_results_can_create_a_candidate_block() -> None:
     left = _profile("left", "github", "alpha")
     right = _profile("right", "reddit", "zulu")
 
-    pairs = generate_candidate_pairs(
-        (left, right), semantic_neighbors=[("left", "right")]
-    )
+    pairs = generate_candidate_pairs((left, right), semantic_neighbors=[("left", "right")])
 
     assert len(pairs) == 1
     assert pairs[0].reasons == (BlockingReason.SEMANTIC_NEIGHBOR,)
@@ -56,6 +54,4 @@ def test_pgvector_neighbor_results_can_create_a_candidate_block() -> None:
 
 def test_unknown_neighbor_ids_are_ignored() -> None:
     profile = _profile("left", "github", "alpha")
-    assert generate_candidate_pairs(
-        (profile,), semantic_neighbors=[("left", "missing")]
-    ) == ()
+    assert generate_candidate_pairs((profile,), semantic_neighbors=[("left", "missing")]) == ()

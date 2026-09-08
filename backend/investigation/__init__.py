@@ -8,7 +8,6 @@ from .question_planner import (
     plan_disambiguation_question,
 )
 from .stopping import StopDecision, StopReason, evaluate_stopping
-from .target_ranking import rank_hypotheses_for_seed
 
 __all__ = [
     "HypothesisSnapshot",
@@ -21,5 +20,4 @@ __all__ = [
     "StopReason",
     "evaluate_stopping",
     "plan_disambiguation_question",
-    "rank_hypotheses_for_seed",
 ]

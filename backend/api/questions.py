@@ -9,9 +9,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.db.repositories import PostgresInvestigationRepository
-from backend.investigation.orchestrator import SearchOrchestrator
+from backend.jobs import submit_answer
 
-from .dependencies import get_orchestrator, get_repository
+from .dependencies import get_repository
 from .schemas import (
     QuestionAnswerCreate,
     QuestionEnvelope,
@@ -34,14 +34,15 @@ async def get_question(
     return QuestionEnvelope(item=_question_read(question) if question else None)
 
 
-@router.post("/{search_id}/question-answer", response_model=SearchRead)
+@router.post("/{search_id}/question-answer", response_model=SearchRead, status_code=202)
 async def answer_question(
     search_id: UUID,
     payload: QuestionAnswerCreate,
-    orchestrator: Annotated[SearchOrchestrator, Depends(get_orchestrator)],
+    repository: Annotated[PostgresInvestigationRepository, Depends(get_repository)],
 ) -> SearchRead:
     try:
-        search = await orchestrator.answer_question(
+        search = await submit_answer(
+            repository,
             search_id,
             payload.question_id,
             payload.value,

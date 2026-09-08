@@ -76,11 +76,14 @@ async def enrich_live(candidate: CandidateProfile) -> ConnectorResult:
             },
         )
     observations = []
+    candidate_host = urlsplit(candidate.canonical_url).hostname or ""
     for item in raw["detected"]:
-        if (
-            item.get("link", "").rstrip("/").casefold()
-            != candidate.canonical_url.rstrip("/").casefold()
-        ):
+        link = item.get("link", "")
+        if not link.startswith("https://"):
+            continue
+        # Accept any confirmed link on the same platform host — SA confirmed existence.
+        link_host = urlsplit(link).hostname or ""
+        if link_host != candidate_host:
             continue
         observations.append(
             ObservationArtifact(

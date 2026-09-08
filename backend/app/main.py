@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import candidates, hypotheses, questions, reports, searches
+from backend.core.config import Settings, get_settings
+
+from backend.api import candidates, hypotheses, images, questions, reports, searches
 from backend.connectors import build_default_registry
-from backend.core.config import get_settings
 from backend.db.session import close_database
 
 
@@ -39,30 +42,36 @@ app.include_router(candidates.router)
 app.include_router(hypotheses.router)
 app.include_router(questions.router)
 app.include_router(reports.router)
+app.include_router(images.router)
 
 
 @app.get("/health", tags=["health"])
 async def health() -> dict[str, object]:
-    settings = get_settings()
     return {
         "status": "ok",
         "database": "postgresql+pgvector",
-        "mock_connectors": settings.mock_connectors,
+        "collection_mode": "LIVE",
     }
+
+
+@app.get("/api/config.js", tags=["config"], response_class=Response)
+async def config_js(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve runtime config as a JS snippet so the frontend discovers the real port."""
+    host = settings.api_host if settings.api_host != "0.0.0.0" else "127.0.0.1"
+    base = f"http://{host}:{settings.api_port}"
+    script = f"window.OSINT_API_BASE = {base!r};\n"
+    return Response(content=script, media_type="application/javascript")
 
 
 @app.get("/api/connectors", tags=["connectors"])
 async def connectors() -> dict[str, object]:
-    settings = get_settings()
-    registry = build_default_registry(mock_connectors=settings.mock_connectors)
+    registry = build_default_registry()
     return {
-        "mode": "MOCK" if settings.mock_connectors else "LIVE",
+        "mode": "LIVE",
         "items": [
-            {
-                "name": connector.name,
-                "availability": connector.availability,
-                "capabilities": connector.capabilities.model_dump(mode="json"),
-            }
+            {**(await connector.healthcheck()), "availability": connector.availability}
             for connector in registry
         ],
     }

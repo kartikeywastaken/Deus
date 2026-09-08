@@ -24,9 +24,7 @@ def test_github_profile_url_variants_have_one_canonical_form(raw: str) -> None:
 
 
 def test_url_normalization_handles_platform_aliases_ports_and_query_order() -> None:
-    assert canonicalize_url("https://old.reddit.com/u/Alice/") == (
-        "https://reddit.com/user/alice"
-    )
+    assert canonicalize_url("https://old.reddit.com/u/Alice/") == ("https://reddit.com/user/alice")
     assert canonicalize_url("http://Example.com:80/about/?z=2&utm_x=y&a=1#top") == (
         "https://example.com/about?a=1&z=2"
     )

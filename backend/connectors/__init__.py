@@ -5,8 +5,8 @@ from .base import (
     Connector,
     ConnectorNormalizationError,
 )
-from .gitfive import GitFiveConnector, MockGitFiveConnector
-from .maigret import MaigretConnector, MockMaigretConnector
+from .gitfive import GitFiveConnector
+from .maigret import MaigretConnector
 from .registry import (
     ConnectorRegistry,
     DuplicateConnectorError,
@@ -28,9 +28,9 @@ from .schemas import (
     ProducedArtifactType,
     RelationshipArtifact,
 )
-from .sherlock import MockSherlockConnector, SherlockConnector
-from .social_analyzer import MockSocialAnalyzerConnector, SocialAnalyzerConnector
-from .sylva import MockSylvaConnector, SylvaConnector
+from .sherlock import SherlockConnector
+from .social_analyzer import SocialAnalyzerConnector
+from .sylva import SylvaConnector
 
 __all__ = [
     "BaseConnector",
@@ -50,11 +50,6 @@ __all__ = [
     "IdentifierArtifact",
     "IdentifierType",
     "MaigretConnector",
-    "MockGitFiveConnector",
-    "MockMaigretConnector",
-    "MockSherlockConnector",
-    "MockSocialAnalyzerConnector",
-    "MockSylvaConnector",
     "ObservationArtifact",
     "ProducedArtifactType",
     "RelationshipArtifact",

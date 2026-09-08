@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Any
 from uuid import UUID, uuid4
@@ -65,4 +66,6 @@ def _validated_vector(values: Sequence[float], dimension: int) -> list[float]:
     vector = [float(value) for value in values]
     if len(vector) != dimension:
         raise ValueError(f"embedding must contain exactly {dimension} values")
+    if not all(math.isfinite(v) for v in vector) or not any(vector):
+        raise ValueError("embedding must be finite and nonzero")
     return vector

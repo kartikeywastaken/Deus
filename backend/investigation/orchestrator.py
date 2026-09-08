@@ -1,4 +1,4 @@
-"""Bounded application service implementing the deterministic search loop."""
+"""One live, resumable investigation workflow shared by API jobs and CLI."""
 
 from __future__ import annotations
 
@@ -6,22 +6,21 @@ import asyncio
 from collections.abc import Iterable
 from enum import Enum
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from backend.connectors import (
     CandidateProfile,
+    ConnectorInput,
+    ConnectorInputType,
     ConnectorResult,
     ConnectorRunStatus,
     build_default_registry,
 )
 from backend.core.config import Settings
 from backend.core.enums import SearchStatus, SeedType
-from backend.correlation import (
-    build_identity_hypotheses,
-    generate_candidate_pairs,
-    score_evidence,
-)
-from backend.db.repositories import InvestigationRepository, SearchLimits
+from backend.correlation import build_identity_hypotheses, generate_candidate_pairs, score_evidence
+from backend.db.repositories import InvestigationRepository
 from backend.extraction import extract_pair_evidence
 from backend.normalization import (
     canonicalize_url,
@@ -29,342 +28,200 @@ from backend.normalization import (
     normalize_profile,
     normalize_username,
 )
-from backend.reports import (
-    ReportEvidence,
-    ReportHypothesis,
-    ReportProfile,
-    build_report,
-)
+from backend.reports import ReportEvidence, ReportHypothesis, ReportProfile, build_report
 
 from .pivot_engine import Pivot, PivotEngine, PivotLedger
-from .question_planner import HypothesisSnapshot, plan_disambiguation_question
-from .target_ranking import rank_hypotheses_for_seed
-from .username_questions import (
-    DISCOVERY_KINDS,
-    question_spec,
-    relevance_for_profile,
-    user_hint_usernames,
-    variants_from_answer,
-)
+from .planner import Action, choose_action
+from .username_questions import question_spec, relevance_for_profile, user_hint_usernames
 
 
 class SearchOrchestrator:
-    """Coordinates connectors while deterministic functions retain scoring authority."""
-
     def __init__(
         self,
         repository: InvestigationRepository,
         settings: Settings,
         *,
-        registry: Any | None = None,
-    ) -> None:
+        registry=None,
+        checkpoint=None,
+    ):
         self.repository = repository
         self.settings = settings
         self.registry = registry or build_default_registry(
-            mock_connectors=settings.mock_connectors,
-            github_token=settings.github_token.get_secret_value()
-            if settings.github_token
-            else None,
+            github_token=settings.github_token.get_secret_value() if settings.github_token else None
         )
         self.pivots = PivotEngine(self.registry)
         self._connector_semaphore = asyncio.Semaphore(settings.connector_concurrency)
+        self._checkpoint_callback = checkpoint
 
-    async def create_and_run(
-        self,
-        seed_type: SeedType,
-        value: str,
-        *,
-        scope: str = "self_audit",
-    ) -> Any:
-        normalized_value = _normalize_seed(seed_type, value)
-        search = await self.repository.create_search(
-            seed_type,
-            value,
-            normalized_value,
-            scope=scope,
-            limits=SearchLimits(
-                max_pivot_depth=self.settings.max_pivot_depth,
-                max_questions=self.settings.max_questions,
-                max_connector_runs=self.settings.max_connector_runs,
-                max_candidates=self.settings.max_candidates,
-                max_search_duration_seconds=self.settings.max_search_duration_seconds,
-            ),
-        )
-        try:
-            async with asyncio.timeout(self.settings.max_search_duration_seconds):
-                await self._initial_search(search.id, seed_type, normalized_value)
-        except TimeoutError:
-            await self.repository.update_search(
-                search.id,
-                status=SearchStatus.FAILED,
-                error_summary="The configured search duration limit was reached.",
+    async def checkpoint(self):
+        if self._checkpoint_callback:
+            await self._checkpoint_callback()
+
+    async def run_search(self, search_id):
+        """Reconstruct work from persisted observations, runs and answers after any restart."""
+        for _ in range(self.settings.max_connector_runs + self.settings.max_questions + 5):
+            await self.checkpoint()
+            search = await self._require_search(search_id)
+            if search.status in {
+                SearchStatus.CANCELLED,
+                SearchStatus.COMPLETED,
+                SearchStatus.FAILED,
+            }:
+                return search
+            if await self.repository.get_pending_question(search_id):
+                await self.repository.update_search(search_id, status=SearchStatus.AWAITING_USER)
+                await self.checkpoint()
+                return search
+            seed = search.seeds[0]
+            runs = await self.repository.list_connector_runs(search_id)
+            ledger = PivotLedger({_run_fingerprint(run) for run in runs})
+            questions = await self.repository.list_questions(search_id)
+            profiles = await self.repository.list_profile_snapshots_for_search(search_id)
+            hypotheses = await self.repository.list_hypotheses(search_id)
+            initial = self.pivots.discovery(
+                seed.seed_type, seed.normalized_value or seed.original_value
             )
-        except Exception as exc:
-            await self.repository.update_search(
-                search.id,
-                status=SearchStatus.FAILED,
-                error_summary=f"{type(exc).__name__}: {exc}",
+            initial = tuple(p for p in initial if ledger.unseen(p))
+            hinted = user_hint_usernames(questions)
+            hint_pivots = tuple(
+                p
+                for username in sorted(hinted)
+                for p in self.pivots.discovery(SeedType.USERNAME, username)
+                if p.connector_name != "github_search" and ledger.unseen(p)
             )
-            raise
-        return await self.repository.get_search(search.id)
-
-    async def answer_question(
-        self,
-        search_id: UUID | str,
-        question_id: UUID | str,
-        value: str,
-    ) -> Any:
-        question = await self.repository.get_question(question_id)
-        if question is None or str(question.search_run_id) != str(search_id):
-            raise LookupError("question not found for this search")
-        search = await self._require_search(search_id)
-        if _enum_value(question.status) != "PENDING":
-            raise ValueError("This question has already been answered.")
-        if search.status != SearchStatus.AWAITING_USER:
-            raise ValueError("This search is not waiting for an answer.")
-        if (getattr(question, "context", {}) or {}).get("kind") in DISCOVERY_KINDS:
-            async with asyncio.timeout(self.settings.max_search_duration_seconds):
-                return await self._answer_discovery_question(search, question, value)
-        option = next(
-            (item for item in question.options if str(item.get("value")) == value),
-            None,
-        )
-        if option is None:
-            raise ValueError("answer must be one of the question options")
-
-        skipped = value == "skip"
-        selected_hypothesis_id = option.get("hypothesis_id")
-        await self.repository.answer_question(
-            question.id,
-            {
-                "value": value,
-                "label": option.get("label"),
-                "selected_hypothesis_id": selected_hypothesis_id,
-                "profile_ids": option.get("profile_ids", []),
-                "effect": "no score change" if skipped else "branch scores recalculated",
-            },
-            skipped=skipped,
-        )
-        search = await self.repository.update_search(
-            search_id,
-            status=SearchStatus.CONTINUING,
-        )
-
-        snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
-        selected_profile_ids = set(str(item) for item in option.get("profile_ids", []))
-        if not selected_profile_ids:
-            selected_profile_ids = {str(item.id) for item in snapshots}
-        candidates = [
-            _candidate_from_snapshot(item)
-            for item in snapshots
-            if str(item.id) in selected_profile_ids
-        ]
-        ledgers = PivotLedger(
-            {
-                _run_fingerprint(item)
-                for item in await self.repository.list_connector_runs(search_id)
-            }
-        )
-        if search.pivot_depth < search.max_pivot_depth:
-            gitfive = tuple(
-                pivot
-                for pivot in self.pivots.enrichment(candidates)
-                if pivot.connector_name == "gitfive"
-            )
-            await self.repository.update_search(
-                search_id,
-                status=SearchStatus.ENRICHING,
-                pivot_depth=search.pivot_depth + 1,
-            )
-            await self._execute_pivots(search_id, gitfive, ledgers)
-        await self._correlate(
-            search_id,
-            seed_type=search.seeds[0].seed_type,
-            seed_value=search.seeds[0].normalized_value or "",
-        )
-        await self.repository.apply_branch_selection(
-            search_id,
-            selected_hypothesis_id,
-            skipped=skipped,
-        )
-        await self._finalize(search_id)
-        return await self.repository.get_search(search_id)
-
-    async def _answer_discovery_question(self, search, question, value):
-        context = question.context
-        value = value.strip()
-        variants = variants_from_answer(context["kind"], context["base_username"], value)
-        await self.repository.answer_question(
-            question.id,
-            {
-                "value": value,
-                "label": value,
-                "generated_usernames": list(variants),
-                "source": "USER_PROVIDED_SEARCH_HINT",
-                "question_kind": context["kind"],
-                "effect": f"live lookups for {', '.join(variants)}"
-                if variants
-                else "no identity score change",
-            },
-            skipped=value == "skip",
-        )
-        await self.repository.update_search(search.id, status=SearchStatus.CONTINUING)
-        if value != "skip" and context["kind"] == "username_numbers":
-            kind = "username_digits" if value == "yes" else "username_alias"
-            if await self._create_discovery_question(search.id, kind, context["base_username"]):
-                return await self.repository.get_search(search.id)
-        if variants:
-            ledger = PivotLedger(
-                {
-                    _run_fingerprint(run)
-                    for run in await self.repository.list_connector_runs(search.id)
+            next_question = None
+            base = seed.normalized_value or seed.original_value
+            if not questions and seed.seed_type == SeedType.USERNAME:
+                numeric_variants = [
+                    p
+                    for p in profiles
+                    if p.username
+                    and p.username.casefold() != base.casefold()
+                    and any(c.isdigit() for c in p.username)
+                ]
+                # Observed variants or weak matches leave useful discovery uncertainty.
+                if (
+                    numeric_variants
+                    or not hypotheses
+                    or max(h.overall_score for h in hypotheses) < 0.45
+                ):
+                    kind = "username_numbers" if search.max_questions >= 2 else "username_digits"
+                    next_question = question_spec(kind, base)
+            elif questions:
+                latest = questions[-1]
+                context = latest.context or {}
+                answer = latest.answers[-1].answer if latest.answers else {}
+                if context.get("kind") == "username_numbers" and answer.get("value") in {
+                    "yes",
+                    "no",
+                }:
+                    next_question = question_spec(
+                        "username_digits" if answer["value"] == "yes" else "username_alias", base
+                    )
+            preferred = [
+                p
+                for p in profiles
+                if normalize_username(p.username) in (hinted or {normalize_username(base)})
+            ]
+            platform_questions = [q for q in questions if q.context.get("kind") == "platform_priority"]
+            platforms = sorted({p.platform for p in preferred} - {"githubgist"})
+            if hinted and not hint_pivots and not platform_questions and len(platforms) > 1:
+                next_question = {
+                    "question_type": "MULTI_SELECT",
+                    "question_text": "Which discovered platforms should I prioritize for enrichment?",
+                    "options": [{"value": p, "label": p} for p in platforms]
+                               + [{"value": "skip", "label": "No preference / continue"}],
+                    "context": {"kind": "platform_priority"},
+                    "reason": "Choose where to spend the remaining collection budget; "
+                              "this does not confirm account ownership.",
+                    "sensitivity_level": "LOW", "expected_information_gain": None,
                 }
-            )
-            for username in variants:
-                await self._live_search_round(search.id, username, ledger, broad=False)
-            await self._correlate(
-                search.id,
-                seed_type=search.seeds[0].seed_type,
-                seed_value=search.seeds[0].normalized_value or "",
-            )
-        await self._finalize(search.id)
-        return await self.repository.get_search(search.id)
-
-    async def _create_discovery_question(self, search_id, kind, base):
-        search = await self._require_search(search_id)
-        if (
-            search.questions_asked >= search.max_questions
-            or search.connector_runs_count >= search.max_connector_runs
-            or search.pivot_depth >= search.max_pivot_depth
-        ):
-            return False
-        await self.repository.create_question(search_id, **question_spec(kind, base))
-        await self.repository.update_search(search_id, status=SearchStatus.AWAITING_USER)
-        return True
-
-    async def _live_search_round(self, search_id, username, ledger, *, broad):
-        search = await self._require_search(search_id)
-        if not broad and search.pivot_depth >= search.max_pivot_depth:
-            return
-        await self.repository.update_search(search_id, status=SearchStatus.DISCOVERING)
-        discovery = self.pivots.discovery(SeedType.USERNAME, username)
-        if not broad:
-            discovery = tuple(p for p in discovery if p.connector_name != "github_search")
-        await self._execute_pivots(search_id, discovery, ledger)
-        # Enrich only the searched username, not every vaguely matching search result.
-        snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
-        selected = [
-            _candidate_from_snapshot(item)
-            for item in snapshots
-            if normalize_username(item.username) == normalize_username(username)
-        ]
-        enrichment = tuple(
-            p for p in self.pivots.enrichment(selected) if p.connector_name == "social_analyzer"
-        )[:3]
-        await self.repository.update_search(search_id, status=SearchStatus.ENRICHING)
-        await self._execute_pivots(search_id, enrichment, ledger)
-        if not broad:
-            await self.repository.update_search(search_id, pivot_depth=search.pivot_depth + 1)
-
-    async def continue_search(self, search_id: UUID | str) -> Any:
-        search = await self._require_search(search_id)
-        if search.status in {
-            SearchStatus.COMPLETED,
-            SearchStatus.CANCELLED,
-            SearchStatus.FAILED,
-        }:
-            return search
-        pending = await self.repository.get_pending_question(search_id)
-        if pending is not None:
-            return await self.answer_question(search_id, pending.id, "skip")
-        await self._finalize(search_id)
-        return await self.repository.get_search(search_id)
-
-    async def stop_search(self, search_id: UUID | str) -> Any:
-        search = await self._require_search(search_id)
-        if search.status in {SearchStatus.COMPLETED, SearchStatus.CANCELLED}:
-            return search
-        pending = await self.repository.get_pending_question(search_id)
-        if pending is not None:
-            await self.repository.answer_question(
-                pending.id,
-                {"value": "skip", "effect": "search stopped; no score change"},
-                skipped=True,
-            )
-        await self._finalize(search_id, terminal_status=SearchStatus.CANCELLED)
-        return await self.repository.get_search(search_id)
-
-    async def _initial_search(
-        self,
-        search_id: UUID,
-        seed_type: SeedType,
-        seed_value: str,
-    ) -> None:
-        ledger = PivotLedger()
-        if not self.settings.mock_connectors and seed_type is SeedType.USERNAME:
-            await self._live_search_round(search_id, seed_value, ledger, broad=True)
-            await self._correlate(search_id, seed_type=seed_type, seed_value=seed_value)
-            if await self._ask_if_useful(search_id):
-                return
-            await self._finalize(search_id)
-            return
-        await self.repository.update_search(search_id, status=SearchStatus.DISCOVERING)
-        await self._execute_pivots(
-            search_id,
-            self.pivots.discovery(seed_type, seed_value),
-            ledger,
-        )
-
-        await self.repository.update_search(search_id, status=SearchStatus.NORMALIZING)
-        snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
-        usernames = [item.username for item in snapshots if item.username]
-
-        search = await self._require_search(search_id)
-        if search.max_pivot_depth >= 1:
-            await self.repository.update_search(
-                search_id,
-                status=SearchStatus.EXPANDING,
-                pivot_depth=1,
-            )
-            await self._execute_pivots(
-                search_id,
-                self.pivots.expansion(usernames),
-                ledger,
-            )
-
-            snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
-            candidates = [_candidate_from_snapshot(item) for item in snapshots]
-            social_pivots = tuple(
-                pivot
-                for pivot in self.pivots.enrichment(candidates)
-                if pivot.connector_name == "social_analyzer"
-            )
-            await self.repository.update_search(search_id, status=SearchStatus.ENRICHING)
-            await self._execute_pivots(search_id, social_pivots, ledger)
-
-        await self._correlate(search_id, seed_type=seed_type, seed_value=seed_value)
-        if await self._ask_if_useful(search_id):
-            return
-
-        # No useful question exists; finish conditional GitHub enrichment now.
-        search = await self._require_search(search_id)
-        if search.pivot_depth < search.max_pivot_depth:
-            snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
-            gitfive = tuple(
-                pivot
-                for pivot in self.pivots.enrichment(
-                    [_candidate_from_snapshot(item) for item in snapshots]
+            if platform_questions and platform_questions[-1].answers:
+                selected = platform_questions[-1].answers[-1].answer.get("value")
+                if isinstance(selected, list):
+                    preferred.sort(key=lambda p: p.platform not in selected)
+            enrichment = []
+            for p in preferred[:3]:
+                for link in p.external_links[:3]:
+                    host = urlsplit(link).hostname
+                    if host == "github.com":
+                        enrichment.append(
+                            Pivot(
+                                "github",
+                                ConnectorInput(type=ConnectorInputType.PROFILE_URL, value=link),
+                                "ENRICHING",
+                                30,
+                            )
+                        )
+                    elif host and p.platform != "website":
+                        enrichment.append(
+                            Pivot(
+                                "website",
+                                ConnectorInput(type=ConnectorInputType.PROFILE_URL, value=link),
+                                "ENRICHING",
+                                40,
+                            )
+                        )
+                if p.platform == "github":
+                    enrichment.append(
+                        Pivot(
+                            "github",
+                            ConnectorInput(
+                                type=ConnectorInputType.PROFILE_URL, value=p.canonical_url
+                            ),
+                            "ENRICHING",
+                            30,
+                        )
+                    )
+                enrichment.extend(
+                    pivot
+                    for pivot in self.pivots.enrichment([_candidate_from_snapshot(p)])
+                    if pivot.connector_name == "social_analyzer"
                 )
-                if pivot.connector_name == "gitfive"
+            enrichment = tuple(p for p in enrichment if ledger.unseen(p))
+            action = choose_action(
+                initial=initial,
+                hints=hint_pivots,
+                question=next_question,
+                enrichment=enrichment,
+                runs_remaining=search.max_connector_runs - search.connector_runs_count,
+                questions_remaining=search.max_questions - search.questions_asked,
+                pivot_remaining=search.max_pivot_depth - search.pivot_depth,
+                leading_score=max((h.overall_score for h in hypotheses), default=0),
             )
-            await self.repository.update_search(
-                search_id,
-                status=SearchStatus.ENRICHING,
-                pivot_depth=search.pivot_depth + 1,
+            from backend.db.models import UserSearchContext
+
+            from .adviser import advise
+
+            action, advice = await advise(action, self.settings)
+            self.repository.session.add(
+                UserSearchContext(
+                    search_run_id=search.id,
+                    context_type="PLANNER_DECISION",
+                    value={"action": action.kind, "reason": action.reason, "adviser": advice},
+                )
             )
-            await self._execute_pivots(search_id, gitfive, ledger)
-            await self._correlate(search_id, seed_type=seed_type, seed_value=seed_value)
+            if action.kind in {Action.RUN_CONNECTOR, Action.RUN_PIVOT}:
+                await self.repository.update_search(search_id, status=SearchStatus.DISCOVERING)
+                await self._execute_pivots(search_id, action.pivots, ledger)
+                if action.kind == Action.RUN_PIVOT:
+                    await self.repository.update_search(
+                        search_id, pivot_depth=search.pivot_depth + 1
+                    )
+                await self._correlate(search_id, seed_type=seed.seed_type, seed_value=base)
+                await self.checkpoint()
+            elif action.kind == Action.ASK_QUESTION:
+                await self.repository.create_question(search_id, **action.question)
+                await self.repository.update_search(search_id, status=SearchStatus.AWAITING_USER)
+                await self.checkpoint()
+                return await self.repository.get_search(search_id)
+            else:
+                await self._correlate(search_id, seed_type=seed.seed_type, seed_value=base)
+                await self._finalize(search_id)
+                await self.checkpoint()
+                return await self.repository.get_search(search_id)
         await self._finalize(search_id)
+        await self.checkpoint()
 
     async def _execute_pivots(
         self,
@@ -389,15 +246,18 @@ class SearchOrchestrator:
             )
             reservations.append((pivot, run))
 
+        await self.checkpoint()
         results = await asyncio.gather(
             *(self._invoke_connector(pivot) for pivot, _ in reservations)
         )
         seen_urls = {
             item.canonical_url for item in await self.repository.list_profiles_for_search(search_id)
         }
+        await self.checkpoint()
         for (_pivot, run), result in zip(reservations, results, strict=True):
             result = _trim_candidates(result, seen_urls, search.max_candidates)
             await self.repository.persist_connector_result(run.id, result)
+            await self.checkpoint()
         return tuple(results)
 
     async def _invoke_connector(self, pivot: Pivot) -> ConnectorResult:
@@ -433,8 +293,13 @@ class SearchOrchestrator:
         await self.repository.update_search(search_id, status=SearchStatus.CORRELATING)
         snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
         normalized = tuple(normalize_profile(item) for item in snapshots)
+        semantic_neighbors = ()
+        if self.settings.text_embeddings_enabled:
+            from backend.embeddings.service import enrich_bios
+
+            normalized, semantic_neighbors = await enrich_bios(self.repository.session, normalized)
         assessments = []
-        for pair in generate_candidate_pairs(normalized):
+        for pair in generate_candidate_pairs(normalized, semantic_neighbors=semantic_neighbors):
             evidence = extract_pair_evidence(pair.left, pair.right)
             assessments.append(
                 score_evidence(
@@ -445,59 +310,7 @@ class SearchOrchestrator:
             )
         await self.repository.replace_pair_assessments(search_id, assessments)
         hypotheses = build_identity_hypotheses(normalized, assessments)
-        if self.settings.mock_connectors:
-            hypotheses = rank_hypotheses_for_seed(
-                hypotheses,
-                normalized,
-                seed_type=SeedType(_enum_value(seed_type)),
-                seed_value=seed_value,
-            )
         await self.repository.replace_hypotheses(search_id, hypotheses)
-
-    async def _ask_if_useful(self, search_id: UUID | str) -> bool:
-        search = await self._require_search(search_id)
-        if search.questions_asked >= search.max_questions:
-            return False
-        hypotheses = await self.repository.list_hypotheses(search_id)
-        if not self.settings.mock_connectors:
-            # New questions expand collection; an answer never secretly boosts identity scores.
-            history = await self.repository.list_questions(search_id)
-            seed = search.seeds[0]
-            if seed.seed_type == SeedType.USERNAME and not history:
-                kind = "username_numbers" if search.max_questions >= 2 else "username_digits"
-                return await self._create_discovery_question(
-                    search_id, kind, seed.normalized_value or seed.original_value
-                )
-            return False
-        snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
-        profiles = {str(item.id): normalize_profile(item) for item in snapshots}
-        plan = plan_disambiguation_question(
-            tuple(
-                HypothesisSnapshot(
-                    id=str(item.id),
-                    score=item.overall_score,
-                    classification=_enum_value(item.classification),
-                    profile_ids=tuple(str(member.profile_id) for member in item.memberships),
-                )
-                for item in hypotheses
-            ),
-            profiles,
-        )
-        if plan is None:
-            return False
-        await self.repository.create_question(
-            search_id,
-            question_type=plan.question_type,
-            question_text=plan.question_text,
-            options=[item.as_dict() for item in plan.options],
-            reason=plan.reason,
-            affected_profile_ids=plan.affected_profile_ids,
-            affected_hypothesis_ids=plan.affected_hypothesis_ids,
-            expected_information_gain=plan.expected_information_gain,
-            sensitivity_level=plan.sensitivity_level,
-        )
-        await self.repository.update_search(search_id, status=SearchStatus.AWAITING_USER)
-        return True
 
     async def _finalize(
         self,

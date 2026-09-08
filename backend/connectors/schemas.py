@@ -54,12 +54,12 @@ class ConnectorRunStatus(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
     DISABLED = "DISABLED"
     FAILED = "FAILED"
+    MANUAL = "MANUAL"
 
 
 class ConnectorMode(StrEnum):
-    """Whether a connector is serving fixtures or a live implementation."""
+    """Only live execution exists."""
 
-    MOCK = "MOCK"
     LIVE = "LIVE"
 
 
@@ -69,6 +69,8 @@ class ConnectorAvailability(StrEnum):
     AVAILABLE = "AVAILABLE"
     DISABLED = "DISABLED"
     UNAVAILABLE = "UNAVAILABLE"
+    MANUAL = "MANUAL"
+    AUTH_REQUIRED = "AUTH_REQUIRED"
 
 
 class IdentifierType(StrEnum):
@@ -91,7 +93,9 @@ class ConnectorCapabilities(BaseModel):
     produced_artifacts: frozenset[ProducedArtifactType]
     supports_discovery: bool = True
     supports_enrichment: bool = False
-    mock_supported: bool = True
+    requires_auth: bool = False
+    is_external_upload: bool = False
+    is_manual: bool = False
     live_supported: bool = False
     requires_network_when_live: bool = True
 
@@ -182,7 +186,7 @@ class RelationshipArtifact(BaseModel):
 class ConnectorResult(BaseModel):
     """Structured result for one connector invocation.
 
-    ``raw_records`` contains only the connector's fixture/native payload.  It is
+    ``raw_records`` contains only the connector's native payload. It is
     retained for JSONB provenance and must not be interpreted by downstream
     correlation code without a normalizer.
     """

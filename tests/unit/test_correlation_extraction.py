@@ -40,26 +40,19 @@ def test_extracts_public_supporting_evidence_with_provenance() -> None:
     assert SignalType.DIRECT_PROFILE_LINK in signal_types
     assert SignalType.SHARED_PERSONAL_DOMAIN in signal_types
     assert SignalType.USERNAME_SIMILARITY in signal_types
-    assert all(
-        signal.source_observation_ids == ("obs-github", "obs-reddit")
-        for signal in signals
-    )
+    assert all(signal.source_observation_ids == ("obs-github", "obs-reddit") for signal in signals)
 
 
 def test_temporally_overlapping_location_claims_can_contradict() -> None:
     left = _profile(
         "left",
         "github",
-        location_claims=[
-            {"value": "Delhi", "start": "2024-01-01", "end": "2024-12-31"}
-        ],
+        location_claims=[{"value": "Delhi", "start": "2024-01-01", "end": "2024-12-31"}],
     )
     right = _profile(
         "right",
         "reddit",
-        location_claims=[
-            {"value": "Mumbai", "start": "2024-06-01", "end": "2025-01-01"}
-        ],
+        location_claims=[{"value": "Mumbai", "start": "2024-06-01", "end": "2025-01-01"}],
     )
 
     signals = extract_pair_evidence(left, right)
@@ -72,16 +65,12 @@ def test_non_overlapping_location_history_is_not_a_contradiction() -> None:
     left = _profile(
         "left",
         "github",
-        location_claims=[
-            {"value": "Delhi", "start": "2020-01-01", "end": "2021-01-01"}
-        ],
+        location_claims=[{"value": "Delhi", "start": "2020-01-01", "end": "2021-01-01"}],
     )
     right = _profile(
         "right",
         "reddit",
-        location_claims=[
-            {"value": "Mumbai", "start": "2023-01-01", "end": "2024-01-01"}
-        ],
+        location_claims=[{"value": "Mumbai", "start": "2023-01-01", "end": "2024-01-01"}],
     )
 
     assert SignalType.LOCATION_CONFLICT not in {

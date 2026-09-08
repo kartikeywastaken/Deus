@@ -26,8 +26,11 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, ge=1, le=65535)
     log_level: str = "INFO"
 
-    mock_connectors: bool = False
     github_token: SecretStr | None = None
+    text_embeddings_enabled: bool = True
+    ai_adviser_enabled: bool = False
+    openai_api_key: SecretStr | None = None
+    ai_model: str | None = None
     connector_concurrency: int = Field(default=4, ge=1, le=64)
     connector_timeout_seconds: float = Field(default=30.0, gt=0)
 

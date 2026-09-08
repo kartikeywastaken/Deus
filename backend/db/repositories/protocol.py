@@ -142,14 +142,6 @@ class InvestigationRepository(Protocol):
         skipped: bool = False,
     ) -> QuestionAnswerResult: ...
 
-    async def apply_branch_selection(
-        self,
-        search_id: UUID | str,
-        selected_hypothesis_id: UUID | str | None,
-        *,
-        skipped: bool = False,
-    ) -> list[StoredIdentityHypothesis]: ...
-
     async def create_report(
         self, search_id: UUID | str, report_data: Mapping[str, Any] | Any
     ) -> Report: ...

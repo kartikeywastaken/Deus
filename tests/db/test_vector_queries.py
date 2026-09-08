@@ -17,6 +17,7 @@ from backend.embeddings import (
 
 def test_text_embedding_upsert_and_restricted_nearest_query_compile() -> None:
     vector = [0.0] * TEXT_EMBEDDING_DIMENSION
+    vector[0] = 1.0
     upsert_sql = str(
         text_embedding_upsert_statement(
             profile_id=uuid4(),
@@ -44,6 +45,7 @@ def test_text_embedding_upsert_and_restricted_nearest_query_compile() -> None:
 
 def test_image_embedding_upsert_and_quality_restricted_query_compile() -> None:
     vector = [0.0] * IMAGE_EMBEDDING_DIMENSION
+    vector[0] = 1.0
     upsert_sql = str(
         image_embedding_upsert_statement(
             image_artifact_id=uuid4(),

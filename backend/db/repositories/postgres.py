@@ -176,7 +176,16 @@ class PostgresInvestigationRepository:
         unknown = set(fields) - allowed
         if unknown:
             raise ValueError(f"unsupported search fields: {', '.join(sorted(unknown))}")
-        search = await self._require_search(search_id)
+        search = await self.session.scalar(
+            select(SearchRun)
+            .where(SearchRun.id == _as_uuid(search_id, "search_id"))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if search is None:
+            raise RepositoryEntityNotFound("search not found")
+        if search.status == SearchStatus.CANCELLED:
+            return search
         if "status" in fields:
             fields["status"] = SearchStatus(_enum_value(fields["status"]))
         for name, value in fields.items():
@@ -641,54 +650,6 @@ class PostgresInvestigationRepository:
         self.session.add(record)
         await self.session.flush()
         return QuestionAnswerResult(question, record)
-
-    async def apply_branch_selection(
-        self,
-        search_id: UUID | str,
-        selected_hypothesis_id: UUID | str | None,
-        *,
-        skipped: bool = False,
-    ) -> list[IdentityHypothesis]:
-        """Apply deterministic user-answer evidence, then re-rank all branches."""
-
-        hypotheses = await self.list_hypotheses(search_id)
-        if skipped or not hypotheses:
-            return hypotheses
-
-        selected_uuid = (
-            _as_uuid(selected_hypothesis_id, "selected_hypothesis_id")
-            if selected_hypothesis_id is not None
-            else None
-        )
-        if selected_uuid is not None and all(item.id != selected_uuid for item in hypotheses):
-            raise RepositoryEntityNotFound("selected hypothesis is not part of this search")
-
-        for hypothesis in hypotheses:
-            if selected_uuid is None:
-                delta = -0.10
-            elif hypothesis.id == selected_uuid:
-                delta = 0.20
-            else:
-                delta = -0.12
-            hypothesis.overall_score = _bounded_score(hypothesis.overall_score + delta)
-            hypothesis.classification = _classification_for_score(hypothesis.overall_score)
-            hypothesis.updated_at = utc_now()
-            for membership in hypothesis.memberships:
-                membership.score = _bounded_score(membership.score + delta)
-                membership.classification = _classification_for_score(membership.score)
-
-        hypotheses.sort(key=lambda item: (-item.overall_score, str(item.id)))
-        # Avoid transient collisions with the unique (search_run_id, rank)
-        # constraint when two existing rows exchange positions.
-        rank_offset = len(hypotheses) * 2
-        for temporary_rank, hypothesis in enumerate(hypotheses, start=rank_offset + 1):
-            hypothesis.rank = temporary_rank
-        await self.session.flush()
-        for rank, hypothesis in enumerate(hypotheses, start=1):
-            hypothesis.rank = rank
-            hypothesis.label = f"Identity {rank}"
-        await self.session.flush()
-        return hypotheses
 
     async def create_report(
         self,

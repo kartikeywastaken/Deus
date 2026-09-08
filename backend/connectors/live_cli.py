@@ -40,14 +40,23 @@ async def discover_live(tool: str, username: str) -> ConnectorResult:
             message="Username contains unsupported characters.",
         )
     with TemporaryDirectory(prefix=f"deus-{tool}-") as directory:
+        # High-value OSINT platforms — same bounded set for both tools.
+        # Explicit --site limits run time and avoids per-tool timeout failures.
+        DISCOVERY_SITES = [
+            "GitHub", "Reddit", "Dev.to", "Twitter", "Instagram",
+            "LinkedIn", "HackerNews", "Medium", "GitLab", "Mastodon",
+            "Telegram", "YouTube", "TikTok", "Pinterest", "Tumblr",
+            "Keybase", "Steam", "Twitch", "Stackoverflow", "Pastebin",
+        ]
         args = [binary, username, "--csv", "--folderoutput", directory, "--timeout", "8"]
-        # A bounded initial set; expansion decisions remain with the orchestrator.
-        for site in ("GitHub", "Reddit", "Dev.to"):
+        for site in DISCOVERY_SITES:
             args.extend(["--site", site])
         if tool == "maigret":
             args.extend(["--no-recursion", "--no-extracting", "--no-autoupdate"])
         else:
+            # --local prevents Sherlock from auto-updating its DB during the run
             args.extend(["--local", "--no-txt"])
+
         process = await asyncio.create_subprocess_exec(
             *args,
             cwd=directory,
@@ -55,7 +64,7 @@ async def discover_live(tool: str, username: str) -> ConnectorResult:
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=25)
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=90)
         except (TimeoutError, asyncio.CancelledError):
             if process.returncode is None:
                 process.kill()
@@ -92,7 +101,7 @@ async def discover_live(tool: str, username: str) -> ConnectorResult:
             metadata={
                 "mode": "live",
                 "exit_code": process.returncode,
-                "sites": ["GitHub", "Reddit", "Dev.to"],
+                "sites": DISCOVERY_SITES,
                 "checked_sites": sorted({row["name"] for row in rows}),
                 "coverage_note": "Maigret can include bundled mirrors of selected platforms.",
                 "request_count_is_estimate": True,

@@ -67,7 +67,9 @@ def upgrade() -> None:
             server_default="self_audit",
             nullable=False,
         ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("retention_expires_at", sa.DateTime(timezone=True), nullable=True),
@@ -110,11 +112,22 @@ def upgrade() -> None:
         sa.Column("current_bio", sa.Text(), nullable=True),
         sa.Column("current_location", sa.String(length=512), nullable=True),
         sa.Column("current_organization", sa.String(length=512), nullable=True),
-        sa.Column("first_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("last_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "first_seen_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "last_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_profiles"),
-        sa.UniqueConstraint("platform", "platform_account_id", name="uq_profiles_platform_account_id"),
+        sa.UniqueConstraint(
+            "platform", "platform_account_id", name="uq_profiles_platform_account_id"
+        ),
         sa.UniqueConstraint("platform", "canonical_url", name="uq_profiles_platform_canonical_url"),
     )
     op.create_index("ix_profiles_platform", "profiles", ["platform"])
@@ -131,13 +144,25 @@ def upgrade() -> None:
         sa.Column("width", sa.Integer(), nullable=True),
         sa.Column("height", sa.Integer(), nullable=True),
         sa.Column("quality_score", sa.Float(), nullable=True),
-        sa.Column("observed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
+        sa.Column(
+            "observed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "metadata",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 1)",
             name="quality_score_range",
         ),
-        sa.ForeignKeyConstraint(["profile_id"], ["profiles.id"], name="fk_image_artifacts_profile_id_profiles", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["profile_id"],
+            ["profiles.id"],
+            name="fk_image_artifacts_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_image_artifacts"),
     )
     op.create_index("ix_image_artifacts_profile_id", "image_artifacts", ["profile_id"])
@@ -156,9 +181,21 @@ def upgrade() -> None:
         sa.Column("original_value", sa.Text(), nullable=True),
         sa.Column("normalized_value", sa.Text(), nullable=True),
         sa.Column("artifact_id", uuid_type, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["artifact_id"], ["image_artifacts.id"], name="fk_search_seeds_artifact_id_image_artifacts", ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_search_seeds_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.ForeignKeyConstraint(
+            ["artifact_id"],
+            ["image_artifacts.id"],
+            name="fk_search_seeds_artifact_id_image_artifacts",
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_search_seeds_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_search_seeds"),
     )
     op.create_index("ix_search_seeds_search_run_id", "search_seeds", ["search_run_id"])
@@ -191,10 +228,25 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("request_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("input_data", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
+        sa.Column(
+            "input_data",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
+        sa.Column(
+            "metadata",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
         sa.CheckConstraint("request_count >= 0", name="request_count_nonnegative"),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_connector_runs_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_connector_runs_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_connector_runs"),
     )
     op.create_index("ix_connector_runs_search_run_id", "connector_runs", ["search_run_id"])
@@ -208,18 +260,49 @@ def upgrade() -> None:
         sa.Column("connector_run_id", uuid_type, nullable=False),
         sa.Column("connector", sa.String(length=128), nullable=False),
         sa.Column("source_url", sa.Text(), nullable=True),
-        sa.Column("observed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("normalized_data", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
-        sa.Column("raw_data", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
+        sa.Column(
+            "observed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "normalized_data",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
+        sa.Column(
+            "raw_data",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
         sa.Column("content_hash", sa.String(length=64), nullable=True),
-        sa.ForeignKeyConstraint(["connector_run_id"], ["connector_runs.id"], name="fk_profile_observations_connector_run_id_connector_runs", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["profile_id"], ["profiles.id"], name="fk_profile_observations_profile_id_profiles", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_profile_observations_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["connector_run_id"],
+            ["connector_runs.id"],
+            name="fk_profile_observations_connector_run_id_connector_runs",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["profile_id"],
+            ["profiles.id"],
+            name="fk_profile_observations_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_profile_observations_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_profile_observations"),
     )
     op.create_index("ix_profile_observations_profile_id", "profile_observations", ["profile_id"])
-    op.create_index("ix_profile_observations_search_run_id", "profile_observations", ["search_run_id"])
-    op.create_index("ix_profile_observations_connector_run_id", "profile_observations", ["connector_run_id"])
+    op.create_index(
+        "ix_profile_observations_search_run_id", "profile_observations", ["search_run_id"]
+    )
+    op.create_index(
+        "ix_profile_observations_connector_run_id", "profile_observations", ["connector_run_id"]
+    )
 
     op.create_table(
         "identifiers",
@@ -227,9 +310,16 @@ def upgrade() -> None:
         sa.Column("identifier_type", sa.String(length=64), nullable=False),
         sa.Column("normalized_value", sa.Text(), nullable=False),
         sa.Column("display_value", sa.Text(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
+        sa.Column(
+            "metadata",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_identifiers"),
-        sa.UniqueConstraint("identifier_type", "normalized_value", name="uq_identifiers_type_normalized_value"),
+        sa.UniqueConstraint(
+            "identifier_type", "normalized_value", name="uq_identifiers_type_normalized_value"
+        ),
     )
     op.create_index("ix_identifiers_normalized_value", "identifiers", ["normalized_value"])
 
@@ -244,13 +334,32 @@ def upgrade() -> None:
             "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
             name="confidence_range",
         ),
-        sa.ForeignKeyConstraint(["identifier_id"], ["identifiers.id"], name="fk_profile_identifiers_identifier_id_identifiers", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["observation_id"], ["profile_observations.id"], name="fk_profile_identifiers_observation_id_profile_observations", ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["profile_id"], ["profiles.id"], name="fk_profile_identifiers_profile_id_profiles", ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("profile_id", "identifier_id", "relationship_type", name="pk_profile_identifiers"),
+        sa.ForeignKeyConstraint(
+            ["identifier_id"],
+            ["identifiers.id"],
+            name="fk_profile_identifiers_identifier_id_identifiers",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["observation_id"],
+            ["profile_observations.id"],
+            name="fk_profile_identifiers_observation_id_profile_observations",
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["profile_id"],
+            ["profiles.id"],
+            name="fk_profile_identifiers_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint(
+            "profile_id", "identifier_id", "relationship_type", name="pk_profile_identifiers"
+        ),
     )
     op.create_index("ix_profile_identifiers_profile_id", "profile_identifiers", ["profile_id"])
-    op.create_index("ix_profile_identifiers_identifier_id", "profile_identifiers", ["identifier_id"])
+    op.create_index(
+        "ix_profile_identifiers_identifier_id", "profile_identifiers", ["identifier_id"]
+    )
 
     op.create_table(
         "profile_relationships",
@@ -259,15 +368,41 @@ def upgrade() -> None:
         sa.Column("right_profile_id", uuid_type, nullable=False),
         sa.Column("relationship_type", sa.String(length=64), nullable=False),
         sa.Column("raw_score", sa.Float(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "metadata",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.CheckConstraint("left_profile_id <> right_profile_id", name="different_profiles"),
-        sa.ForeignKeyConstraint(["left_profile_id"], ["profiles.id"], name="fk_profile_relationships_left_profile_id_profiles", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["right_profile_id"], ["profiles.id"], name="fk_profile_relationships_right_profile_id_profiles", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["left_profile_id"],
+            ["profiles.id"],
+            name="fk_profile_relationships_left_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["right_profile_id"],
+            ["profiles.id"],
+            name="fk_profile_relationships_right_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_profile_relationships"),
-        sa.UniqueConstraint("left_profile_id", "right_profile_id", "relationship_type", name="uq_profile_relationships_pair_type"),
+        sa.UniqueConstraint(
+            "left_profile_id",
+            "right_profile_id",
+            "relationship_type",
+            name="uq_profile_relationships_pair_type",
+        ),
     )
-    op.create_index("ix_profile_relationships_left_right", "profile_relationships", ["left_profile_id", "right_profile_id"])
+    op.create_index(
+        "ix_profile_relationships_left_right",
+        "profile_relationships",
+        ["left_profile_id", "right_profile_id"],
+    )
 
     op.create_table(
         "evidence_signals",
@@ -281,25 +416,58 @@ def upgrade() -> None:
             string_enum("evidence_direction", "SUPPORT", "CONTRADICT", "NEUTRAL"),
             nullable=False,
         ),
-        sa.Column("raw_value", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_object, nullable=False),
+        sa.Column(
+            "raw_value",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_object,
+            nullable=False,
+        ),
         sa.Column("normalized_score", sa.Float(), nullable=False),
         sa.Column("reliability", sa.Float(), nullable=False),
         sa.Column("model_contribution", sa.Float(), nullable=True),
         sa.Column("evidence_family", sa.String(length=128), nullable=False),
-        sa.Column("source_observation_ids", postgresql.ARRAY(uuid_type), server_default=empty_uuid_array, nullable=False),
+        sa.Column(
+            "source_observation_ids",
+            postgresql.ARRAY(uuid_type),
+            server_default=empty_uuid_array,
+            nullable=False,
+        ),
         sa.Column("extractor_version", sa.String(length=128), nullable=False),
         sa.Column("explanation", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.CheckConstraint("left_profile_id <> right_profile_id", name="different_profiles"),
-        sa.CheckConstraint("normalized_score >= 0 AND normalized_score <= 1", name="normalized_score_range"),
+        sa.CheckConstraint(
+            "normalized_score >= 0 AND normalized_score <= 1", name="normalized_score_range"
+        ),
         sa.CheckConstraint("reliability >= 0 AND reliability <= 1", name="reliability_range"),
-        sa.ForeignKeyConstraint(["left_profile_id"], ["profiles.id"], name="fk_evidence_signals_left_profile_id_profiles", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["right_profile_id"], ["profiles.id"], name="fk_evidence_signals_right_profile_id_profiles", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_evidence_signals_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["left_profile_id"],
+            ["profiles.id"],
+            name="fk_evidence_signals_left_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["right_profile_id"],
+            ["profiles.id"],
+            name="fk_evidence_signals_right_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_evidence_signals_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_evidence_signals"),
     )
     op.create_index("ix_evidence_signals_search_run_id", "evidence_signals", ["search_run_id"])
-    op.create_index("ix_evidence_signals_left_right", "evidence_signals", ["left_profile_id", "right_profile_id"])
+    op.create_index(
+        "ix_evidence_signals_left_right",
+        "evidence_signals",
+        ["left_profile_id", "right_profile_id"],
+    )
     op.create_index("ix_evidence_signals_signal_type", "evidence_signals", ["signal_type"])
     op.create_index("ix_evidence_signals_evidence_family", "evidence_signals", ["evidence_family"])
 
@@ -322,15 +490,28 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("model_version", sa.String(length=128), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.CheckConstraint("rank >= 1", name="rank_positive"),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_identity_hypotheses_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_identity_hypotheses_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_identity_hypotheses"),
         sa.UniqueConstraint("search_run_id", "rank", name="uq_identity_hypotheses_search_rank"),
     )
-    op.create_index("ix_identity_hypotheses_search_run_id", "identity_hypotheses", ["search_run_id"])
-    op.create_index("ix_identity_hypotheses_search_rank", "identity_hypotheses", ["search_run_id", "rank"])
+    op.create_index(
+        "ix_identity_hypotheses_search_run_id", "identity_hypotheses", ["search_run_id"]
+    )
+    op.create_index(
+        "ix_identity_hypotheses_search_rank", "identity_hypotheses", ["search_run_id", "rank"]
+    )
 
     op.create_table(
         "hypothesis_memberships",
@@ -345,17 +526,35 @@ def upgrade() -> None:
         ),
         sa.Column("support_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("contradiction_count", sa.Integer(), server_default="0", nullable=False),
-        sa.Column("computed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "computed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("model_version", sa.String(length=128), nullable=False),
         sa.CheckConstraint("support_count >= 0", name="support_count_nonnegative"),
         sa.CheckConstraint("contradiction_count >= 0", name="contradiction_count_nonnegative"),
-        sa.ForeignKeyConstraint(["hypothesis_id"], ["identity_hypotheses.id"], name="fk_hypothesis_memberships_hypothesis_id_identity_hypotheses", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["profile_id"], ["profiles.id"], name="fk_hypothesis_memberships_profile_id_profiles", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["hypothesis_id"],
+            ["identity_hypotheses.id"],
+            name="fk_hypothesis_memberships_hypothesis_id_identity_hypotheses",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["profile_id"],
+            ["profiles.id"],
+            name="fk_hypothesis_memberships_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_hypothesis_memberships"),
-        sa.UniqueConstraint("hypothesis_id", "profile_id", name="uq_hypothesis_memberships_hypothesis_profile"),
+        sa.UniqueConstraint(
+            "hypothesis_id", "profile_id", name="uq_hypothesis_memberships_hypothesis_profile"
+        ),
     )
-    op.create_index("ix_hypothesis_memberships_hypothesis_id", "hypothesis_memberships", ["hypothesis_id"])
-    op.create_index("ix_hypothesis_memberships_profile_id", "hypothesis_memberships", ["profile_id"])
+    op.create_index(
+        "ix_hypothesis_memberships_hypothesis_id", "hypothesis_memberships", ["hypothesis_id"]
+    )
+    op.create_index(
+        "ix_hypothesis_memberships_profile_id", "hypothesis_memberships", ["profile_id"]
+    )
 
     op.create_table(
         "investigation_questions",
@@ -367,10 +566,25 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("question_text", sa.Text(), nullable=False),
-        sa.Column("options", postgresql.JSONB(astext_type=sa.Text()), server_default=empty_json_array, nullable=False),
+        sa.Column(
+            "options",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=empty_json_array,
+            nullable=False,
+        ),
         sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("affected_profile_ids", postgresql.ARRAY(uuid_type), server_default=empty_uuid_array, nullable=False),
-        sa.Column("affected_hypothesis_ids", postgresql.ARRAY(uuid_type), server_default=empty_uuid_array, nullable=False),
+        sa.Column(
+            "affected_profile_ids",
+            postgresql.ARRAY(uuid_type),
+            server_default=empty_uuid_array,
+            nullable=False,
+        ),
+        sa.Column(
+            "affected_hypothesis_ids",
+            postgresql.ARRAY(uuid_type),
+            server_default=empty_uuid_array,
+            nullable=False,
+        ),
         sa.Column("expected_information_gain", sa.Float(), nullable=True),
         sa.Column(
             "sensitivity_level",
@@ -384,13 +598,25 @@ def upgrade() -> None:
             server_default="PENDING",
             nullable=False,
         ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("answered_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("expected_information_gain IS NULL OR expected_information_gain >= 0", name="information_gain_nonnegative"),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_investigation_questions_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.CheckConstraint(
+            "expected_information_gain IS NULL OR expected_information_gain >= 0",
+            name="information_gain_nonnegative",
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_investigation_questions_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_investigation_questions"),
     )
-    op.create_index("ix_investigation_questions_search_run_id", "investigation_questions", ["search_run_id"])
+    op.create_index(
+        "ix_investigation_questions_search_run_id", "investigation_questions", ["search_run_id"]
+    )
     op.create_index("ix_investigation_questions_status", "investigation_questions", ["status"])
 
     op.create_table(
@@ -398,19 +624,35 @@ def upgrade() -> None:
         sa.Column("id", uuid_type, nullable=False),
         sa.Column("question_id", uuid_type, nullable=False),
         sa.Column("answer", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["question_id"], ["investigation_questions.id"], name="fk_investigation_answers_question_id_investigation_questions", ondelete="CASCADE"),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.ForeignKeyConstraint(
+            ["question_id"],
+            ["investigation_questions.id"],
+            name="fk_investigation_answers_question_id_investigation_questions",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_investigation_answers"),
     )
-    op.create_index("ix_investigation_answers_question_id", "investigation_answers", ["question_id"])
+    op.create_index(
+        "ix_investigation_answers_question_id", "investigation_answers", ["question_id"]
+    )
 
     op.create_table(
         "reports",
         sa.Column("id", uuid_type, nullable=False),
         sa.Column("search_run_id", uuid_type, nullable=False),
         sa.Column("report_data", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("generated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["search_run_id"], ["search_runs.id"], name="fk_reports_search_run_id_search_runs", ondelete="CASCADE"),
+        sa.Column(
+            "generated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_run_id"],
+            ["search_runs.id"],
+            name="fk_reports_search_run_id_search_runs",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_reports"),
     )
     op.create_index("ix_reports_search_run_id", "reports", ["search_run_id"])
@@ -423,10 +665,23 @@ def upgrade() -> None:
         sa.Column("model_name", sa.String(length=255), nullable=False),
         sa.Column("model_version", sa.String(length=128), nullable=False),
         sa.Column("embedding", Vector(dim=384), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["profile_id"], ["profiles.id"], name="fk_text_embeddings_profile_id_profiles", ondelete="CASCADE"),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.ForeignKeyConstraint(
+            ["profile_id"],
+            ["profiles.id"],
+            name="fk_text_embeddings_profile_id_profiles",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_text_embeddings"),
-        sa.UniqueConstraint("profile_id", "source_field", "model_name", "model_version", name="uq_text_embeddings_source_model"),
+        sa.UniqueConstraint(
+            "profile_id",
+            "source_field",
+            "model_name",
+            "model_version",
+            name="uq_text_embeddings_source_model",
+        ),
     )
     op.create_index("ix_text_embeddings_profile_id", "text_embeddings", ["profile_id"])
 
@@ -443,13 +698,31 @@ def upgrade() -> None:
         sa.Column("model_version", sa.String(length=128), nullable=False),
         sa.Column("embedding", Vector(dim=512), nullable=False),
         sa.Column("quality_score", sa.Float(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.CheckConstraint("quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 1)", name="quality_score_range"),
-        sa.ForeignKeyConstraint(["image_artifact_id"], ["image_artifacts.id"], name="fk_image_embeddings_image_artifact_id_image_artifacts", ondelete="CASCADE"),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.CheckConstraint(
+            "quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 1)",
+            name="quality_score_range",
+        ),
+        sa.ForeignKeyConstraint(
+            ["image_artifact_id"],
+            ["image_artifacts.id"],
+            name="fk_image_embeddings_image_artifact_id_image_artifacts",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_image_embeddings"),
-        sa.UniqueConstraint("image_artifact_id", "embedding_type", "model_name", "model_version", name="uq_image_embeddings_artifact_type_model"),
+        sa.UniqueConstraint(
+            "image_artifact_id",
+            "embedding_type",
+            "model_name",
+            "model_version",
+            name="uq_image_embeddings_artifact_type_model",
+        ),
     )
-    op.create_index("ix_image_embeddings_image_artifact_id", "image_embeddings", ["image_artifact_id"])
+    op.create_index(
+        "ix_image_embeddings_image_artifact_id", "image_embeddings", ["image_artifact_id"]
+    )
 
 
 def downgrade() -> None:

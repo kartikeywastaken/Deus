@@ -108,8 +108,6 @@ def test_equal_strength_family_tie_is_resolved_conservatively() -> None:
 
 
 def test_empty_evidence_is_weak_when_pair_is_explicit() -> None:
-    assessment = score_evidence(
-        [], left_profile_id="left", right_profile_id="right"
-    )
+    assessment = score_evidence([], left_profile_id="left", right_profile_id="right")
     assert assessment.raw_score == 0.0
     assert assessment.classification is Classification.WEAK

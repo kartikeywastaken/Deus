@@ -19,10 +19,9 @@ class GitHubSearchConnector(BaseConnector):
     name = "github_search"
     version = "github-search-2022-11-28"
     capabilities = ConnectorCapabilities(
-        accepted_inputs=frozenset({ConnectorInputType.USERNAME}),
+        accepted_inputs=frozenset({ConnectorInputType.USERNAME, ConnectorInputType.NAME}),
         produced_artifacts=frozenset({ProducedArtifactType.PROFILE}),
         live_supported=True,
-        mock_supported=False,
     )
 
     def __init__(self, *, token=None, transport=None):
@@ -32,10 +31,18 @@ class GitHubSearchConnector(BaseConnector):
 
     async def discover(self, connector_input):
         username = connector_input.value
-        if connector_input.type not in self.accepts or not re.fullmatch(
-            r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", username
-        ):
+        valid = (
+            bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", username))
+            if connector_input.type == ConnectorInputType.USERNAME
+            else 1 <= len(username) <= 100 and all(c.isalnum() or c in " -'" for c in username)
+        )
+        if connector_input.type not in self.accepts or not valid:
             return self._unsupported_input(connector_input)
+        query = (
+            f"{username} in:login type:user"
+            if connector_input.type == ConnectorInputType.USERNAME
+            else f'"{username}" in:fullname type:user'
+        )
         async with httpx.AsyncClient(
             timeout=10,
             transport=self.transport,
@@ -49,7 +56,7 @@ class GitHubSearchConnector(BaseConnector):
             try:
                 response = await client.get(
                     "https://api.github.com/search/users",
-                    params={"q": f"{username} in:login type:user", "per_page": 20, "page": 1},
+                    params={"q": query, "per_page": 20, "page": 1},
                 )
             except httpx.HTTPError as exc:
                 return self._result(ConnectorRunStatus.FAILED, message=type(exc).__name__)

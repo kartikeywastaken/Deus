@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 
 from .base import Connector
+from .catalogue import restricted_connectors
 from .gitfive import GitFiveConnector
 from .github import GitHubConnector
 from .github_search import GitHubSearchConnector
@@ -13,6 +14,7 @@ from .schemas import ConnectorInputType, ConnectorMode
 from .sherlock import SherlockConnector
 from .social_analyzer import SocialAnalyzerConnector
 from .sylva import SylvaConnector
+from .website import WebsiteConnector
 
 
 class DuplicateConnectorError(ValueError):
@@ -82,12 +84,11 @@ class ConnectorRegistry:
 
 def build_default_registry(
     *,
-    mock_connectors: bool = False,
     github_token: str | None = None,
 ) -> ConnectorRegistry:
     """Build the MVP connector set in a single explicit runtime mode."""
 
-    mode = ConnectorMode.MOCK if mock_connectors else ConnectorMode.LIVE
+    mode = ConnectorMode.LIVE
     return ConnectorRegistry(
         (
             MaigretConnector(mode),
@@ -95,7 +96,9 @@ def build_default_registry(
             SylvaConnector(mode),
             SocialAnalyzerConnector(mode),
             GitFiveConnector(mode),
-            *((GitHubConnector(token=github_token),) if not mock_connectors else ()),
-            *((GitHubSearchConnector(token=github_token),) if not mock_connectors else ()),
+            GitHubConnector(token=github_token),
+            GitHubSearchConnector(token=github_token),
+            WebsiteConnector(),
+            *restricted_connectors(),
         )
     )

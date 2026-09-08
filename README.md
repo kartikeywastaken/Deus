@@ -1,155 +1,183 @@
 # Deus
 
-Backend-first public-profile discovery and explainable identity correlation.
-The application defaults to **live collection**. Failed or unavailable connectors
-never fall back to fictional profiles. Matching usernames are candidates, not proof
-of shared identity; scores are not probabilities.
+Backend-first, Akinator-inspired OSINT identity-correlation engine.
 
-## Working now
+**No simulation. No mock data. No fake fallbacks.**
+Every result originates from real live public sources. If a connector fails it reports the real reason (`UNAVAILABLE`, `AUTH_REQUIRED`, `RATE_LIMITED`, `MANUAL`, `FAILED`) and the search continues.
 
-- GitHub REST: public account ID, name, bio, location, organization, website, avatar
-  URL, and publicly listed social links with source provenance.
-- Maigret 0.6.5 and Sherlock 0.16.0: actual subprocess execution and CSV parsing.
-  Initial selection is GitHub, Reddit, and Dev.to. Maigret may also check bundled
-  mirrors such as GitHubGist. This is bounded, not whole-web coverage.
-- Social Analyzer 0.45: actual JSON checks for discovered GitHub/Reddit profiles.
-  Page titles and existence observations are retained; detection percentages do
-  not become identity probabilities.
-- PostgreSQL relational records, raw JSONB payloads, pgvector schema/repositories,
-  evidence extraction, conservative clustering, optional questions, ranked reports,
-  and graph-shaped API output.
-- Minimal UI with public-source links, evidence, limitations, and per-tool errors.
+---
+
+## What it does
+
+```
+REAL SEED (username / GitHub URL)
+  → live discovery (Maigret, Sherlock, GitHub)
+  → normalize + deduplicate → PostgreSQL
+  → conditional enrichment (Social Analyzer, website parser)
+  → pairwise evidence extraction (username, name, domain, bio vectors, links)
+  → correlation engine → competing identity hypotheses
+  → Akinator: ask one targeted question only if it materially separates candidates
+  → resume live search with user hint
+  → deterministic stopping rules
+  → explainable ranked report
+```
+
+Matching usernames are **candidates**, not proof of shared identity.
+Scores are not probabilities until calibrated.
+
+---
+
+## Quick start
+
+```bash
+# 1. PostgreSQL + pgvector
+docker compose up -d
+
+# 2. Python environment
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[live]"
+
+# 3. Copy config
+cp .env.example .env   # edit DATABASE_URL if needed
+
+# 4. Database migrations
+alembic upgrade head
+
+# 5. Start worker (separate terminal)
+python -m backend.worker
+
+# 6. Start API
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765
+
+# 7. Open UI
+open http://127.0.0.1:8765/
+```
+
+---
+
+## System health
+
+```bash
+# JSON report: connectors, DB, migrations, job queue
+python -m backend.doctor
+
+# Human-readable dependency check
+python scripts/check_dependencies.py
+
+# Live integration tests (uses real internet)
+DEUS_TEST_USERNAME=<your-github-handle> pytest -m live
+
+# All deterministic unit tests
+pytest
+```
+
+---
+
+## Connector matrix
+
+| Connector | Status | Auth | Notes |
+|-----------|--------|------|-------|
+| Maigret 0.6.5 | AVAILABLE | No | 20-platform live subprocess; CSV parsing |
+| Sherlock 0.16.0 | AVAILABLE | No | Full local site DB; CSV parsing |
+| GitHub REST | AVAILABLE | Optional token | Stable user ID, bio, social links, avatar |
+| GitHub Search | AVAILABLE | Optional token | Name/username search |
+| Social Analyzer 0.45 | AVAILABLE | No | Enriches discovered GitHub/Reddit profiles |
+| Website parser | AVAILABLE | No | Single-page bounded link extraction; SSRF-protected |
+| Sylva | MANUAL | No | `operator_reviewed_config` — automatic execution not enabled |
+| GitFive | MANUAL | Yes | Requires operator login; interactive |
+| GHunt | AUTH_REQUIRED | Yes (cookies) | No unattended cookie adapter configured |
+| OSINTgram | AUTH_REQUIRED | Yes (Instagram) | No authenticated adapter |
+| InstagramOSINT | UNAVAILABLE | — | Upstream archived |
+| LinkedInt | MANUAL | — | No current legitimate unattended integration |
+| PhoneInfoga | DISABLED | — | Phone seeds not enabled by default |
+| PeekYou | MANUAL | — | No supported programmatic automation verified |
+| FaceCheck.ID | DISABLED | — | Biometric identification not in scope |
+| PimEyes | DISABLED | — | Biometric identification not in scope |
+| Surfface | DISABLED | — | Biometric identification not in scope |
+
+---
+
+## API reference
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/searches` | Start a new investigation |
+| `GET` | `/api/searches/{id}` | Search status + metadata |
+| `GET` | `/api/searches/{id}/candidates` | Ranked candidate profiles |
+| `GET` | `/api/searches/{id}/hypotheses` | Identity hypothesis clusters |
+| `GET` | `/api/searches/{id}/evidence` | Pairwise evidence signals |
+| `GET` | `/api/searches/{id}/question` | Pending Akinator question |
+| `POST` | `/api/searches/{id}/question-answer` | Submit answer / hint |
+| `POST` | `/api/searches/{id}/continue` | Skip question, resume |
+| `POST` | `/api/searches/{id}/stop` | Cancel investigation |
+| `GET` | `/api/searches/{id}/report` | Final explainable report |
+| `GET` | `/api/searches/{id}/graph` | Graph-shaped nodes/edges (no Neo4j) |
+| `GET` | `/api/searches/{id}/connector-runs` | Per-connector execution log |
+| `POST` | `/api/searches/{id}/images` | Upload reference image (fingerprint only) |
+| `GET` | `/api/connectors` | Live connector health |
+| `GET` | `/api/config.js` | Runtime JS config injection |
+| `GET` | `/health` | Service health |
+
+---
 
 ## Architecture
 
-```text
-username / GitHub profile URL
-  → bounded live discovery
-  → normalize + deduplicate
-  → PostgreSQL observations and JSONB provenance
-  → conditional public enrichment
-  → positive and negative pair evidence
-  → conservative competing clusters
-  → useful question only when needed
-  → explainable report + graph API
+```
+PostgreSQL 17 + pgvector 0.8
+├── search_runs           # investigation lifecycle
+├── search_seeds          # input seeds
+├── profiles              # deduplicated public accounts
+├── profile_observations  # traceable raw observations per connector
+├── identifiers           # usernames, emails, domains, URLs, etc.
+├── profile_identifiers   # profile↔identifier relationships
+├── evidence_signals      # deterministic pairwise evidence
+├── identity_hypotheses   # candidate clusters
+├── hypothesis_memberships
+├── investigation_questions / answers
+├── user_search_context   # user hints (not identity proof)
+├── investigation_jobs    # persistent job queue (FOR UPDATE SKIP LOCKED)
+├── text_embeddings       # all-MiniLM-L6-v2 384-D bio vectors
+├── image_artifacts       # SHA-256 + pHash only; raw bytes discarded
+└── reports               # final report JSONB
 ```
 
-Searches execute synchronously within their HTTP request and commit as a workflow
-step. Stop does not interrupt an executing initial request. Durable background
-jobs, streaming progress, and production multi-user authentication are not
-implemented; bind this development app to loopback only.
+Worker uses PostgreSQL advisory locks (`pg_try_advisory_lock`) for per-search
+concurrency control. No Redis. No additional queue infrastructure.
 
-## Run with Docker PostgreSQL
+---
 
-Requires Python 3.12+ and PostgreSQL with pgvector (Docker is one option).
+## Scope
 
-```bash
-cp .env.example .env
-docker compose up -d
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev,live]"
-python -m alembic upgrade head
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765
+Core Deus uses **publicly available information** only.
+
+Not implemented and will not be:
+- Credential theft, session hijack, OTP interception
+- Private-profile bypass, authentication bypass
+- Global biometric database or mass face crawling
+- Scraped private breach dumps for identity correlation
+- Contacting the subject
+
+Breach-exposure tools (`pwned`, `h8mail`) are kept **out of normal correlation**
+and would require explicit `scope=self_audit` invocation.
+
+---
+
+## Configuration
+
+Copy `.env.example` to `.env`:
+
+```env
+DATABASE_URL=postgresql+asyncpg://osint:osint-dev@localhost:5432/osint
+API_PORT=8765
+GITHUB_TOKEN=           # optional — increases rate limits
+AI_ADVISER_ENABLED=false
+OPENAI_API_KEY=         # optional — only for advisory text
+CONNECTOR_TIMEOUT_SECONDS=30
+MAX_PIVOT_DEPTH=3
+MAX_CONNECTOR_RUNS=30
+MAX_CANDIDATES=100
+MAX_QUESTIONS=3
+MAX_SEARCH_DURATION_SECONDS=600
 ```
 
-Open <http://127.0.0.1:8765/> or <http://127.0.0.1:8765/docs>.
-Do not overwrite an existing `.env` containing your settings.
-
-## This workspace's local setup
-
-A separate development PostgreSQL 17 cluster was initialized in `.local/postgres`,
-with database `deus` on `127.0.0.1:55432`. pgvector 0.8.6 is installed through
-Homebrew. `.env` points at this database; `.env`, `.local/`, and `.venv/` are ignored
-by Git. This uses local trust authentication and is not suitable for a shared server.
-The app uses port 8765 because other services occupied ports 8000 and 8001.
-
-Restart the database only if it is stopped:
-
-```bash
-/opt/homebrew/opt/postgresql@17/bin/pg_ctl \
-  -D /Users/kartik/Documents/ChatGPT/Deus/.local/postgres \
-  -l /Users/kartik/Documents/ChatGPT/Deus/.local/postgres.log \
-  -o '-h 127.0.0.1 -p 55432 -k /Users/kartik/Documents/ChatGPT/Deus/.local' start
-.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765
-```
-
-Use `pg_ctl -D /Users/kartik/Documents/ChatGPT/Deus/.local/postgres stop` to stop
-this project's database without deleting its data.
-
-## API
-
-```text
-GET  /api/connectors
-POST /api/searches
-GET  /api/searches/{id}
-GET  /api/searches/{id}/candidates
-GET  /api/searches/{id}/hypotheses
-GET  /api/searches/{id}/evidence
-GET  /api/searches/{id}/question
-POST /api/searches/{id}/question-answer
-POST /api/searches/{id}/continue
-POST /api/searches/{id}/stop
-GET  /api/searches/{id}/report
-GET  /api/searches/{id}/graph
-GET  /health
-```
-
-`GET /health` is process liveness, not a database readiness check.
-
-```bash
-curl http://127.0.0.1:8765/api/searches \
-  -H 'content-type: application/json' \
-  -d '{"seed_type":"username","value":"YOUR_PUBLIC_USERNAME","scope":"self_audit"}'
-```
-
-Live mode rejects name, email, phone, image, and non-GitHub URL seeds until reviewed
-connectors exist. `MAX_QUESTIONS=0` produces reports without a question stage.
-
-## Rate limits and failures
-
-Set an optional `GITHUB_TOKEN` in your local `.env` for authenticated public API
-requests. Never paste a token into chat or commit it. Without it, unauthenticated
-rate limits can interrupt collection. The adapter records rate limits and does not
-bypass them. It preserves a fetched profile if social-link collection fails.
-
-Availability is exposed at `/api/connectors`; actual outcomes appear in reports.
-`PARTIAL`, `FAILED`, `RATE_LIMITED`, and `UNAVAILABLE` mean collection was incomplete,
-not that the person has no accounts. CLI request counts are estimates from report
-rows, not exact network counters. Tool detections can be false positives.
-
-## Tests
-
-```bash
-.venv/bin/python -m ruff check .
-.venv/bin/python -m pytest
-TEST_DATABASE_URL=postgresql+asyncpg://deus@127.0.0.1:55432/deus \
-  .venv/bin/python -m pytest
-```
-
-Offline tests use isolated doubles. Legacy fixture scenarios require explicit
-`MOCK_CONNECTORS=true`; the application never enables this automatically.
-PostgreSQL tests create unique temporary schemas and remove only those schemas.
-The actual application database is not seeded with fictional profiles.
-
-## Not implemented / blocked
-
-- Sylva: intended upstream repository/interface is not verified.
-- GitFive: not integrated; upstream requires interactive login and has usage
-  restrictions. GitHub REST is an independent connector, not a GitFive simulation.
-- LinkedIn, Instagram, Facebook, GHunt, and phone lookups: no live adapters yet.
-- Embedding model inference, AI investigator, rich graph UI, historical activity:
-  not implemented. Vector storage alone does not run a model.
-- Face-search / biometric identification across the web: not implemented.
-
-Public or authorized data only; no private-profile bypass, credential harvesting,
-breach lookups, or identity claims based solely on images.
-
-## Verified upstream interfaces
-
-- [GitHub users](https://docs.github.com/en/rest/users/users#get-a-user)
-- [GitHub public social links](https://docs.github.com/en/rest/users/social-accounts#list-social-accounts-for-a-user)
-- [Maigret CLI](https://maigret.readthedocs.io/en/latest/command-line-options.html)
-- [Sherlock](https://github.com/sherlock-project/sherlock)
-- [Social Analyzer](https://github.com/qeeqbox/social-analyzer)
-- [GitFive requirements](https://github.com/mxrch/GitFive)
+No `MOCK_CONNECTORS`. No `FAKE_*`. No `SIMULATE_*`.
