@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OSINT Identity Search</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Backend MVP console</p>
+        <h1>OSINT Identity Search</h1>
+        <p>Search public profiles and inspect the sources behind each candidate.</p>
+      </header>
+
+      <form id="search-form">
+        <label>
+          Seed
+          <input id="seed" name="seed" placeholder="Public username" required />
+        </label>
+        <label>
+          Type
+          <select id="seed-type" name="seed_type">
+            <option value="username">Username</option>
+            <option value="profile_url">GitHub profile URL</option>
+          </select>
+        </label>
+        <button type="submit">Search</button>
+      </form>
+
+      <p id="status" aria-live="polite">Ready</p>
+      <p id="error" role="alert"></p>
+
+      <section>
+        <h2>Candidates</h2>
+        <div id="candidates" class="stack empty">No search yet.</div>
+      </section>
+
+      <section id="question-section" hidden>
+        <h2>One useful question</h2>
+        <form id="question-form">
+          <p id="question"></p>
+          <div id="question-options" class="options"></div>
+        </form>
+      </section>
+
+      <section>
+        <h2>Ranked report</h2>
+        <div id="report" class="report empty">The report appears after the investigation completes.</div>
+      </section>
+    </main>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+"""Database models and session lifecycle."""
+
+from backend.db.models import (
+    Base,
+    ConnectorRun,
+    EvidenceSignal,
+    HypothesisMembership,
+    Identifier,
+    IdentityHypothesis,
+    ImageArtifact,
+    ImageEmbedding,
+    InvestigationAnswer,
+    InvestigationQuestion,
+    Profile,
+    ProfileIdentifier,
+    ProfileObservation,
+    ProfileRelationship,
+    Report,
+    SearchRun,
+    SearchSeed,
+    TextEmbedding,
+)
+
+__all__ = [
+    "Base",
+    "ConnectorRun",
+    "EvidenceSignal",
+    "HypothesisMembership",
+    "Identifier",
+    "IdentityHypothesis",
+    "ImageArtifact",
+    "ImageEmbedding",
+    "InvestigationAnswer",
+    "InvestigationQuestion",
+    "Profile",
+    "ProfileIdentifier",
+    "ProfileObservation",
+    "ProfileRelationship",
+    "Report",
+    "SearchRun",
+    "SearchSeed",
+    "TextEmbedding",
+]
