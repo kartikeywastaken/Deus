@@ -7,6 +7,14 @@
 <section class="intro"><p class="eyebrow">FOLLOW THE EVIDENCE</p><h1>Find the connections.<br><span>Keep the uncertainty.</span></h1><p>Discover public accounts, refine your search, and inspect the evidence behind every lead.</p></section>
 <form id="search-form" class="searchbar"><label>Start with<select id="seed-type"><option value="USERNAME">Username</option><option value="NAME">Name</option><option value="PROFILE_URL">Social profile URL</option><option value="EMAIL">My email · self-audit</option></select></label><label class="seed-label">Search seed<input id="seed" autocomplete="off" required maxlength="500" placeholder="A public username, name, or profile"></label><button id="search-button" type="submit">Investigate ↗</button><label id="consent-label" hidden><input type="checkbox" id="email-consent">This is my email. Send it to enabled GHunt / HIBP providers for my own defensive audit.</label></form>
 <div id="error" role="alert"></div>
+<section class="card" id="image-section"><h2>Optional · check image reuse</h2>
+<p id="image-prompt">Choose an image now to check it against collected avatars when the search finishes, or check the current candidates below.</p>
+<p>No facial recognition. Different photos of the same person will not match. Reuse does not establish ownership.</p>
+<label>JPEG, PNG or WebP · up to 5 MB<input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+<p>The selected file stays in this tab until comparison, then is cleared. The server does not save uploads, fingerprints or results. Closing this tab clears this workflow.</p>
+<button id="check-image" type="button" class="secondary" disabled>Check current candidates</button>
+<button id="clear-image" type="button" class="secondary">Clear image and results</button>
+<p id="image-status" role="status" aria-live="polite"></p><div id="image-results"></div></section>
 <section class="statusbar"><div><span id="connection">Ready</span><h2 id="status" aria-live="polite">Start an investigation</h2><small id="search-id"></small><p id="ai-status">AI adviser: Not run yet</p></div><div class="actions"><button id="continue-search" class="secondary" disabled>Skip / continue</button><button id="stop-search" class="secondary" disabled>Stop</button></div></section>
 <section id="question-section" class="question" hidden><div><p class="eyebrow">NARROW THE SEARCH</p><h2 id="question"></h2><p id="question-reason"></p></div><form id="question-form"><div id="question-options"></div></form></section>
 <div class="metrics"><div><strong id="candidate-count">0</strong><span>Public candidates</span></div><div><strong id="hypothesis-count">0</strong><span>Possible clusters</span></div><div><strong id="evidence-count">0</strong><span>Evidence signals</span></div><div><strong id="run-count">0</strong><span>Connector runs</span></div></div>

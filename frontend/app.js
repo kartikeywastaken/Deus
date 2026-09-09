@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 const terminal = s => ["COMPLETED", "FAILED", "CANCELLED"].includes(s);
 let searchId = null, stream = null, refreshTimer = null, fallbackTimer = null, busy = false;
 let latest = null, questionId = null, refreshRunning = false, refreshAgain = false;
+let imageBusy = false, imageController = null, imageGeneration = 0;
 const node = (tag, text = "", cls = "") => { const n = document.createElement(tag); n.textContent = text; if (cls) n.className = cls; return n; };
 const label = p => `${p.platform} ${p.username ? "@" + p.username : p.display_name || "profile"}`;
 const points = v => Math.round(Math.max(0, Math.min(1, v || 0)) * 100);
@@ -43,6 +44,9 @@ async function refresh() {
     if (terminal(state.status)) { stream?.close(); clearTimeout(fallbackTimer); $("connection").textContent = "Saved investigation"; }
     if (state.error_summary) error(new Error(state.error_summary));
     renderCandidates(); renderRuns(); renderHypotheses(); renderQuestion(); renderEvidence(); renderReport(); renderGraph();
+    $("check-image").disabled = imageBusy || !$("reference-image").files.length;
+    $("image-prompt").textContent = terminal(state.status) ? "Search finished. Optionally select an image to check reuse across the collected avatars, or try another image." : "Choose an optional image; it will be checked when this search completes. You can also check the current candidates now.";
+    if (state.status === "COMPLETED" && $("reference-image").files.length && !imageBusy) checkImage();
   } finally { refreshRunning = false; if (refreshAgain) { refreshAgain = false; schedule(); } }
 }
 function renderCandidates() {
@@ -122,10 +126,48 @@ function renderGraph(selected = null) {
   nodes.forEach(n => { const [x,y] = positions.get(n.id); const g = make("g", {tabindex:0, role:"button", "aria-label":n.label}); g.append(make("circle", {cx:x,cy:y,r:n.type === "profile" ? 8 : 11,fill:n.id === selected ? "#ddab47" : n.type === "profile" ? "#167661" : "#8b9b90"})); const t = make("text", {x:x+13,y:y+4}); t.textContent = n.label.length > 27 ? n.label.slice(0,24)+"…" : n.label; g.append(t); const choose = () => { renderGraph(n.id); $("graph-detail").textContent = `${n.label} · ${n.type} · ${latest.graph.edges.filter(e => e.source === n.id || e.target === n.id).length} stored connections`; }; g.onclick = choose; g.onkeydown = e => { if (["Enter"," "].includes(e.key)) {e.preventDefault(); choose();} }; svg.append(g); });
   if (!selected) $("graph-detail").textContent = nodes.length ? `${nodes.length} of ${latest.graph.nodes.length} nodes shown. Layout does not imply identity.` : "No graph data yet.";
 }
-$("search-form").onsubmit = async e => { e.preventDefault(); if (busy) return; setBusy(true); $("error").textContent = ""; try { const result = await request("/api/searches", {method:"POST",body:JSON.stringify({seed_type:$("seed-type").value,value:$("seed").value,scope:"self_audit",email_self_audit_confirmed:$("seed-type").value === "EMAIL" && $("email-consent").checked})}); stream?.close(); searchId = result.id; questionId = null; localStorage.setItem("deus-search",searchId); history.replaceState(null,"",`?search=${searchId}`); connect(); await refresh(); } catch(err) {error(err);} finally {setBusy(false);} };
+$("search-form").onsubmit = async e => { e.preventDefault(); if (busy || imageBusy) return; setBusy(true); $("error").textContent = ""; try { const result = await request("/api/searches", {method:"POST",body:JSON.stringify({seed_type:$("seed-type").value,value:$("seed").value,scope:"self_audit",email_self_audit_confirmed:$("seed-type").value === "EMAIL" && $("email-consent").checked})}); stream?.close(); searchId = result.id; questionId = null; $("image-results").replaceChildren(); $("image-status").textContent = ""; localStorage.setItem("deus-search",searchId); history.replaceState(null,"",`?search=${searchId}`); connect(); await refresh(); } catch(err) {error(err);} finally {setBusy(false);} };
 $("seed-type").onchange = () => { $("consent-label").hidden = $("seed-type").value !== "EMAIL"; $("email-consent").required = $("seed-type").value === "EMAIL"; };
 for (const [id, action] of [["continue-search","continue"],["stop-search","stop"]]) $(id).onclick = async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/${action}`,{method:"POST"}); await refresh(); } catch(e) {error(e);} };
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== `view-${b.dataset.view}`); document.querySelectorAll("[data-view]").forEach(t => t.setAttribute("aria-pressed",String(t === b))); });
 $("graph-reset").onclick = () => renderGraph(); $("print-report").onclick = () => window.print();
 const saved = new URLSearchParams(location.search).get("search") || localStorage.getItem("deus-search");
 if (saved && /^[0-9a-f-]{36}$/i.test(saved)) { searchId = saved; refresh().then(connect).catch(error); }
+
+async function checkImage() {
+  const file = $("reference-image").files[0];
+  if (!file || !searchId || imageBusy) return;
+  const id = searchId, generation = ++imageGeneration;
+  imageBusy = true; imageController = new AbortController();
+  $("reference-image").value = ""; $("reference-image").disabled = true; $("check-image").disabled = true;
+  $("image-results").replaceChildren(); $("image-status").textContent = "Checking real public avatar images…";
+  try {
+    const response = await fetch(`/api/searches/${id}/image-matches`, {method:"POST", body:file, headers:{"Content-Type":file.type || "application/octet-stream"}, signal:imageController.signal, cache:"no-store"});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Image check failed");
+    if (id !== searchId || generation !== imageGeneration) return;
+    $("image-status").textContent = `${result.checked} of ${result.items.length} candidate images checked · ${result.status}. Upload cleared; identity scores unchanged.`;
+    const rank = {EXACT_FILE:0, SAME_PIXELS:1, POSSIBLE_REUSE:2};
+    result.items.sort((a,b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3)).forEach(item => {
+      const card = node("article", "", "card");
+      card.append(node("strong", `${label(item)} · ${item.status.replaceAll("_", " ")}`), node("p", item.message));
+      card.append(safeLink(item.profile_url, "Profile source ↗"));
+      if (item.image_url) card.append(document.createTextNode(" · "), safeLink(item.image_url, "Review public image ↗"));
+      $("image-results").append(card);
+    });
+    result.limitations.forEach(text => $("image-results").append(node("p", text, "muted")));
+  } catch(e) { if (generation === imageGeneration) $("image-status").textContent = `${e.message}. File cleared; select it again to retry.`; }
+  finally { imageBusy = false; imageController = null; $("reference-image").disabled = false; }
+}
+$("check-image").onclick = checkImage;
+$("reference-image").onchange = () => {
+  const file = $("reference-image").files[0];
+  if (file && file.size > 5000000) { $("reference-image").value = ""; $("image-status").textContent = "Please choose an image up to 5 MB."; }
+  else $("image-status").textContent = file ? "Selected locally. Check now or leave it for search completion." : "";
+  $("check-image").disabled = !searchId || !$("reference-image").files.length || imageBusy;
+};
+$("clear-image").onclick = () => {
+  ++imageGeneration; imageController?.abort(); $("reference-image").value = "";
+  $("image-results").replaceChildren(); $("check-image").disabled = true;
+  $("image-status").textContent = "Local selection and results cleared. An in-flight server check may finish within its bounded timeout; nothing is saved.";
+};
