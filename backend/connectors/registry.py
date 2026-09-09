@@ -12,6 +12,7 @@ from .github import GitHubConnector
 from .github_search import GitHubSearchConnector
 from .hibp import HIBPConnector
 from .maigret import MaigretConnector
+from .osintgram import OsintgramConnector
 from .schemas import ConnectorInputType, ConnectorMode
 from .sherlock import SherlockConnector
 from .social_analyzer import SocialAnalyzerConnector
@@ -100,6 +101,7 @@ def build_default_registry(
             GitFiveConnector(mode),
             GHuntConnector(),
             HIBPConnector(),
+            OsintgramConnector(),
             GitHubConnector(token=github_token),
             GitHubSearchConnector(token=github_token),
             WebsiteConnector(),

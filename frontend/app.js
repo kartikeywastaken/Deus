@@ -70,7 +70,10 @@ function renderCandidates() {
 }
 function renderRuns() {
   $("runs").className = ""; $("runs").replaceChildren();
-  latest.runs.forEach(r => { const n = node("div", "", "run"); n.dataset.status = r.status; n.append(node("strong", r.connector), node("span", r.status, "badge")); if (r.error) n.append(node("small", r.error)); $("runs").append(n); });
+  latest.runs.forEach(r => { const n = node("div", "", "run"); n.dataset.status = r.status; n.append(node("strong", r.connector), node("span", r.status, "badge")); if (r.error) n.append(node("small", r.error));
+    if (r.site_checks?.length) { const detail = node("details"), list = node("ul"); detail.append(node("summary", "Per-site check results")); r.site_checks.forEach(s => list.append(node("li", `${s.site}: ${s.status}${s.http_status ? " · HTTP " + s.http_status : ""}`))); detail.append(list); n.append(detail); }
+    if (r.unsupported_sites?.length) n.append(node("small", "Not in this tool’s installed database: " + r.unsupported_sites.join(", ")));
+    $("runs").append(n); });
 }
 function renderHypotheses() {
   $("hypotheses").replaceChildren(); const byId = new Map(latest.candidates.map(p => [p.id, p]));

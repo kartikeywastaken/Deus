@@ -36,6 +36,18 @@ SUPPORTED_HOSTS = {
     "twitch.tv",
     "stackoverflow.com",
     "pastebin.com",
+    "facebook.com",
+    "bsky.app",
+    "threads.net",
+    "threads.com",
+    "soundcloud.com",
+    "open.spotify.com",
+    "behance.net",
+    "dribbble.com",
+    "codepen.io",
+    "replit.com",
+    "last.fm",
+    "linktr.ee",
 }
 
 

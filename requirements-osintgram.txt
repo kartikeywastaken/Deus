@@ -1,0 +1,5 @@
+# Isolated bridge dependencies only; do not install upstream's interactive suite.
+instagram-private-api==1.6.0
+geopy==2.4.1
+prettytable==0.7.2
+httpx==0.28.1

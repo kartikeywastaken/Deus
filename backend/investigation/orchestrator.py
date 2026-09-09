@@ -206,6 +206,18 @@ class SearchOrchestrator:
                         "context": {"kind": "attribute_branch", "attribute": plan.attribute},
                     }
             enrichment = []
+            for p in preferred:
+                if p.platform == "instagram":
+                    enrichment.append(
+                        Pivot(
+                            "osintgram",
+                            ConnectorInput(
+                                type=ConnectorInputType.INSTAGRAM_PROFILE, value=p.canonical_url
+                            ),
+                            "ENRICHING",
+                            25,
+                        )
+                    )
             for p in sorted(
                 preferred, key=lambda p: (not p.external_links, p.platform != "github")
             ):
@@ -394,7 +406,9 @@ class SearchOrchestrator:
             async with self._connector_semaphore:
                 return await asyncio.wait_for(
                     connector.discover(pivot.connector_input),
-                    timeout=self.settings.connector_timeout_seconds,
+                    timeout=self.settings.discovery_timeout_seconds
+                    if connector.name in {"maigret", "sherlock"}
+                    else self.settings.connector_timeout_seconds,
                 )
         except TimeoutError:
             return ConnectorResult(

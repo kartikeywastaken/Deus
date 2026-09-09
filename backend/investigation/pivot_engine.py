@@ -84,9 +84,19 @@ class PivotEngine:
 
             identity = profile_link(value)
             connector = "github" if identity and identity[0] == "github" else "website"
-            return (
+            selected = (
                 Pivot(connector, ConnectorInput(type=input_type, value=value), "DISCOVERING", 5),
             )
+            if identity and identity[0] == "instagram" and "osintgram" in self.registry.names:
+                selected += (
+                    Pivot(
+                        "osintgram",
+                        ConnectorInput(type=ConnectorInputType.INSTAGRAM_PROFILE, value=value),
+                        "DISCOVERING",
+                        6,
+                    ),
+                )
+            return selected
         pivots = [
             Pivot(
                 connector_name=connector.name,

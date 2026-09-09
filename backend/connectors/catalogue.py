@@ -24,6 +24,13 @@ class RestrictedConnector(BaseConnector):
 def restricted_connectors():
     specs = [
         (
+            "email2phonenumber",
+            "DISABLED",
+            "Not integrated: account-recovery probing for non-public phone numbers is excluded.",
+            "https://github.com/martinvigo/email2phonenumber",
+            "EMAIL",
+        ),
+        (
             "ghunt",
             "AUTH_REQUIRED",
             "Requires operator authentication; no cookie access or automated adapter configured.",
@@ -87,4 +94,6 @@ def restricted_connectors():
             "IMAGE",
         ),
     ]
-    return tuple(RestrictedConnector(*spec) for spec in specs if spec[0] != "ghunt")
+    return tuple(
+        RestrictedConnector(*spec) for spec in specs if spec[0] not in {"ghunt", "osintgram"}
+    )

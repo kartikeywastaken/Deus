@@ -36,12 +36,17 @@ class Settings(BaseSettings):
     gitfive_python: str = ""
     hibp_enabled: bool = False
     hibp_api_key: SecretStr | None = None
+    osintgram_enabled: bool = True
+    osintgram_python: str = ""
+    osintgram_source: str = ""
+    osintgram_session_file: str = ""
     text_embeddings_enabled: bool = True
     ai_adviser_enabled: bool = False
     gemini_api_key: SecretStr | None = None
     ai_model: str = "gemini-2.5-flash"
     connector_concurrency: int = Field(default=4, ge=1, le=64)
     connector_timeout_seconds: float = Field(default=30.0, gt=0)
+    discovery_timeout_seconds: float = Field(default=60.0, ge=55, le=120)
 
     max_pivot_depth: int = Field(default=3, ge=0)
     max_candidates: int = Field(default=100, ge=1)

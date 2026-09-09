@@ -22,6 +22,17 @@ PATTERNS = {
     "t.me": ("telegram", r"/(\w+)"),
     "keybase.io": ("keybase", r"/(\w+)"),
     "mastodon.social": ("mastodon", r"/@([\w.-]+)"),
+    "bsky.app": ("bluesky", r"/profile/([\w.:-]+)"),
+    "threads.net": ("threads", r"/@([\w.]+)"),
+    "threads.com": ("threads", r"/@([\w.]+)"),
+    "soundcloud.com": ("soundcloud", r"/([\w-]+)"),
+    "open.spotify.com": ("spotify", r"/user/([\w.-]+)"),
+    "behance.net": ("behance", r"/([\w.-]+)"),
+    "dribbble.com": ("dribbble", r"/([\w.-]+)"),
+    "codepen.io": ("codepen", r"/([\w.-]+)"),
+    "replit.com": ("replit", r"/@([\w.-]+)"),
+    "last.fm": ("last.fm", r"/user/([\w.-]+)"),
+    "linktr.ee": ("linktree", r"/([\w.-]+)"),
 }
 RESERVED = {
     "login",

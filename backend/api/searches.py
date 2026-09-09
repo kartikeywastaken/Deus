@@ -108,6 +108,8 @@ async def connector_runs(search_id: UUID, repository: Repository):
                 "error": r.error or r.metadata_json.get("message"),
                 "input": r.input_data.get("value"),
                 "version": r.connector_version,
+                "site_checks": r.metadata_json.get("site_checks", []),
+                "unsupported_sites": r.metadata_json.get("unsupported_sites", []),
             }
             for r in runs
         ]
