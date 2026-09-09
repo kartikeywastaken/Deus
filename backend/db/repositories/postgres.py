@@ -1327,7 +1327,9 @@ def _build_profile_snapshot(
         value = data.get("value")
         if signal_type == "public_external_link":
             links.extend(_string_values(value))
-        elif "repositor" in signal_type or signal_type == "project":
+        elif signal_type != "repository_social_reference" and (
+            "repositor" in signal_type or signal_type == "project"
+        ):
             projects.extend(_string_values(value))
         elif "topic" in signal_type:
             topics.extend(_string_values(value))

@@ -48,5 +48,7 @@ class RankedReport(BaseModel):
     connector_runs: list[dict[str, Any]] = Field(default_factory=list)
     lead_candidates: list[dict[str, Any]] = Field(default_factory=list)
     self_audit_findings: list[dict[str, Any]] = Field(default_factory=list)
+    account_associations: list[dict[str, Any]] = Field(default_factory=list)
+    repository_references: list[dict[str, Any]] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     suggested_next_public_sources: list[str] = Field(default_factory=list)

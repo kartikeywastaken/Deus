@@ -124,7 +124,14 @@ async def discover_live(tool: str, username: str) -> ConnectorResult:
                 "stderr_tail": stderr.decode(errors="replace")[-2000:],
                 "stdout_tail": stdout.decode(errors="replace")[-2000:] if incomplete else "",
             },
-            message="Some checks failed or produced no parseable report." if incomplete else None,
+            message=(
+                f"{sum(row['exists'].casefold() == 'unknown' for row in rows)} "
+                f"of {len(rows)} checks inconclusive; no absence or identity conclusion."
+                if incomplete and rows
+                else "Tool exited without a parseable report."
+                if incomplete
+                else None
+            ),
         )
 
 

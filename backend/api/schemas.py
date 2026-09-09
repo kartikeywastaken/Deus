@@ -47,6 +47,7 @@ class SearchRead(BaseModel):
     max_candidates: int
     max_search_duration_seconds: int
     error_summary: str | None = None
+    ai_assist: dict[str, Any] = Field(default_factory=dict)
 
 
 class CandidateRead(BaseModel):
@@ -63,6 +64,9 @@ class CandidateRead(BaseModel):
     classification: str | None = None
     relevance: str | None = None
     reason: str | None = None
+    analysis_status: str = "POSSIBLE_MATCH_NO_CONTEXT"
+    public_links: list[str] = Field(default_factory=list)
+    linked_accounts: list[dict[str, str]] = Field(default_factory=list)
 
 
 class CandidateList(BaseModel):

@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .base import BaseConnector
+from .github_repositories import repository_context
 from .schemas import (
     CandidateProfile,
     ConnectorCapabilities,
@@ -51,6 +52,7 @@ class GitHubConnector(BaseConnector):
         social_response = None
         social_error = None
         requests = 1
+        repo_observations, repo_errors = [], []
         async with httpx.AsyncClient(
             transport=self.transport,
             timeout=10,
@@ -76,6 +78,13 @@ class GitHubConnector(BaseConnector):
                         social_error = f"Social links: GitHub HTTP {social_response.status_code}"
                 except httpx.HTTPError as exc:
                     social_error = f"Social links: {type(exc).__name__}"
+                try:
+                    repo_observations, repo_requests, repo_errors = await repository_context(
+                        client, username, f"https://github.com/{username}"
+                    )
+                    requests += repo_requests
+                except (httpx.HTTPError, ValueError, KeyError) as exc:
+                    repo_errors = [f"Repository context: {type(exc).__name__}"]
         statuses = {
             404: ConnectorRunStatus.NO_RESULTS,
             401: ConnectorRunStatus.AUTH_REQUIRED,
@@ -105,6 +114,8 @@ class GitHubConnector(BaseConnector):
                 message="The GitHub account is not an individual user.",
             )
         links = []
+        if re.fullmatch(r"\w{1,15}", raw.get("twitter_username") or ""):
+            links.append(f"https://x.com/{raw['twitter_username']}")
         if raw.get("blog"):
             blog = raw["blog"]
             links.append(blog if "://" in blog else f"https://{blog}")
@@ -123,7 +134,7 @@ class GitHubConnector(BaseConnector):
             discovered_by=[self.name],
             raw=raw,
         )
-        observations = []
+        observations = repo_observations
         records = [raw]
         if social_response is not None and social_response.status_code == 200:
             try:
@@ -150,11 +161,17 @@ class GitHubConnector(BaseConnector):
             except (ValueError, TypeError):
                 social_error = "GitHub returned an invalid social-account payload."
         return self._result(
-            ConnectorRunStatus.PARTIAL if social_error else ConnectorRunStatus.SUCCESS,
+            ConnectorRunStatus.PARTIAL
+            if social_error or repo_errors
+            else ConnectorRunStatus.SUCCESS,
             profiles=[profile],
             observations=observations,
             raw_records=records,
             request_count=requests,
-            message=social_error,
-            metadata={"mode": "live"},
+            message="; ".join(([social_error] if social_error else []) + repo_errors) or None,
+            metadata={
+                "mode": "live",
+                "repository_limit": 3,
+                "repository_references_are_identity_evidence": False,
+            },
         )

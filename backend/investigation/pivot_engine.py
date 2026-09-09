@@ -79,6 +79,14 @@ class PivotEngine:
 
     def discovery(self, seed_type: SeedType, value: str) -> tuple[Pivot, ...]:
         input_type = self._SEED_INPUTS[seed_type]
+        if seed_type == SeedType.PROFILE_URL:
+            from backend.connectors.profile_links import profile_link
+
+            identity = profile_link(value)
+            connector = "github" if identity and identity[0] == "github" else "website"
+            return (
+                Pivot(connector, ConnectorInput(type=input_type, value=value), "DISCOVERING", 5),
+            )
         pivots = [
             Pivot(
                 connector_name=connector.name,

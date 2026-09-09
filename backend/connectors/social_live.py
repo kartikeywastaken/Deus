@@ -116,6 +116,14 @@ async def enrich_live(candidate: CandidateProfile) -> ConnectorResult:
             raise
     try:
         raw = json.loads(stdout)
+        if raw == {} and process.returncode == 0:
+            return result(
+                ConnectorRunStatus.PARTIAL,
+                message="Social Analyzer returned no usable checks for this platform; "
+                "profile existence remains unverified.",
+                raw_records=[raw],
+                metadata={"site": site, "mode": "live"},
+            )
         if not isinstance(raw, dict) or not all(
             isinstance(raw.get(key), list) for key in ("detected", "unknown", "failed")
         ):

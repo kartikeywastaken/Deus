@@ -37,6 +37,7 @@ async function refresh() {
     if (id !== searchId) return;
     latest = {state, candidates:candidates.items, hypotheses:hypotheses.items, question:question.item, report:report.report_data, runs:runs.items, evidence:evidence.items, graph};
     $("status").textContent = state.status.replaceAll("_", " "); $("search-id").textContent = id;
+    $("ai-status").textContent = `AI adviser: ${state.ai_assist?.status || "Not run yet"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     $("candidate-count").textContent = candidates.items.length; $("hypothesis-count").textContent = hypotheses.items.length; $("evidence-count").textContent = evidence.items.length; $("run-count").textContent = runs.items.length;
     $("stop-search").disabled = terminal(state.status); $("continue-search").disabled = state.status !== "AWAITING_USER";
     if (terminal(state.status)) { stream?.close(); clearTimeout(fallbackTimer); $("connection").textContent = "Saved investigation"; }
@@ -46,14 +47,24 @@ async function refresh() {
 }
 function renderCandidates() {
   $("candidates").replaceChildren();
-  for (const p of latest.candidates) {
+  const sections = [
+    ["PUBLICLY_LINKED", "Publicly linked accounts — association, not verified ownership"],
+    ["HAS_PUBLIC_CONTEXT", "Candidates with public context"],
+    ["POSSIBLE_MATCH_NO_CONTEXT", "Possible matches but nothing to analyze"]
+  ];
+  for (const [kind, heading] of sections) {
+  const items = latest.candidates.filter(p => (p.analysis_status || "POSSIBLE_MATCH_NO_CONTEXT") === kind);
+  if (items.length) $("candidates").append(node("h3", heading));
+  for (const p of items) {
     const card = node("article", "", "card"), top = node("div", "", "card-top"), title = node("div");
     title.append(node("p", p.platform, "platform"), node("strong", p.username ? "@" + p.username : p.display_name || "Public profile"));
     top.append(title, node("span", `${points(p.score)}/100 relevance`, "score"));
     card.append(top, node("p", p.reason || "Unconfirmed candidate"));
     card.append(node("p", `Identity evidence: ${points(p.identity_score)}/100 · ${p.classification || "unassessed"}${p.seed_match_bonus ? " · +15 exact-seed relevance" : ""}`));
     if (p.relevance === "USER_HINT_MATCH") card.append(node("p", "Matches your username clue · ownership unverified", "badge"));
+    for (const edge of p.linked_accounts || []) card.append(node("p", `Public link: ${edge.source_url} → ${edge.target_url}`));
     card.append(safeLink(p.canonical_url, "Open public source ↗")); $("candidates").append(card);
+  }
   }
   if (!latest.candidates.length) $("candidates").append(node("p", "No candidates collected yet. Failed checks do not prove absence.", "empty"));
 }
@@ -91,6 +102,7 @@ function renderReport() {
   $("report").replaceChildren(node("h2", r.executive_finding));
   const section = (title, values) => { if (!values?.length) return; $("report").append(node("h3", title)); const ul = node("ul"); values.forEach(v => { const li = node("li", typeof v === "string" ? v : v.explanation || v.note || ""); for (const url of v.source_urls || []) li.append(document.createTextNode(" "), safeLink(url, "Source ↗")); ul.append(li); }); $("report").append(ul); };
   section("Leading search results", (r.lead_candidates || []).slice(0, 10).map(p => `${label(p)} — ${p.reason}`));
+  section("Public-page / repository references — ownership unverified", (r.repository_references || []).map(p => `${p.url} · found in ${p.source_url}`));
   section("Supporting evidence", r.supporting_evidence); section("Moderate evidence", r.moderate_evidence); section("Contradictions", r.contradictions); section("How your answers changed the search", r.answer_impact); section("Limitations", r.limitations);
   section("Collection outcomes", (r.connector_runs || []).map(c => `${c.connector}: ${c.status}${c.error ? " — " + c.error : ""}`));
   section("Defensive self-audit · separate from identity", (r.self_audit_findings || []).map(f => `${f.connector}: ${f.status}. Reported breach names: ${f.breach_names.join(", ") || "none returned"}. ${f.note}`));

@@ -2,14 +2,16 @@
 
 import re
 from typing import Annotated
-from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 
 from backend import jobs
+from backend.connectors.profile_links import profile_link
 from backend.core.config import Settings, get_settings
 from backend.core.enums import SeedType
+from backend.db.models import UserSearchContext
 from backend.db.repositories import PostgresInvestigationRepository
 
 from .dependencies import get_repository
@@ -43,13 +45,8 @@ async def create_search(
                 "Email lookups require your own email, self_audit scope and provider consent",
             )
     if payload.seed_type == SeedType.PROFILE_URL:
-        parsed = urlsplit(payload.value)
-        if (
-            parsed.scheme != "https"
-            or parsed.hostname != "github.com"
-            or len(parsed.path.strip("/").split("/")) != 1
-        ):
-            raise HTTPException(422, "Provide an HTTPS GitHub user profile URL.")
+        if not payload.value.startswith("https://") or not profile_link(payload.value):
+            raise HTTPException(422, "Provide a supported HTTPS social account URL, not a post.")
     search = await jobs.create_search(repository, settings, payload)
     return SearchRead.model_validate(search)
 
@@ -59,7 +56,23 @@ async def get_search(search_id: UUID, repository: Repository):
     search = await repository.get_search(search_id)
     if search is None:
         raise HTTPException(404, "search not found")
-    return SearchRead.model_validate(search)
+    response = SearchRead.model_validate(search)
+    contexts = (
+        await repository.session.scalars(
+            select(UserSearchContext)
+            .where(
+                UserSearchContext.search_run_id == search_id,
+                UserSearchContext.context_type == "PLANNER_DECISION",
+            )
+            .order_by(UserSearchContext.created_at.desc())
+        )
+    ).all()
+    advice = [c.value.get("adviser", {}) for c in contexts]
+    response.ai_assist = next(
+        (a for a in advice if a.get("status") not in {"NOT_NEEDED", "DISABLED"}),
+        advice[0] if advice else {},
+    )
+    return response
 
 
 @router.post("/{search_id}/continue", response_model=SearchRead, status_code=202)

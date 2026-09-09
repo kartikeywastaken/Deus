@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.correlation.engine import candidate_relevance
 from backend.db.repositories import PostgresInvestigationRepository
+from backend.investigation.account_groups import account_details
 from backend.investigation.username_questions import relevance_for_profile, user_hint_usernames
 
 from .dependencies import get_repository
@@ -26,6 +27,7 @@ async def list_candidates(
     if search is None:
         raise HTTPException(status_code=404, detail="search not found")
     profiles = await repository.list_profiles_for_search(search_id)
+    details = account_details(await repository.list_profile_snapshots_for_search(search_id))
     hinted = user_hint_usernames(await repository.list_questions(search_id))
     relevance = {
         p.id: relevance_for_profile(p.username, search.seeds[0].normalized_value or "", hinted)
@@ -47,6 +49,7 @@ async def list_candidates(
                 username=profile.username,
                 display_name=profile.display_name,
                 canonical_url=profile.canonical_url,
+                **details[profile.id],
                 **candidate_relevance(
                     profile.username,
                     search.seeds[0].normalized_value or "",

@@ -30,6 +30,7 @@ async def advise(decision, settings):
         "You are an OSINT collection adviser. "
         "Choose ONE pivot_id from the list to prioritize next. "
         "Do not invent actions, connectors, or evidence. "
+        "Every connector has bounded coverage; do not claim hundreds of sites or full coverage. "
         "Respond with JSON only.\n\nPivots:\n" + json.dumps(options)
     )
     model = settings.ai_model or "gemini-2.5-flash"
@@ -38,24 +39,36 @@ async def advise(decision, settings):
         from google.genai import types
 
         client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
-        async with client.aio as api, asyncio.timeout(12):
+        async with client.aio as api, asyncio.timeout(25):
             response = await api.models.generate_content(
                 model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=Advice,
-                    max_output_tokens=256,
+                    response_schema={
+                        "type": "OBJECT",
+                        "properties": {
+                            "pivot_id": {"type": "INTEGER"},
+                            "reason": {"type": "STRING"},
+                        },
+                        "required": ["pivot_id", "reason"],
+                    },
+                    max_output_tokens=1024,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0)
+                    if model.startswith("gemini-2.5-flash")
+                    else None,
                     temperature=0.0,
                 ),
             )
-        advice = response.parsed
-        if not isinstance(advice, Advice):
-            raise ValueError("Model returned unexpected schema")
+        advice = Advice.model_validate_json(response.text or "")
         if advice.pivot_id >= len(decision.pivots):
             raise ValueError("Adviser returned out-of-range pivot_id")
         chosen = decision.pivots[advice.pivot_id]
         pivots = (chosen,) + tuple(p for i, p in enumerate(decision.pivots) if i != advice.pivot_id)
         return replace(decision, pivots=pivots), {"status": "APPLIED", **advice.model_dump()}
     except Exception as exc:
-        return decision, {"status": "FALLBACK", "reason": type(exc).__name__}
+        return decision, {
+            "status": "FALLBACK",
+            "reason": type(exc).__name__,
+            "http_status": getattr(exc, "code", None),
+        }

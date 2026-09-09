@@ -17,6 +17,7 @@ from backend.connectors import (
     ConnectorRunStatus,
     build_default_registry,
 )
+from backend.connectors.profile_links import declared_profiles, profile_link
 from backend.connectors.social_live import site_for_url
 from backend.core.config import Settings
 from backend.core.enums import SearchStatus, SeedType
@@ -140,6 +141,21 @@ class SearchOrchestrator:
                     or {normalize_username(base)}
                 )
             ]
+            if seed.seed_type == SeedType.PROFILE_URL:
+                preferred = [p for p in profiles if p.canonical_url == canonicalize_url(base)]
+            # Follow observed outgoing links even when the next handle differs.
+            # This is bounded by persisted run/depth/candidate/time budgets.
+            reachable = {p.canonical_url for p in preferred}
+            for _ in range(search.max_pivot_depth + 1):
+                reachable.update(
+                    link
+                    for p in profiles
+                    if p.canonical_url in reachable
+                    for link in p.external_links
+                )
+            preferred.extend(
+                p for p in profiles if p.canonical_url in reachable and p not in preferred
+            )
             platform_questions = [
                 q for q in questions if q.context.get("kind") == "platform_priority"
             ]
@@ -190,7 +206,9 @@ class SearchOrchestrator:
                         "context": {"kind": "attribute_branch", "attribute": plan.attribute},
                     }
             enrichment = []
-            for p in preferred[:3]:
+            for p in sorted(
+                preferred, key=lambda p: (not p.external_links, p.platform != "github")
+            ):
                 if (
                     p.platform == "github"
                     and search.scope == "self_audit"
@@ -206,7 +224,7 @@ class SearchOrchestrator:
                             35,
                         )
                     )
-                for link in p.external_links[:3]:
+                for link in p.external_links[:10]:
                     host = urlsplit(link).hostname
                     if host == "github.com":
                         enrichment.append(
@@ -217,7 +235,7 @@ class SearchOrchestrator:
                                 30,
                             )
                         )
-                    elif host and p.platform != "website":
+                    elif host:
                         enrichment.append(
                             Pivot(
                                 "website",
@@ -237,12 +255,47 @@ class SearchOrchestrator:
                             30,
                         )
                     )
+                else:
+                    enrichment.append(
+                        Pivot(
+                            "website",
+                            ConnectorInput(
+                                type=ConnectorInputType.PROFILE_URL, value=p.canonical_url
+                            ),
+                            "ENRICHING",
+                            35,
+                        )
+                    )
                 enrichment.extend(
                     pivot
                     for pivot in self.pivots.enrichment([_candidate_from_snapshot(p)])
                     if pivot.connector_name == "social_analyzer" and site_for_url(p.canonical_url)
                 )
-            enrichment = tuple(p for p in enrichment if ledger.unseen(p))
+            # Leave run budget for newly discovered links on subsequent hops.
+            preferred_ids = {p.id for p in preferred}
+            for observation in await self.repository.list_observations_for_search(search_id):
+                data = observation.normalized_data or {}
+                if (
+                    observation.profile_id in preferred_ids
+                    and data.get("signal_type")
+                    in {"REPOSITORY_SOCIAL_REFERENCE", "PAGE_SOCIAL_REFERENCE"}
+                    and isinstance(data.get("value"), str)
+                ):
+                    target = profile_link(data["value"])
+                    if target:
+                        enrichment.append(
+                            Pivot(
+                                "github" if target[0] == "github" else "website",
+                                ConnectorInput(
+                                    type=ConnectorInputType.PROFILE_URL, value=target[2]
+                                ),
+                                "ENRICHING",
+                                60,
+                            )
+                        )
+            enrichment = tuple({p.fingerprint: p for p in enrichment if ledger.unseen(p)}.values())[
+                :6
+            ]
             action = choose_action(
                 initial=initial,
                 hints=hint_pivots,
@@ -319,12 +372,15 @@ class SearchOrchestrator:
         }
         await self.checkpoint()
         for (_pivot, run), result in zip(reservations, results, strict=True):
+            result = declared_profiles(result)
             initial_seed = search.seeds[0].normalized_value or search.seeds[0].original_value
-            reserve = min(10, search.max_candidates // 3) if search.max_questions else 0
+            reserve = min(5, search.max_candidates // 4)
             maximum = (
-                search.max_candidates - reserve
+                search.max_candidates - 2 * reserve
                 if _pivot.stage == "DISCOVERING"
                 and _pivot.connector_input.value.casefold() == initial_seed.casefold()
+                else search.max_candidates - reserve
+                if _pivot.stage == "DISCOVERING"
                 else search.max_candidates
             )
             result = _trim_candidates(result, seen_urls, maximum)
@@ -486,6 +542,26 @@ class SearchOrchestrator:
             if r.connector == "hibp"
         ]
         snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
+        from .account_groups import account_details
+
+        report.account_associations = [
+            {
+                "profile_id": str(p.id),
+                "canonical_url": p.canonical_url,
+                **account_details(snapshots)[p.id],
+            }
+            for p in snapshots
+        ]
+        report.repository_references = [
+            {
+                "source_url": o.source_url,
+                "url": o.normalized_data.get("value"),
+                "note": "Public-page/repository reference; not account ownership evidence.",
+            }
+            for o in observations
+            if o.normalized_data.get("signal_type")
+            in {"REPOSITORY_SOCIAL_REFERENCE", "PAGE_SOCIAL_REFERENCE"}
+        ]
         leads = [
             {
                 "id": str(item.id),
