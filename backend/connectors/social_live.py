@@ -1,14 +1,70 @@
 """Bounded Social Analyzer public-profile checks using its JSON contract."""
 
 import asyncio
+import importlib.util
 import json
 import re
 import sys
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
+from backend.normalization.urls import canonicalize_url
+
 from .schemas import CandidateProfile, ConnectorResult, ConnectorRunStatus, ObservationArtifact
+
+SUPPORTED_HOSTS = {
+    "github.com",
+    "reddit.com",
+    "dev.to",
+    "twitter.com",
+    "x.com",
+    "instagram.com",
+    "linkedin.com",
+    "news.ycombinator.com",
+    "medium.com",
+    "gitlab.com",
+    "mastodon.social",
+    "t.me",
+    "youtube.com",
+    "tiktok.com",
+    "pinterest.com",
+    "tumblr.com",
+    "keybase.io",
+    "steamcommunity.com",
+    "twitch.tv",
+    "stackoverflow.com",
+    "pastebin.com",
+}
+
+
+def site_for_url(url):
+    """Select only a platform actually present in the installed SA database."""
+    host = (urlsplit(url).hostname or "").removeprefix("www.")
+    if host not in SUPPORTED_HOSTS:
+        return None
+    spec = importlib.util.find_spec("social-analyzer")
+    if spec is None:
+        return None
+    try:
+        entries = json.loads((Path(spec.origin).parent / "data/sites.json").read_text())[
+            "websites_entries"
+        ]
+        for entry in entries:
+            parsed = urlsplit(entry["url"])
+            if (parsed.hostname or "").removeprefix("www.") == host:
+                return f"{parsed.scheme}://{parsed.netloc}/"
+    except (OSError, ValueError, KeyError):
+        return None
+    return None
+
+
+def same_profile(left, right):
+    try:
+        return canonicalize_url(left) == canonicalize_url(right)
+    except ValueError:
+        return False
 
 
 async def enrich_live(candidate: CandidateProfile) -> ConnectorResult:
@@ -22,9 +78,7 @@ async def enrich_live(candidate: CandidateProfile) -> ConnectorResult:
         tool_version = version("social-analyzer")
     except PackageNotFoundError:
         return result(ConnectorRunStatus.UNAVAILABLE, message="Install the live extra.")
-    site = {"github.com": "github", "www.reddit.com": "reddit", "reddit.com": "reddit"}.get(
-        urlsplit(candidate.canonical_url).hostname
-    )
+    site = site_for_url(candidate.canonical_url)
     if site is None or not re.fullmatch(r"[\w][\w.-]{0,63}", candidate.username or ""):
         return result(
             ConnectorRunStatus.UNAVAILABLE,
@@ -76,14 +130,12 @@ async def enrich_live(candidate: CandidateProfile) -> ConnectorResult:
             },
         )
     observations = []
-    candidate_host = urlsplit(candidate.canonical_url).hostname or ""
     for item in raw["detected"]:
         link = item.get("link", "")
         if not link.startswith("https://"):
             continue
-        # Accept any confirmed link on the same platform host — SA confirmed existence.
-        link_host = urlsplit(link).hostname or ""
-        if link_host != candidate_host:
+        # A result elsewhere on the host is not evidence for this account.
+        if not same_profile(link, candidate.canonical_url):
             continue
         observations.append(
             ObservationArtifact(

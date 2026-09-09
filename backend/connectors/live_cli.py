@@ -43,10 +43,26 @@ async def discover_live(tool: str, username: str) -> ConnectorResult:
         # High-value OSINT platforms — same bounded set for both tools.
         # Explicit --site limits run time and avoids per-tool timeout failures.
         DISCOVERY_SITES = [
-            "GitHub", "Reddit", "Dev.to", "Twitter", "Instagram",
-            "LinkedIn", "HackerNews", "Medium", "GitLab", "Mastodon",
-            "Telegram", "YouTube", "TikTok", "Pinterest", "Tumblr",
-            "Keybase", "Steam", "Twitch", "Stackoverflow", "Pastebin",
+            "GitHub",
+            "Reddit",
+            "Dev.to",
+            "Twitter",
+            "Instagram",
+            "LinkedIn",
+            "HackerNews",
+            "Medium",
+            "GitLab",
+            "Mastodon",
+            "Telegram",
+            "YouTube",
+            "TikTok",
+            "Pinterest",
+            "Tumblr",
+            "Keybase",
+            "Steam",
+            "Twitch",
+            "Stackoverflow",
+            "Pastebin",
         ]
         args = [binary, username, "--csv", "--folderoutput", directory, "--timeout", "8"]
         for site in DISCOVERY_SITES:

@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     github_token: SecretStr | None = None
+    ghunt_enabled: bool = False
+    ghunt_auth_ready: bool = False
+    ghunt_python: str = ""
+    gitfive_enabled: bool = False
+    gitfive_auth_ready: bool = False
+    gitfive_binary: str = "gitfive"
+    gitfive_python: str = ""
+    hibp_enabled: bool = False
+    hibp_api_key: SecretStr | None = None
     text_embeddings_enabled: bool = True
     ai_adviser_enabled: bool = False
     gemini_api_key: SecretStr | None = None

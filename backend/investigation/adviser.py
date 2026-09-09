@@ -1,5 +1,6 @@
 """Optional bounded adviser using Gemini. Only pivot metadata is sent — no personal data."""
 
+import asyncio
 import json
 from dataclasses import replace
 
@@ -37,16 +38,17 @@ async def advise(decision, settings):
         from google.genai import types
 
         client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
-        response = await client.aio.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=Advice,
-                max_output_tokens=256,
-                temperature=0.0,
-            ),
-        )
+        async with client.aio as api, asyncio.timeout(12):
+            response = await api.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=Advice,
+                    max_output_tokens=256,
+                    temperature=0.0,
+                ),
+            )
         advice = response.parsed
         if not isinstance(advice, Advice):
             raise ValueError("Model returned unexpected schema")

@@ -28,6 +28,6 @@ async def test_manual_connectors_never_invent_results():
         result = await registry.get(name).discover(
             ConnectorInput(type=ConnectorInputType.USERNAME, value="input-only")
         )
-        assert result.status == "MANUAL"
+        assert result.status in {"MANUAL", "DISABLED"}
         assert not result.profiles
         assert result.request_count == 0

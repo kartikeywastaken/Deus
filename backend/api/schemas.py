@@ -13,6 +13,7 @@ class SearchCreate(BaseModel):
     seed_type: SeedType = SeedType.USERNAME
     value: str = Field(min_length=1, max_length=500)
     scope: str = Field(default="self_audit", pattern="^(self_audit|consented|public_figure)$")
+    email_self_audit_confirmed: bool = False
 
     @field_validator("seed_type", mode="before")
     @classmethod
@@ -55,6 +56,10 @@ class CandidateRead(BaseModel):
     display_name: str | None
     canonical_url: str
     score: float | None = None
+    identity_score: float | None = None
+    seed_match_bonus: float = 0.0
+    hint_match_bonus: float = 0.0
+    score_kind: str = "SEARCH_RELEVANCE"
     classification: str | None = None
     relevance: str | None = None
     reason: str | None = None

@@ -40,6 +40,14 @@ async def create_search(repository, settings, payload):
         ),
     )
     await enqueue(repository.session, search.id)
+    if payload.email_self_audit_confirmed:
+        repository.session.add(
+            UserSearchContext(
+                search_run_id=search.id,
+                context_type="EMAIL_SELF_AUDIT_CONSENT",
+                value={"explicit_email_seed": True, "providers": ["ghunt", "hibp"]},
+            )
+        )
     return search
 
 
@@ -87,6 +95,14 @@ async def submit_answer(repository, search_id, question_id, value):
         "generated_usernames": list(variants),
         "source": "USER_PROVIDED_SEARCH_HINT",
         "question_kind": kind,
+        "selected_profile_ids": next(
+            (
+                item.get("profile_ids", [])
+                for item in question.options
+                if item.get("value") == value
+            ),
+            [],
+        ),
         "effect": f"additional live searches for {', '.join(variants)}"
         if variants
         else "search direction updated; identity scores are unchanged",

@@ -44,6 +44,7 @@ class QuestionPlan:
     affected_hypothesis_ids: tuple[str, ...]
     expected_information_gain: float
     sensitivity_level: str = "LOW"
+    attribute: str = ""
 
 
 def plan_disambiguation_question(
@@ -55,10 +56,8 @@ def plan_disambiguation_question(
     """Return one high-value public-attribute question, or no question.
 
     A question is eligible only when two leading branches are reasonably close
-    and each branch has a single, different public value for location or
-    organization. Location is preferred because the mock data demonstrates it;
-    both attributes are treated as low-sensitivity broad claims, never as proof
-    of account control.
+    and each branch has a different observed public attribute. An answer guides
+    enrichment; it does not merge identities or change evidence scores.
     """
 
     ranked = sorted(hypotheses, key=lambda item: (-item.score, item.id))
@@ -68,7 +67,13 @@ def plan_disambiguation_question(
     if first.score - second.score > maximum_score_gap:
         return None
 
-    for attribute, noun in (("location", "location"), ("organization", "organization")):
+    for attribute, noun in (
+        ("display_name", "display name"),
+        ("projects", "public project"),
+        ("organization", "organization"),
+        ("location", "broad location"),
+        ("platform", "platform"),
+    ):
         first_value = _consensus_value(first, profiles, attribute)
         second_value = _consensus_value(second, profiles, attribute)
         if not first_value or not second_value or first_value.casefold() == second_value.casefold():
@@ -101,6 +106,7 @@ def plan_disambiguation_question(
             affected_profile_ids=tuple(dict.fromkeys(first.profile_ids + second.profile_ids)),
             affected_hypothesis_ids=(first.id, second.id),
             expected_information_gain=_binary_entropy(first.score, second.score),
+            attribute=attribute,
         )
     return None
 
@@ -116,6 +122,8 @@ def _consensus_value(
         if (profile := profiles.get(profile_id)) is not None
         and (value := getattr(profile, attribute, None))
     ]
+    if attribute == "projects":
+        values = [", ".join(sorted(v)[:3]) for v in values if v]
     if not values:
         return None
     normalized_counts = Counter(value.casefold() for value in values)

@@ -16,6 +16,33 @@ from .features import IdentityHypothesis, PairAssessment
 from .scorer import CorrelationScorer
 
 
+def candidate_relevance(
+    username: str | None,
+    seed: str,
+    identity_score: float = 0.0,
+    *,
+    seed_type: str = "USERNAME",
+    hinted: Iterable[str] = (),
+) -> dict:
+    """Search ranking on a 0–1 scale; the +15/100 seed bonus is NOT identity evidence."""
+    from backend.normalization.usernames import normalize_username
+
+    exact = (
+        seed_type == "USERNAME"
+        and bool(normalize_username(username))
+        and normalize_username(username) == normalize_username(seed)
+    )
+    bonus = 0.15 if exact else 0.0
+    hint_bonus = 0.15 if not exact and normalize_username(username) in set(hinted) else 0.0
+    return {
+        "score": min(1.0, max(0.0, identity_score) + bonus + hint_bonus),
+        "identity_score": identity_score,
+        "seed_match_bonus": bonus,
+        "hint_match_bonus": hint_bonus,
+        "score_kind": "SEARCH_RELEVANCE",
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class CorrelationResult:
     profiles: tuple[NormalizedProfile, ...]

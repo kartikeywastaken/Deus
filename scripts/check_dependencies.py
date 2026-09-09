@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import shutil
 import sys
 from importlib.metadata import PackageNotFoundError, version
@@ -22,6 +21,7 @@ def _bin(name: str) -> str:
     if path:
         return f"FOUND ({path})"
     import pathlib
+
     venv_bin = pathlib.Path(sys.executable).parent / name
     if venv_bin.exists():
         return f"FOUND ({venv_bin})"
@@ -31,7 +31,9 @@ def _bin(name: str) -> str:
 async def _check_postgres() -> str:
     try:
         import asyncpg
+
         from backend.core.config import get_settings
+
         settings = get_settings()
         url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
         conn = await asyncpg.connect(dsn=url, timeout=5)
@@ -49,7 +51,9 @@ async def _check_postgres() -> str:
 async def _check_migration() -> str:
     try:
         import asyncpg
+
         from backend.core.config import get_settings
+
         settings = get_settings()
         url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
         conn = await asyncpg.connect(dsn=url, timeout=5)
@@ -113,11 +117,16 @@ async def main() -> None:
     print("\n[Connectors]")
     try:
         from backend.connectors import build_default_registry
+
         registry = build_default_registry()
         for name, connector in registry._connectors.items():
             avail = connector.availability
             note = ""
-            if hasattr(connector, "live_message") and connector.live_message and connector.availability != "AVAILABLE":
+            if (
+                hasattr(connector, "live_message")
+                and connector.live_message
+                and connector.availability != "AVAILABLE"
+            ):
                 note = connector.live_message[:55]
             print(_row(name, avail, note))
     except Exception as exc:
@@ -125,6 +134,7 @@ async def main() -> None:
 
     print("\n[Optional Configuration]")
     from backend.core.config import get_settings
+
     settings = get_settings()
     print(_row("GITHUB_TOKEN", "SET" if settings.github_token else "NOT SET (rate limits apply)"))
     print(_row("AI_ADVISER", "ENABLED" if settings.ai_adviser_enabled else "DISABLED"))
@@ -133,6 +143,7 @@ async def main() -> None:
     print("\n[Embeddings]")
     try:
         from backend.embeddings.service import MODEL, REVISION
+
         print(_row("sentence-transformers", "IMPORTABLE", f"model={MODEL}"))
         print(_row("model revision", REVISION[:20] + "...", "lazy-loaded on first embed"))
     except ImportError as exc:

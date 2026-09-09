@@ -87,4 +87,4 @@ def restricted_connectors():
             "IMAGE",
         ),
     ]
-    return tuple(RestrictedConnector(*spec) for spec in specs)
+    return tuple(RestrictedConnector(*spec) for spec in specs if spec[0] != "ghunt")

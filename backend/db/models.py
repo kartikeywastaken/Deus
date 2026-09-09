@@ -10,6 +10,7 @@ from typing import Any
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     ARRAY,
+    BigInteger,
     CheckConstraint,
     DateTime,
     Enum,
@@ -584,6 +585,18 @@ class InvestigationAnswer(Base):
     )
 
     question: Mapped[InvestigationQuestion] = relationship(back_populates="answers")
+
+
+class SearchEvent(Base):
+    __tablename__ = "search_events"
+    __table_args__ = (Index("ix_search_events_cursor", "search_run_id", "id"),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    search_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("search_runs.id", ondelete="CASCADE")
+    )
+    kind: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class UserSearchContext(Base):

@@ -1,5 +1,10 @@
 # Deus
 
+See [the September 9 implementation notes](IMPLEMENTATION_NOTES.md) for the latest
+SSE dashboard, scoring/pivot fixes, authenticated adapters, required `.env` settings,
+verified results and remaining authentication requirements. It supersedes older
+status descriptions below.
+
 Backend-first, Akinator-inspired OSINT identity-correlation engine.
 
 **No simulation. No mock data. No fake fallbacks.**

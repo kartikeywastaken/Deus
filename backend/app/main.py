@@ -11,10 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from backend.core.config import Settings, get_settings
-
-from backend.api import candidates, hypotheses, images, questions, reports, searches
+from backend.api import candidates, events, hypotheses, images, questions, reports, searches
 from backend.connectors import build_default_registry
+from backend.core.config import Settings, get_settings
 from backend.db.session import close_database
 
 
@@ -43,6 +42,7 @@ app.include_router(hypotheses.router)
 app.include_router(questions.router)
 app.include_router(reports.router)
 app.include_router(images.router)
+app.include_router(events.router)
 
 
 @app.get("/health", tags=["health"])

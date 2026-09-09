@@ -42,7 +42,9 @@ async def main(args):
                 q_resp.raise_for_status()
                 question = q_resp.json()["item"]
                 kind = question["context"].get("kind", "unknown")
-                value = {"username_numbers": "yes", "username_digits": args.digits}.get(kind, "skip")
+                value = {"username_numbers": "yes", "username_digits": args.digits}.get(
+                    kind, "skip"
+                )
                 print(f"  question kind={kind}, answering: {value}", flush=True)
                 ans = await client.post(
                     f"/api/searches/{search_id}/question-answer",
@@ -51,15 +53,28 @@ async def main(args):
                 ans.raise_for_status()
 
             elif status in {"COMPLETED", "FAILED", "CANCELLED"}:
-                candidates = (await client.get(f"/api/searches/{search_id}/candidates")).json()["items"]
-                runs = (await client.get(f"/api/searches/{search_id}/connector-runs")).json()["items"]
+                candidates = (await client.get(f"/api/searches/{search_id}/candidates")).json()[
+                    "items"
+                ]
+                runs = (await client.get(f"/api/searches/{search_id}/connector-runs")).json()[
+                    "items"
+                ]
 
                 base_found = [
-                    p for p in candidates
+                    p
+                    for p in candidates
                     if p["platform"] == "github"
                     and (p["username"] or "").casefold() == args.username.casefold()
                 ]
                 connector_statuses = [(r["connector"], r["status"]) for r in runs]
+                expected_handle = (args.username + args.digits).casefold()
+                variant_found = [
+                    p
+                    for p in candidates
+                    if p["platform"] == "github"
+                    and (p["username"] or "").casefold() == expected_handle
+                    and p["relevance"] == "USER_HINT_MATCH"
+                ]
 
                 result = {
                     "search_id": search_id,
@@ -69,17 +84,16 @@ async def main(args):
                     "candidates_total": len(candidates),
                     "base_github_found": len(base_found) > 0,
                     "base_account": base_found[0] if base_found else None,
+                    "variant_account": variant_found[0] if variant_found else None,
                     "connector_runs": connector_statuses,
                 }
                 print(json.dumps(result, indent=2))
 
                 assert status == "COMPLETED", f"Expected COMPLETED, got {status}"
-                assert base_found, (
-                    f"Base GitHub account '{args.username}' must be discovered. "
-                    "Ensure the account is real and public."
-                )
-                assert any(c == "github" and s in {"SUCCESS", "PARTIAL"} for c, s in connector_statuses), \
-                    "GitHub connector must succeed"
+                assert variant_found, f"Expected live username clue match: {expected_handle}"
+                assert any(
+                    c == "github" and s in {"SUCCESS", "PARTIAL"} for c, s in connector_statuses
+                ), "GitHub connector must succeed"
                 print("\n[PASS] Acceptance test passed — real results, honest failures")
                 return
             await asyncio.sleep(1)

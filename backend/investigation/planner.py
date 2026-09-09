@@ -40,7 +40,9 @@ def choose_action(
             )
         if hints and pivot_remaining > 0:
             return Decision(
-                Action.RUN_PIVOT, "Test the operator's username clue live.", hints[:runs_remaining]
+                Action.RUN_PIVOT,
+                "Search observed usernames or operator clues live.",
+                hints[:runs_remaining],
             )
         if question and questions_remaining > 0 and pivot_remaining > 0:
             return Decision(

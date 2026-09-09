@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from backend.correlation.engine import candidate_relevance
 from backend.db.repositories import PostgresInvestigationRepository
 from backend.investigation.username_questions import relevance_for_profile, user_hint_usernames
 
@@ -46,7 +47,13 @@ async def list_candidates(
                 username=profile.username,
                 display_name=profile.display_name,
                 canonical_url=profile.canonical_url,
-                score=(membership.score if membership else None),
+                **candidate_relevance(
+                    profile.username,
+                    search.seeds[0].normalized_value or "",
+                    membership.score if membership else 0.0,
+                    seed_type=search.seeds[0].seed_type.value,
+                    hinted=hinted,
+                ),
                 classification=(membership.classification.value if membership else None),
                 relevance=relevance[profile.id]["relevance"],
                 reason=relevance[profile.id]["reason"],

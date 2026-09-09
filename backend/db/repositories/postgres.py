@@ -65,6 +65,7 @@ from backend.db.models import (
     SearchSeed,
     utc_now,
 )
+from backend.events import emit
 from backend.normalization.domains import is_personal_domain, normalize_domain
 from backend.normalization.names import normalize_name
 from backend.normalization.urls import canonicalize_url
@@ -142,6 +143,7 @@ class PostgresInvestigationRepository:
         search.seeds.append(seed)
         self.session.add(search)
         await self.session.flush()
+        emit(self.session, search.id, "CREATED", status="CREATED")
         return search
 
     async def get_search(self, search_id: UUID | str) -> SearchRun | None:
@@ -186,6 +188,7 @@ class PostgresInvestigationRepository:
             raise RepositoryEntityNotFound("search not found")
         if search.status == SearchStatus.CANCELLED:
             return search
+        previous_status = search.status
         if "status" in fields:
             fields["status"] = SearchStatus(_enum_value(fields["status"]))
         for name, value in fields.items():
@@ -204,6 +207,8 @@ class PostgresInvestigationRepository:
         ):
             search.completed_at = utc_now()
         await self.session.flush()
+        if previous_status != search.status:
+            emit(self.session, search.id, search.status.value, status=search.status.value)
         return search
 
     async def create_connector_run(
@@ -236,6 +241,13 @@ class PostgresInvestigationRepository:
         )
         self.session.add(connector_run)
         await self.session.flush()
+        emit(
+            self.session,
+            search.id,
+            "CONNECTOR_STARTED",
+            connector=connector,
+            run_id=str(connector_run.id),
+        )
         return connector_run
 
     async def persist_connector_result(
@@ -271,6 +283,7 @@ class PostgresInvestigationRepository:
             run.metadata_json["replayed_terminal_result"] = True
 
         candidates = _deduplicate_candidates(result.profiles)
+        previous_ids = {p.id for p in await self.list_profiles_for_search(run.search_run_id)}
         profiles: list[Profile] = []
         profiles_by_url: dict[str, Profile] = {}
         observations: list[ProfileObservation] = []
@@ -364,6 +377,24 @@ class PostgresInvestigationRepository:
         await self._persist_cross_profile_links(run, candidates, profiles_by_url)
         await self._persist_resolved_relationships(run, result, profiles)
         await self.session.flush()
+        for profile in profiles:
+            if profile.id not in previous_ids:
+                emit(
+                    self.session,
+                    run.search_run_id,
+                    "CANDIDATE_DISCOVERED",
+                    profile_id=str(profile.id),
+                    platform=profile.platform,
+                )
+        emit(
+            self.session,
+            run.search_run_id,
+            "CONNECTOR_COMPLETED",
+            connector=run.connector,
+            run_id=str(run.id),
+            status=run.status.value,
+            candidates=len(profiles),
+        )
         return PersistedConnectorResult(run, tuple(profiles), tuple(observations))
 
     async def list_connector_runs(self, search_id: UUID | str) -> list[ConnectorRun]:
@@ -596,6 +627,7 @@ class PostgresInvestigationRepository:
         search.questions_asked += 1
         self.session.add(question)
         await self.session.flush()
+        emit(self.session, search.id, "QUESTION_CREATED", question_id=str(question.id))
         return question
 
     async def get_pending_question(self, search_id: UUID | str) -> InvestigationQuestion | None:

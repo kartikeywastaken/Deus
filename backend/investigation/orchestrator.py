@@ -17,9 +17,11 @@ from backend.connectors import (
     ConnectorRunStatus,
     build_default_registry,
 )
+from backend.connectors.social_live import site_for_url
 from backend.core.config import Settings
 from backend.core.enums import SearchStatus, SeedType
 from backend.correlation import build_identity_hypotheses, generate_candidate_pairs, score_evidence
+from backend.correlation.engine import candidate_relevance
 from backend.db.repositories import InvestigationRepository
 from backend.extraction import extract_pair_evidence
 from backend.normalization import (
@@ -32,6 +34,7 @@ from backend.reports import ReportEvidence, ReportHypothesis, ReportProfile, bui
 
 from .pivot_engine import Pivot, PivotEngine, PivotLedger
 from .planner import Action, choose_action
+from .question_planner import HypothesisSnapshot, plan_disambiguation_question
 from .username_questions import question_spec, relevance_for_profile, user_hint_usernames
 
 
@@ -83,9 +86,18 @@ class SearchOrchestrator:
             )
             initial = tuple(p for p in initial if ledger.unseen(p))
             hinted = user_hint_usernames(questions)
+            name_handles = (
+                tuple(
+                    dict.fromkeys(
+                        p.username for p in profiles if p.username and p.platform == "github"
+                    )
+                )[:3]
+                if seed.seed_type == SeedType.NAME
+                else ()
+            )
             hint_pivots = tuple(
                 p
-                for username in sorted(hinted)
+                for username in sorted(hinted) or name_handles
                 for p in self.pivots.discovery(SeedType.USERNAME, username)
                 if p.connector_name != "github_search" and ledger.unseen(p)
             )
@@ -121,27 +133,79 @@ class SearchOrchestrator:
             preferred = [
                 p
                 for p in profiles
-                if normalize_username(p.username) in (hinted or {normalize_username(base)})
+                if normalize_username(p.username)
+                in (
+                    hinted
+                    or {normalize_username(n) for n in name_handles}
+                    or {normalize_username(base)}
+                )
             ]
-            platform_questions = [q for q in questions if q.context.get("kind") == "platform_priority"]
+            platform_questions = [
+                q for q in questions if q.context.get("kind") == "platform_priority"
+            ]
             platforms = sorted({p.platform for p in preferred} - {"githubgist"})
             if hinted and not hint_pivots and not platform_questions and len(platforms) > 1:
                 next_question = {
                     "question_type": "MULTI_SELECT",
-                    "question_text": "Which discovered platforms should I prioritize for enrichment?",
+                    "question_text": "Which discovered platforms should I prioritize?",
                     "options": [{"value": p, "label": p} for p in platforms]
-                               + [{"value": "skip", "label": "No preference / continue"}],
+                    + [{"value": "skip", "label": "No preference / continue"}],
                     "context": {"kind": "platform_priority"},
                     "reason": "Choose where to spend the remaining collection budget; "
-                              "this does not confirm account ownership.",
-                    "sensitivity_level": "LOW", "expected_information_gain": None,
+                    "this does not confirm account ownership.",
+                    "sensitivity_level": "LOW",
+                    "expected_information_gain": None,
                 }
             if platform_questions and platform_questions[-1].answers:
                 selected = platform_questions[-1].answers[-1].answer.get("value")
                 if isinstance(selected, list):
                     preferred.sort(key=lambda p: p.platform not in selected)
+            branch_questions = [q for q in questions if q.context.get("kind") == "attribute_branch"]
+            if branch_questions and branch_questions[-1].answers:
+                chosen_ids = branch_questions[-1].answers[-1].answer.get("selected_profile_ids", [])
+                if chosen_ids:
+                    preferred = sorted(profiles, key=lambda p: str(p.id) not in chosen_ids)[:3]
+            if not next_question and not branch_questions and len(profiles) > 1:
+                plan = plan_disambiguation_question(
+                    tuple(
+                        HypothesisSnapshot(
+                            str(h.id),
+                            h.overall_score,
+                            h.classification.value,
+                            tuple(str(m.profile_id) for m in h.memberships),
+                        )
+                        for h in hypotheses
+                    ),
+                    {str(p.id): normalize_profile(p) for p in profiles},
+                )
+                if plan:
+                    next_question = {
+                        "question_type": plan.question_type,
+                        "question_text": plan.question_text,
+                        "options": [o.as_dict() for o in plan.options],
+                        "reason": plan.reason,
+                        "affected_profile_ids": plan.affected_profile_ids,
+                        "affected_hypothesis_ids": plan.affected_hypothesis_ids,
+                        "expected_information_gain": plan.expected_information_gain,
+                        "context": {"kind": "attribute_branch", "attribute": plan.attribute},
+                    }
             enrichment = []
             for p in preferred[:3]:
+                if (
+                    p.platform == "github"
+                    and search.scope == "self_audit"
+                    and self.settings.gitfive_enabled
+                ):
+                    enrichment.append(
+                        Pivot(
+                            "gitfive",
+                            ConnectorInput(
+                                type=ConnectorInputType.GITHUB_PROFILE, value=p.canonical_url
+                            ),
+                            "ENRICHING",
+                            35,
+                        )
+                    )
                 for link in p.external_links[:3]:
                     host = urlsplit(link).hostname
                     if host == "github.com":
@@ -176,7 +240,7 @@ class SearchOrchestrator:
                 enrichment.extend(
                     pivot
                     for pivot in self.pivots.enrichment([_candidate_from_snapshot(p)])
-                    if pivot.connector_name == "social_analyzer"
+                    if pivot.connector_name == "social_analyzer" and site_for_url(p.canonical_url)
                 )
             enrichment = tuple(p for p in enrichment if ledger.unseen(p))
             action = choose_action(
@@ -255,7 +319,15 @@ class SearchOrchestrator:
         }
         await self.checkpoint()
         for (_pivot, run), result in zip(reservations, results, strict=True):
-            result = _trim_candidates(result, seen_urls, search.max_candidates)
+            initial_seed = search.seeds[0].normalized_value or search.seeds[0].original_value
+            reserve = min(10, search.max_candidates // 3) if search.max_questions else 0
+            maximum = (
+                search.max_candidates - reserve
+                if _pivot.stage == "DISCOVERING"
+                and _pivot.connector_input.value.casefold() == initial_seed.casefold()
+                else search.max_candidates
+            )
+            result = _trim_candidates(result, seen_urls, maximum)
             await self.repository.persist_connector_result(run.id, result)
             await self.checkpoint()
         return tuple(results)
@@ -403,6 +475,16 @@ class SearchOrchestrator:
         )
         search = await self._require_search(search_id)
         hinted = user_hint_usernames(questions)
+        report.self_audit_findings = [
+            {
+                "connector": r.connector,
+                "status": r.status.value,
+                "breach_names": r.metadata_json.get("breach_names", []),
+                "note": "Separate defensive self-audit; not identity evidence.",
+            }
+            for r in connector_runs
+            if r.connector == "hibp"
+        ]
         snapshots = await self.repository.list_profile_snapshots_for_search(search_id)
         leads = [
             {
@@ -410,6 +492,21 @@ class SearchOrchestrator:
                 "platform": item.platform,
                 "username": item.username,
                 "canonical_url": item.canonical_url,
+                **candidate_relevance(
+                    item.username,
+                    search.seeds[0].normalized_value or "",
+                    max(
+                        (
+                            m.score
+                            for h in hypotheses
+                            for m in h.memberships
+                            if m.profile_id == item.id
+                        ),
+                        default=0.0,
+                    ),
+                    seed_type=search.seeds[0].seed_type.value,
+                    hinted=hinted,
+                ),
                 **relevance_for_profile(
                     item.username, search.seeds[0].normalized_value or "", hinted
                 ),
@@ -484,6 +581,9 @@ def _trim_candidates(
     return result.model_copy(
         update={
             "profiles": accepted,
+            "status": ConnectorRunStatus.PARTIAL,
+            "message": (result.message or "")
+            + " Candidate capacity applied; space reserved for later clues.",
             "metadata": {**result.metadata, "candidate_limit_applied": True},
         }
     )

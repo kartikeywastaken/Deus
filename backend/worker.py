@@ -14,6 +14,7 @@ from backend.core.enums import SearchStatus
 from backend.db.models import ConnectorRun, InvestigationJob, SearchRun, utc_now
 from backend.db.repositories import PostgresInvestigationRepository
 from backend.db.session import AsyncSessionFactory
+from backend.events import emit
 from backend.investigation.orchestrator import SearchOrchestrator
 
 log = logging.getLogger("deus.worker")
@@ -161,6 +162,7 @@ async def execute_locked(job_id, search_id, worker_id):
                 if outcome == "FAILED" and search.status != SearchStatus.CANCELLED:
                     search.status, search.error_summary = SearchStatus.FAILED, error
                     search.completed_at = utc_now()
+                    emit(session, search.id, "FAILED", status="FAILED")
         log.info(
             json.dumps(
                 {

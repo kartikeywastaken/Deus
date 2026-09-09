@@ -6,9 +6,11 @@ from collections.abc import Iterable, Iterator
 
 from .base import Connector
 from .catalogue import restricted_connectors
+from .ghunt import GHuntConnector
 from .gitfive import GitFiveConnector
 from .github import GitHubConnector
 from .github_search import GitHubSearchConnector
+from .hibp import HIBPConnector
 from .maigret import MaigretConnector
 from .schemas import ConnectorInputType, ConnectorMode
 from .sherlock import SherlockConnector
@@ -96,6 +98,8 @@ def build_default_registry(
             SylvaConnector(mode),
             SocialAnalyzerConnector(mode),
             GitFiveConnector(mode),
+            GHuntConnector(),
+            HIBPConnector(),
             GitHubConnector(token=github_token),
             GitHubSearchConnector(token=github_token),
             WebsiteConnector(),

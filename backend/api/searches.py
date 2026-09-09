@@ -1,5 +1,6 @@
 """Immediate-return search endpoints backed by durable jobs."""
 
+import re
 from typing import Annotated
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -24,8 +25,23 @@ async def create_search(
     repository: Repository,
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    if payload.seed_type not in {SeedType.USERNAME, SeedType.PROFILE_URL, SeedType.NAME}:
+    if payload.seed_type not in {
+        SeedType.USERNAME,
+        SeedType.PROFILE_URL,
+        SeedType.NAME,
+        SeedType.EMAIL,
+    }:
         raise HTTPException(422, "Use username, name, or a supported public profile URL.")
+    if payload.seed_type == SeedType.EMAIL:
+        if (
+            payload.scope != "self_audit"
+            or not payload.email_self_audit_confirmed
+            or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", payload.value)
+        ):
+            raise HTTPException(
+                422,
+                "Email lookups require your own email, self_audit scope and provider consent",
+            )
     if payload.seed_type == SeedType.PROFILE_URL:
         parsed = urlsplit(payload.value)
         if (

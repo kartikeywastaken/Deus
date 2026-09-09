@@ -65,7 +65,14 @@ class PivotEngine:
         SeedType.EMAIL: ConnectorInputType.EMAIL,
         SeedType.PHONE: ConnectorInputType.PHONE,
     }
-    _DISCOVERY_PRIORITY = {"github": 5, "github_search": 8, "maigret": 10, "sherlock": 20}
+    _DISCOVERY_PRIORITY = {
+        "github": 5,
+        "github_search": 8,
+        "maigret": 10,
+        "sherlock": 20,
+        "ghunt": 25,
+        "hibp": 30,
+    }
 
     def __init__(self, registry: ConnectorRegistry) -> None:
         self.registry = registry
