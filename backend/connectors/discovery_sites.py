@@ -40,7 +40,12 @@ SITES = (
 
 def site_database(tool):
     module = "maigret" if tool == "maigret" else "sherlock_project"
-    path = Path(importlib.util.find_spec(module).origin).parent / "resources/data.json"
+    spec = importlib.util.find_spec(module)
+    if not spec or not spec.origin:
+        return {}, [], list(SITES)
+    path = Path(spec.origin).parent / "resources/data.json"
+    if not path.exists():
+        return {}, [], list(SITES)
     raw = json.loads(path.read_text())
     entries = raw.get("sites", raw)
     index = {name.casefold(): name for name in entries}

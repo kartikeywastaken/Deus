@@ -8,6 +8,9 @@ from backend.connectors.profile_links import profile_link
 
 
 def test_discovery_resolves_actual_tool_names():
+    raw, names, missing = site_database("maigret")
+    if not names:
+        pytest.skip("maigret site database is not installed in this environment")
     for tool in ("maigret", "sherlock"):
         _, names, missing = site_database(tool)
         assert "DEV Community" in names

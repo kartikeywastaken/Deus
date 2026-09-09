@@ -9,11 +9,12 @@ import httpx
 
 
 async def search(args):
+    seed_type = "EMAIL" if "@" in args.seed else "USERNAME"
     async with httpx.AsyncClient(base_url=args.url, timeout=20) as client:
-        response = await client.post("/api/searches", json={"value": args.username})
+        response = await client.post("/api/searches", json={"value": args.seed, "seed_type": seed_type})
         response.raise_for_status()
         search_id = response.json()["id"]
-        print(f"Search: {search_id}", flush=True)
+        print(f"Search [{seed_type}]: {search_id}", flush=True)
         deadline, previous = time.monotonic() + 900, None
         while time.monotonic() < deadline:
             response = await client.get(f"/api/searches/{search_id}")
@@ -43,6 +44,6 @@ async def search(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("username")
+    parser.add_argument("seed", help="Username, name, profile URL, or email address")
     parser.add_argument("--url", default="http://127.0.0.1:8765")
     asyncio.run(search(parser.parse_args()))

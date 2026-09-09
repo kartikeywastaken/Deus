@@ -138,7 +138,7 @@ async def main() -> None:
     settings = get_settings()
     print(_row("GITHUB_TOKEN", "SET" if settings.github_token else "NOT SET (rate limits apply)"))
     print(_row("AI_ADVISER", "ENABLED" if settings.ai_adviser_enabled else "DISABLED"))
-    print(_row("OPENAI_API_KEY", "SET" if settings.openai_api_key else "NOT SET"))
+    print(_row("GEMINI_API_KEY", "SET" if settings.gemini_api_key else "NOT SET"))
 
     print("\n[Embeddings]")
     try:

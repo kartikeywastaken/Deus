@@ -35,14 +35,10 @@ async def create_search(
     }:
         raise HTTPException(422, "Use username, name, or a supported public profile URL.")
     if payload.seed_type == SeedType.EMAIL:
-        if (
-            payload.scope != "self_audit"
-            or not payload.email_self_audit_confirmed
-            or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", payload.value)
-        ):
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", payload.value):
             raise HTTPException(
                 422,
-                "Email lookups require your own email, self_audit scope and provider consent",
+                "Provide a valid email address.",
             )
     if payload.seed_type == SeedType.PROFILE_URL:
         if not payload.value.startswith("https://") or not profile_link(payload.value):

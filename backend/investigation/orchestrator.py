@@ -82,6 +82,38 @@ class SearchOrchestrator:
             questions = await self.repository.list_questions(search_id)
             profiles = await self.repository.list_profile_snapshots_for_search(search_id)
             hypotheses = await self.repository.list_hypotheses(search_id)
+            if seed.seed_type == SeedType.EMAIL and not runs:
+                from backend.email_osint import EmailOSINTEngine
+                email_engine = EmailOSINTEngine()
+                ctx = {
+                    "github_token": self.settings.github_token.get_secret_value() if self.settings.github_token else None,
+                    "ghunt_connector": self.registry.get("ghunt") if "ghunt" in self.registry.names else None,
+                    "hibp_connector": self.registry.get("hibp") if "hibp" in self.registry.names else None,
+                }
+                email_res = await email_engine.discover(seed.normalized_value or seed.original_value, context=ctx)
+                for s_res in email_res.source_results:
+                    if s_res.account_exists and s_res.canonical_url:
+                        cand = CandidateProfile(
+                            platform=s_res.source_name,
+                            canonical_url=s_res.canonical_url,
+                            username=s_res.username,
+                            display_name=s_res.display_name,
+                            avatar_url=s_res.avatar_url,
+                            discovered_by=["email_osint"],
+                            raw=s_res.evidence,
+                        )
+                        prof, _ = await self.repository.upsert_profile(cand)
+                        await self.repository.create_observation(
+                            search_id=search_id,
+                            profile_id=prof.id,
+                            connector=f"email_osint:{s_res.source_name}",
+                            source_url=s_res.canonical_url,
+                            normalized_data={"signal_type": "EMAIL_ACCOUNT_DISCOVERY", "value": s_res.source_name},
+                            raw_data=s_res.evidence,
+                        )
+                # Re-fetch profiles after email discovery
+                profiles = await self.repository.list_profile_snapshots_for_search(search_id)
+
             initial = self.pivots.discovery(
                 seed.seed_type, seed.normalized_value or seed.original_value
             )
