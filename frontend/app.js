@@ -171,3 +171,144 @@ $("clear-image").onclick = () => {
   $("image-results").replaceChildren(); $("check-image").disabled = true;
   $("image-status").textContent = "Local selection and results cleared. An in-flight server check may finish within its bounded timeout; nothing is saved.";
 };
+
+// ── Image analysis tab switching ───────────────────────────────────────────
+$("tab-reuse").onclick = () => {
+  $("panel-reuse").hidden = false; $("panel-face").hidden = true;
+  $("tab-reuse").setAttribute("aria-pressed","true"); $("tab-reuse").classList.add("active");
+  $("tab-face").setAttribute("aria-pressed","false"); $("tab-face").classList.remove("active");
+};
+$("tab-face").onclick = () => {
+  $("panel-reuse").hidden = true; $("panel-face").hidden = false;
+  $("tab-face").setAttribute("aria-pressed","true"); $("tab-face").classList.add("active");
+  $("tab-reuse").setAttribute("aria-pressed","false"); $("tab-reuse").classList.remove("active");
+};
+
+// ── Face comparison ────────────────────────────────────────────────────────
+let faceBusy = false, faceGeneration = 0, faceSelectedIndex = 0;
+
+const FACE_STATUS_LABEL = {
+  STRONG_SUPPORT: "Strong visual similarity",
+  SUPPORTING:     "Moderate visual similarity",
+  INCONCLUSIVE:   "Inconclusive",
+  POSSIBLE_MISMATCH: "Low similarity (weak contradiction)",
+  NO_COMPARISON:  "Too low quality to compare",
+  EXACT_IMAGE:    "Exact same image",
+  NO_FACE:        "No face detected in avatar",
+  LOW_QUALITY:    "Avatar quality too low",
+  FETCH_FAILED:   "Avatar unavailable",
+  NO_PUBLIC_IMAGE:"No avatar collected",
+};
+const FACE_STATUS_CLS = {
+  STRONG_SUPPORT: "face-strong", SUPPORTING: "face-support",
+  EXACT_IMAGE: "face-strong",
+  POSSIBLE_MISMATCH: "face-contra", NO_FACE: "face-none",
+  LOW_QUALITY: "face-none", FETCH_FAILED: "face-none", NO_PUBLIC_IMAGE: "face-none",
+};
+
+$("face-image").onchange = () => {
+  $("check-face").disabled = !searchId || !$("face-image").files.length || faceBusy;
+  $("face-status").textContent = $("face-image").files[0] ? "Image selected." : "";
+  $("face-multi").hidden = true; $("face-selector").replaceChildren();
+  $("face-exif").hidden = true; $("face-results").replaceChildren();
+};
+
+$("clear-face").onclick = () => {
+  ++faceGeneration; $("face-image").value = ""; $("face-image").disabled = false;
+  $("face-results").replaceChildren(); $("face-multi").hidden = true;
+  $("face-exif").hidden = true; $("face-status").textContent = "";
+  $("check-face").disabled = true; faceBusy = false;
+};
+
+async function runFaceCompare(faceIndex = 0) {
+  if (!searchId || faceBusy) return;
+  const file = $("face-image").files[0];
+  if (!file) return;
+  const gen = ++faceGeneration;
+  faceBusy = true; $("check-face").disabled = true; $("face-image").disabled = true;
+  $("face-results").replaceChildren(); $("face-multi").hidden = true;
+  $("face-status").textContent = "Processing reference image and comparing avatars…";
+  try {
+    const url = `/api/searches/${searchId}/reference-image?face_index=${faceIndex}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      body: file,
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      cache: "no-store",
+    });
+    const result = await resp.json();
+    if (gen !== faceGeneration) return;
+
+    // Multiple faces — show selector
+    if (resp.status === 300 && result.face_status === "MULTIPLE_FACES") {
+      $("face-status").textContent = `${result.faces.length} faces detected in your image. Select one:`;
+      $("face-multi").hidden = false;
+      $("face-selector").replaceChildren();
+      result.faces.forEach(f => {
+        const btn = document.createElement("button");
+        btn.className = "secondary";
+        btn.textContent = `Face ${f.face_index + 1} · quality ${Math.round(f.quality_score * 100)}%`;
+        btn.onclick = () => { $("face-multi").hidden = true; faceBusy = false; runFaceCompare(f.face_index); };
+        $("face-selector").append(btn);
+      });
+      faceBusy = false;
+      return;
+    }
+
+    if (!resp.ok) {
+      $("face-status").textContent = result.detail || "Face comparison failed.";
+      return;
+    }
+
+    // Show EXIF summary if available
+    const exif = result.exif_summary || {};
+    const exifKeys = Object.keys(exif).filter(k => k !== "_source");
+    if (exifKeys.length) {
+      $("face-exif").hidden = false;
+      $("face-exif-data").textContent = JSON.stringify(Object.fromEntries(exifKeys.map(k => [k, exif[k]])), null, 2);
+    }
+
+    const matches = result.matches || [];
+    const checked = matches.filter(m => !["NO_PUBLIC_IMAGE","FETCH_FAILED"].includes(m.status)).length;
+    $("face-status").textContent = [
+      `${checked} of ${matches.length} candidate avatars processed.`,
+      `Reference quality: ${Math.round((result.reference_quality || 0) * 100)}%.`,
+      `Model: ${result.model || "buffalo_sc"} · Thresholds: UNCALIBRATED.`,
+    ].join(" ");
+
+    if (!matches.length) {
+      $("face-results").append(node("p", "No candidate profiles to compare.", "muted"));
+    } else {
+      matches.forEach(m => {
+        const card = node("article", "", "card face-card");
+        const cls = FACE_STATUS_CLS[m.status] || "";
+        if (cls) card.classList.add(cls);
+        const title = node("strong", `${m.platform} ${m.username ? "@" + m.username : "profile"}`);
+        const statusLabel = node("span", ` · ${FACE_STATUS_LABEL[m.status] || m.status}`, "score");
+        const header = document.createElement("div"); header.className = "card-top";
+        header.append(title, statusLabel);
+        card.append(header);
+        if (m.similarity !== undefined) {
+          const pct = Math.round(m.similarity * 100);
+          const bar = document.createElement("div"); bar.className = "bar";
+          const fill = document.createElement("span"); fill.style.width = `${pct}%`; bar.append(fill);
+          card.append(bar);
+          card.append(node("p", `Cosine similarity: ${(m.similarity).toFixed(3)} · Quality: ${Math.round((m.quality||0)*100)}% · Calibrated: No`));
+        }
+        card.append(node("p", m.message || "", "muted"));
+        if (m.profile_url) card.append(safeLink(m.profile_url, "View profile ↗"));
+        if (m.avatar_url) card.append(document.createTextNode(" · "), safeLink(m.avatar_url, "View avatar ↗"));
+        $("face-results").append(card);
+      });
+      // Limitations
+      (result.limitations || []).slice(0, 2).forEach(t => $("face-results").append(node("p", t, "muted")));
+    }
+  } catch(e) {
+    if (gen === faceGeneration) $("face-status").textContent = `Error: ${e.message}`;
+  } finally {
+    faceBusy = false; $("face-image").disabled = false;
+    if (gen === faceGeneration) $("check-face").disabled = !searchId || !$("face-image").files.length;
+  }
+}
+$("check-face").onclick = () => runFaceCompare(0);
+

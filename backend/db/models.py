@@ -204,18 +204,39 @@ class ImageArtifact(Base):
         Index("ix_image_artifacts_profile_id", "profile_id"),
         Index("ix_image_artifacts_sha256", "sha256"),
         Index("ix_image_artifacts_perceptual_hash", "perceptual_hash"),
+        Index("ix_image_artifacts_search_run_id", "search_run_id"),
+        Index("ix_image_artifacts_artifact_role", "artifact_role"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     profile_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE")
     )
+    search_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("search_runs.id", ondelete="SET NULL")
+    )
+    # artifact_role: REFERENCE | PROFILE_AVATAR | PROFILE_IMAGE
+    artifact_role: Mapped[str | None] = mapped_column(String(32))
     source_url: Mapped[str | None] = mapped_column(Text)
     sha256: Mapped[str | None] = mapped_column(String(64))
     perceptual_hash: Mapped[str | None] = mapped_column(String(255))
+    # Extended hash fields for robust reuse detection
+    phash: Mapped[str | None] = mapped_column(String(32))
+    dhash: Mapped[str | None] = mapped_column(String(32))
+    colorhash: Mapped[str | None] = mapped_column(String(32))
+    whash: Mapped[str | None] = mapped_column(String(32))
+    crop_resistant_hash: Mapped[str | None] = mapped_column(Text)
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)
     quality_score: Mapped[float | None] = mapped_column(Float)
+    # Face detection results
+    face_count: Mapped[int | None] = mapped_column(Integer)
+    # face_status: PENDING | NO_FACE | SINGLE_FACE | MULTIPLE_FACES | LOW_QUALITY | PROCESSING
+    face_status: Mapped[str | None] = mapped_column(String(32))
+    retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    exif_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}"
+    )
     observed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=func.now()
     )
@@ -227,6 +248,57 @@ class ImageArtifact(Base):
     embeddings: Mapped[list[ImageEmbedding]] = relationship(
         back_populates="image_artifact", cascade="all, delete-orphan"
     )
+    face_instances: Mapped[list[FaceInstance]] = relationship(
+        back_populates="image_artifact", cascade="all, delete-orphan"
+    )
+
+
+class FaceInstance(Base):
+    """One detected face within an ImageArtifact."""
+
+    __tablename__ = "face_instances"
+    __table_args__ = (
+        CheckConstraint(
+            "quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 1)",
+            name="face_instances_quality_score_range",
+        ),
+        CheckConstraint(
+            "detection_confidence IS NULL OR (detection_confidence >= 0 AND detection_confidence <= 1)",
+            name="face_instances_detection_confidence_range",
+        ),
+        UniqueConstraint(
+            "image_artifact_id", "face_index", name="uq_face_instances_artifact_face_index"
+        ),
+        Index("ix_face_instances_image_artifact_id", "image_artifact_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    image_artifact_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("image_artifacts.id", ondelete="CASCADE")
+    )
+    face_index: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    bounding_box: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}"
+    )
+    detection_confidence: Mapped[float | None] = mapped_column(Float)
+    quality_score: Mapped[float | None] = mapped_column(Float)
+    pose_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    selected_for_reference: Mapped[bool] = mapped_column(
+        default=False, server_default="false"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=func.now()
+    )
+
+    image_artifact: Mapped[ImageArtifact] = relationship(back_populates="face_instances")
+    embedding: Mapped[ImageEmbedding | None] = relationship(
+        primaryjoin="and_(ImageEmbedding.image_artifact_id==FaceInstance.image_artifact_id, "
+                    "ImageEmbedding.embedding_type=='FACE')",
+        foreign_keys="ImageEmbedding.image_artifact_id",
+        viewonly=True,
+        uselist=False,
+    )
+
 
 
 class SearchSeed(Base):
@@ -727,6 +799,7 @@ __all__ = [
     "HypothesisMembership",
     "Identifier",
     "IdentityHypothesis",
+    "FaceInstance",
     "ImageArtifact",
     "ImageEmbedding",
     "InvestigationAnswer",

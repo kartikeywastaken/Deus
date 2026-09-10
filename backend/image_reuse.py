@@ -17,7 +17,7 @@ from backend.connectors.safe_http import fetch_public
 MAX_BYTES = 5_000_000
 MAX_AVATARS = 32
 MAX_SECONDS = 45
-METHOD_VERSION = "whole-image-reuse-v1"
+METHOD_VERSION = "whole-image-reuse-v2"  # v2: added colorhash, whash, crop_resistant_hash
 
 
 def fingerprint(data):
@@ -44,8 +44,17 @@ def fingerprint(data):
                     "sha256": hashlib.sha256(data).hexdigest(),
                     "pixels": pixels,
                     "size": picture.size,
+                    # Five complementary perceptual-hash algorithms:
+                    # phash  — DCT-based; good for resizes and JPEG recompression
+                    # dhash  — gradient-based; fast, catches contrast changes
+                    # colorhash — colour-distribution; catches palette-identical images
+                    # whash  — wavelet-based; better at crop detection
+                    # crop_resistant_hash — multi-segment; survives heavy cropping
                     "phash": str(imagehash.phash(rgb)),
                     "dhash": str(imagehash.dhash(rgb)),
+                    "colorhash": str(imagehash.colorhash(rgb, binbits=3)),
+                    "whash": str(imagehash.whash(rgb)),
+                    "crop_resistant_hash": str(imagehash.crop_resistant_hash(rgb)),
                     "thumbnail": thumbnail.tobytes(),
                     "variation": max(ImageStat.Stat(thumbnail).stddev),
                 }
@@ -72,19 +81,34 @@ def compare(reference, candidate):
         }
     if min(reference["variation"], candidate["variation"]) < 12:
         return {"status": "INCONCLUSIVE", "message": "Too little visual detail for reuse matching."}
-    phash_distance = (int(reference["phash"], 16) ^ int(candidate["phash"], 16)).bit_count()
-    dhash_distance = (int(reference["dhash"], 16) ^ int(candidate["dhash"], 16)).bit_count()
+
+    def ham(key):
+        try:
+            return (int(reference[key], 16) ^ int(candidate[key], 16)).bit_count()
+        except (KeyError, ValueError):
+            return 999
+
+    phash_distance = ham("phash")
+    dhash_distance = ham("dhash")
+    colorhash_distance = ham("colorhash")
+    whash_distance = ham("whash")
+
     aspect_a = reference["size"][0] / reference["size"][1]
     aspect_b = candidate["size"][0] / candidate["size"][1]
     mse = sum(
         (a - b) ** 2 for a, b in zip(reference["thumbnail"], candidate["thumbnail"], strict=True)
     ) / (32 * 32 * 3 * 255**2)
-    near = (
-        phash_distance <= 4
-        and dhash_distance <= 4
-        and mse <= 0.006
-        and abs(aspect_a / aspect_b - 1) <= 0.02
-    )
+
+    # Require at least 3 of 4 hash algorithms to agree (more robust than the v1 2-of-2 check)
+    near_votes = sum([
+        phash_distance <= 6,
+        dhash_distance <= 6,
+        colorhash_distance <= 4,
+        whash_distance <= 8,
+        mse <= 0.008,
+    ])
+    near = near_votes >= 3 and abs(aspect_a / aspect_b - 1) <= 0.05
+
     return {
         "status": "POSSIBLE_REUSE" if near else "NO_REUSE_DETECTED",
         "message": (
@@ -92,10 +116,13 @@ def compare(reference, candidate):
             if near
             else "No image reuse detected; this says nothing about ownership."
         ),
-        "method": "phash+dhash+thumbnail-mse+aspect",
+        "method": "phash+dhash+colorhash+whash+thumbnail-mse+aspect",
         "phash_distance": phash_distance,
         "dhash_distance": dhash_distance,
+        "colorhash_distance": colorhash_distance,
+        "whash_distance": whash_distance,
         "thumbnail_mse": round(mse, 6),
+        "near_vote_count": near_votes,
     }
 
 

@@ -11,13 +11,14 @@ from backend.connectors import build_default_registry
 from backend.db.session import AsyncSessionFactory, close_database
 
 
-async def diagnose(embedding=False):
+async def diagnose(embedding=False, face=False):
     result = {
         "collection_mode": "LIVE",
         "connectors": [await c.healthcheck() for c in build_default_registry()],
         "packages": {},
     }
-    for name in ("maigret", "sherlock-project", "social-analyzer", "sentence-transformers"):
+    for name in ("maigret", "sherlock-project", "social-analyzer", "sentence-transformers",
+                 "insightface", "onnxruntime", "pyexiftool"):
         try:
             result["packages"][name] = version(name)
         except PackageNotFoundError:
@@ -52,6 +53,9 @@ async def diagnose(embedding=False):
             }
         except Exception as exc:
             result["embedding"] = {"status": "UNAVAILABLE", "error": type(exc).__name__}
+    if face:
+        from backend.faces import engine as face_engine
+        result["face_engine"] = await face_engine.healthcheck()
     await close_database()
     return result
 
@@ -59,4 +63,6 @@ async def diagnose(embedding=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--embedding", action="store_true")
-    print(json.dumps(asyncio.run(diagnose(parser.parse_args().embedding)), indent=2))
+    parser.add_argument("--face", action="store_true")
+    args = parser.parse_args()
+    print(json.dumps(asyncio.run(diagnose(embedding=args.embedding, face=args.face)), indent=2))

@@ -54,6 +54,24 @@ class Settings(BaseSettings):
     max_questions: int = Field(default=3, ge=0)
     max_search_duration_seconds: int = Field(default=600, ge=1)
 
+    # ── Face matching ──────────────────────────────────────────────────────
+    face_matching_enabled: bool = True
+    # InsightFace model pack — buffalo_sc (compact ArcFace, 512-D, research only)
+    face_model_name: str = "buffalo_sc"
+    # Max simultaneous face inference threads (CPU-bound, keep conservative)
+    face_inference_concurrency: int = Field(default=2, ge=1, le=8)
+    # Reference image upload limits
+    max_face_upload_bytes: int = Field(default=8_000_000, ge=1)
+    # Retention: raw reference image bytes are deleted after this many hours.
+    # Embeddings and evidence are kept with the investigation.
+    reference_image_retention_hours: int = Field(default=72, ge=1)
+    face_embedding_retention_days: int = Field(default=30, ge=1)
+    # Similarity thresholds (UNCALIBRATED — see backend/faces/similarity.py)
+    # These have NOT been evaluated against a labelled ground-truth dataset.
+    face_review_threshold: float = Field(default=0.55, ge=0.0, le=1.0)
+    face_support_threshold: float = Field(default=0.68, ge=0.0, le=1.0)
+    face_strong_support_threshold: float = Field(default=0.82, ge=0.0, le=1.0)
+
 
 @lru_cache
 def get_settings() -> Settings:
