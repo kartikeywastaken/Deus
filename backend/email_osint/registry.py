@@ -8,7 +8,10 @@ from .adapters.domain_intel import DomainIntelAdapter
 from .adapters.github_email import GitHubEmailAdapter
 from .adapters.google_gaia import GoogleGaiaAdapter
 from .adapters.gravatar import GravatarAdapter
-from .adapters.hibp import HIBPAdapter
+from .adapters.domain_intel import DomainIntelAdapter
+from .adapters.github_email import GitHubEmailAdapter
+from .adapters.google_gaia import GoogleGaiaAdapter
+from .adapters.gravatar import GravatarAdapter
 from .adapters.holehe_public import HolehePublicAdapter
 from .base_source import BaseEmailSource
 
@@ -47,6 +50,5 @@ def build_default_email_registry() -> EmailSourceRegistry:
             GitHubEmailAdapter(),
             HolehePublicAdapter(),
             GoogleGaiaAdapter(),
-            HIBPAdapter(),
         ]
     )

@@ -22,39 +22,6 @@ class GoogleGaiaAdapter(BaseEmailSource):
 
     async def check(self, email: str, context: dict[str, Any] | None = None) -> EmailSourceResult:
         start = time.monotonic()
-        
-        # 1. GHunt integration if enabled and configured
-        ghunt_conn = context.get("ghunt_connector") if context else None
-        if ghunt_conn:
-            try:
-                from backend.connectors.schemas import ConnectorInput, ConnectorInputType
-                res = await ghunt_conn.discover(
-                    ConnectorInput(type=ConnectorInputType.EMAIL, value=email)
-                )
-                duration = (time.monotonic() - start) * 1000
-                if res.status.value == "SUCCESS" and res.identifiers:
-                    ids = [
-                        DiscoveredIdentifier(
-                            type="google_gaia_id",
-                            value=item.value,
-                            normalized_value=item.normalized_value,
-                            source=self.name,
-                            confidence=0.99,
-                        )
-                        for item in res.identifiers
-                    ]
-                    return self._result(
-                        EmailSourceStatus.FOUND,
-                        account_exists=True,
-                        confidence=0.99,
-                        identifiers=ids,
-                        evidence={"ghunt": True},
-                        response_time_ms=duration,
-                    )
-            except Exception:
-                pass
-
-        # 2. Passive Google Account lookup via public web lookup / endpoint check
         client: httpx.AsyncClient = context.get("client") if context else None
         own_client = False
         if client is None:

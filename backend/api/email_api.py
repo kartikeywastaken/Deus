@@ -19,7 +19,6 @@ _email_engine = EmailOSINTEngine()
 class EmailSearchRequest(BaseModel):
     email: str
     max_depth: int = Field(default=2, ge=1, le=5)
-    self_audit_confirmed: bool = False
 
 
 @router.post("/email", response_model=EmailOSINTResult)
@@ -33,7 +32,6 @@ async def discover_email(
 
     context = {
         "github_token": settings.github_token.get_secret_value() if settings.github_token else None,
-        "self_audit_confirmed": payload.self_audit_confirmed,
     }
 
     try:

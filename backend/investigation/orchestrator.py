@@ -87,8 +87,6 @@ class SearchOrchestrator:
                 email_engine = EmailOSINTEngine()
                 ctx = {
                     "github_token": self.settings.github_token.get_secret_value() if self.settings.github_token else None,
-                    "ghunt_connector": self.registry.get("ghunt") if "ghunt" in self.registry.names else None,
-                    "hibp_connector": self.registry.get("hibp") if "hibp" in self.registry.names else None,
                 }
                 email_res = await email_engine.discover(seed.normalized_value or seed.original_value, context=ctx)
                 for s_res in email_res.source_results:
