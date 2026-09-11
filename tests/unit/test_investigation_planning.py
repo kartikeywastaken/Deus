@@ -6,7 +6,9 @@ from backend.connectors import build_default_registry
 from backend.core.enums import SeedType
 from backend.investigation.pivot_engine import PivotEngine, PivotLedger
 from backend.investigation.planner import Action, choose_action
+from backend.investigation.orchestrator import _email_identifier_candidates
 from backend.investigation.username_questions import question_spec, variants_from_answer
+from backend.email_osint import DiscoveredIdentifier, EmailSourceResult, EmailSourceStatus
 
 
 def test_number_hint_generates_bounded_variants():
@@ -44,3 +46,29 @@ def test_discover_before_question_and_stop_at_budget():
     assert choose_action(**args).kind == Action.ASK_QUESTION
     args["runs_remaining"] = 0
     assert choose_action(**args).kind == Action.STOP_INSUFFICIENT
+
+
+def test_email_identifier_profile_urls_become_candidates():
+    result = EmailSourceResult(
+        source_name="holehe_public",
+        category="enumeration",
+        status=EmailSourceStatus.FOUND,
+        account_exists=True,
+        identifiers=[
+            DiscoveredIdentifier(
+                type="profile_url",
+                value="https://duolingo.com/profile/alice",
+                normalized_value="https://duolingo.com/profile/alice",
+                source="holehe_public:duolingo",
+                confidence=0.9,
+                metadata={"platform": "duolingo"},
+            )
+        ],
+        evidence={"found_services": ["duolingo"]},
+    )
+
+    candidates = _email_identifier_candidates(result)
+
+    assert len(candidates) == 1
+    assert candidates[0].platform == "duolingo"
+    assert candidates[0].canonical_url == "https://duolingo.com/profile/alice"

@@ -89,26 +89,47 @@ class SearchOrchestrator:
                     "github_token": self.settings.github_token.get_secret_value() if self.settings.github_token else None,
                 }
                 email_res = await email_engine.discover(seed.normalized_value or seed.original_value, context=ctx)
+                bootstrap_run = await self.repository.create_connector_run(
+                    search_id,
+                    "email_osint",
+                    connector_version="email-osint-bootstrap-v1",
+                    input_data={"email": email_res.normalized_email},
+                    metadata={"sources_checked": email_res.sources_checked},
+                )
+                email_candidates = []
                 for s_res in email_res.source_results:
                     if s_res.account_exists and s_res.canonical_url:
-                        cand = CandidateProfile(
-                            platform=s_res.source_name,
-                            canonical_url=s_res.canonical_url,
-                            username=s_res.username,
-                            display_name=s_res.display_name,
-                            avatar_url=s_res.avatar_url,
-                            discovered_by=["email_osint"],
-                            raw=s_res.evidence,
+                        email_candidates.append(
+                            CandidateProfile(
+                                platform=s_res.source_name,
+                                canonical_url=s_res.canonical_url,
+                                username=s_res.username,
+                                display_name=s_res.display_name,
+                                avatar_url=s_res.avatar_url,
+                                discovered_by=["email_osint"],
+                                raw={
+                                    **s_res.evidence,
+                                    "source_name": s_res.source_name,
+                                    "category": s_res.category,
+                                    "confidence": s_res.confidence,
+                                },
+                            )
                         )
-                        prof, _ = await self.repository.upsert_profile(cand)
-                        await self.repository.create_observation(
-                            search_id=search_id,
-                            profile_id=prof.id,
-                            connector=f"email_osint:{s_res.source_name}",
-                            source_url=s_res.canonical_url,
-                            normalized_data={"signal_type": "EMAIL_ACCOUNT_DISCOVERY", "value": s_res.source_name},
-                            raw_data=s_res.evidence,
-                        )
+                    email_candidates.extend(_email_identifier_candidates(s_res))
+                await self.repository.persist_connector_result(
+                    bootstrap_run.id,
+                    ConnectorResult(
+                        connector="email_osint",
+                        connector_version="email-osint-bootstrap-v1",
+                        status=ConnectorRunStatus.SUCCESS if email_candidates else ConnectorRunStatus.NO_RESULTS,
+                        profiles=email_candidates,
+                        metadata={
+                            "accounts_found": email_res.accounts_found,
+                            "sources_checked": email_res.sources_checked,
+                            "overall_confidence": email_res.overall_confidence,
+                        },
+                    ),
+                )
                 # Re-fetch profiles after email discovery
                 profiles = await self.repository.list_profile_snapshots_for_search(search_id)
 
@@ -736,6 +757,40 @@ def _run_fingerprint(run: Any) -> str:
     input_type = (run.input_data or {}).get("type", "UNKNOWN")
     value = (run.input_data or {}).get("value", "")
     return f"{run.connector.casefold()}:{input_type}:{str(value).casefold()}"
+
+
+def _email_identifier_candidates(source_result: Any) -> list[CandidateProfile]:
+    candidates: list[CandidateProfile] = []
+    seen: set[str] = set()
+    for identifier in getattr(source_result, "identifiers", ()) or ():
+        if identifier.type != "profile_url" or not identifier.value.startswith("https://"):
+            continue
+        canonical = canonicalize_url(identifier.value)
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        platform = (
+            identifier.metadata.get("platform")
+            or identifier.source.rsplit(":", 1)[-1]
+            or source_result.source_name
+        )
+        candidates.append(
+            CandidateProfile(
+                platform=platform,
+                canonical_url=canonical,
+                username=getattr(source_result, "username", None),
+                display_name=getattr(source_result, "display_name", None),
+                avatar_url=getattr(source_result, "avatar_url", None),
+                discovered_by=["email_osint", source_result.source_name],
+                raw={
+                    "email_source": source_result.source_name,
+                    "identifier_source": identifier.source,
+                    "identifier_confidence": identifier.confidence,
+                    **(getattr(source_result, "evidence", {}) or {}),
+                },
+            )
+        )
+    return candidates
 
 
 def _enum_value(value: Any) -> str:

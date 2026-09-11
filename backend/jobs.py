@@ -40,12 +40,12 @@ async def create_search(repository, settings, payload):
         ),
     )
     await enqueue(repository.session, search.id)
-    if payload.email_self_audit_confirmed:
+    if getattr(payload, "email_self_audit_confirmed", False):
         repository.session.add(
             UserSearchContext(
                 search_run_id=search.id,
                 context_type="EMAIL_SELF_AUDIT_CONSENT",
-                value={"explicit_email_seed": True, "providers": ["ghunt", "hibp"]},
+                value={"explicit_email_seed": True},
             )
         )
     return search

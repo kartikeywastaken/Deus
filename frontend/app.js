@@ -3,6 +3,8 @@ const $ = id => document.getElementById(id);
 const terminal = s => ["COMPLETED", "FAILED", "CANCELLED"].includes(s);
 let searchId = null, stream = null, refreshTimer = null, fallbackTimer = null, busy = false;
 let latest = null, questionId = null, refreshRunning = false, refreshAgain = false;
+let currentSeedType = null, currentSeedValue = null, emailFetchedFor = null;
+let emailOsintData = null, emailOsintView = "accounts";
 let imageBusy = false, imageController = null, imageGeneration = 0;
 const node = (tag, text = "", cls = "") => { const n = document.createElement(tag); n.textContent = text; if (cls) n.className = cls; return n; };
 const label = p => `${p.platform} ${p.username ? "@" + p.username : p.display_name || "profile"}`;
@@ -14,7 +16,12 @@ async function request(path, options = {}) {
   if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail || response.status));
   return payload;
 }
-function error(e) { $("error").textContent = e.message || String(e); }
+function cleanErrorMessage(message) {
+  const text = message || "";
+  if (text.includes("upsert_profile") || text.includes("AttributeError")) return "Email account discovery could not save profiles in the previous run. Start a fresh email search after this update.";
+  return text;
+}
+function error(e) { $("error").textContent = cleanErrorMessage(e.message || String(e)); }
 function setBusy(value) { busy = value; $("search-button").disabled = value; $("question-form").querySelectorAll("input,button").forEach(n => n.disabled = value); }
 function schedule() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => refresh().catch(error), 250); }
 function connect() {
@@ -41,7 +48,7 @@ async function refresh() {
     $("ai-status").textContent = `AI adviser: ${state.ai_assist?.status || "Not run yet"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     $("candidate-count").textContent = candidates.items.length; $("hypothesis-count").textContent = hypotheses.items.length; $("evidence-count").textContent = evidence.items.length; $("run-count").textContent = runs.items.length;
     $("stop-search").disabled = terminal(state.status); $("continue-search").disabled = state.status !== "AWAITING_USER";
-    if (terminal(state.status)) { stream?.close(); clearTimeout(fallbackTimer); $("connection").textContent = "Saved investigation"; }
+    if (terminal(state.status)) { stream?.close(); clearTimeout(fallbackTimer); $("connection").textContent = "Saved investigation"; if (currentSeedType === "EMAIL" && currentSeedValue && emailFetchedFor !== currentSeedValue) fetchEmailOsint(currentSeedValue); }
     if (state.error_summary) error(new Error(state.error_summary));
     renderCandidates(); renderRuns(); renderHypotheses(); renderQuestion(); renderEvidence(); renderReport(); renderGraph();
     $("check-image").disabled = imageBusy || !$("reference-image").files.length;
@@ -126,9 +133,8 @@ function renderGraph(selected = null) {
   nodes.forEach(n => { const [x,y] = positions.get(n.id); const g = make("g", {tabindex:0, role:"button", "aria-label":n.label}); g.append(make("circle", {cx:x,cy:y,r:n.type === "profile" ? 8 : 11,fill:n.id === selected ? "#ddab47" : n.type === "profile" ? "#167661" : "#8b9b90"})); const t = make("text", {x:x+13,y:y+4}); t.textContent = n.label.length > 27 ? n.label.slice(0,24)+"…" : n.label; g.append(t); const choose = () => { renderGraph(n.id); $("graph-detail").textContent = `${n.label} · ${n.type} · ${latest.graph.edges.filter(e => e.source === n.id || e.target === n.id).length} stored connections`; }; g.onclick = choose; g.onkeydown = e => { if (["Enter"," "].includes(e.key)) {e.preventDefault(); choose();} }; svg.append(g); });
   if (!selected) $("graph-detail").textContent = nodes.length ? `${nodes.length} of ${latest.graph.nodes.length} nodes shown. Layout does not imply identity.` : "No graph data yet.";
 }
-$("search-form").onsubmit = async e => { e.preventDefault(); if (busy || imageBusy) return; setBusy(true); $("error").textContent = ""; try { const result = await request("/api/searches", {method:"POST",body:JSON.stringify({seed_type:$("seed-type").value,value:$("seed").value,scope:"self_audit"})}); stream?.close(); searchId = result.id; questionId = null; $("image-results").replaceChildren(); $("image-status").textContent = ""; localStorage.setItem("deus-search",searchId); history.replaceState(null,"",`?search=${searchId}`); connect(); await refresh(); } catch(err) {error(err);} finally {setBusy(false);} };
+$("search-form").onsubmit = async e => { e.preventDefault(); if (busy || imageBusy) return; setBusy(true); $("error").textContent = ""; currentSeedType = $("seed-type").value; currentSeedValue = $("seed").value.trim(); emailFetchedFor = null; emailOsintData = null; try { const result = await request("/api/searches", {method:"POST",body:JSON.stringify({seed_type:$("seed-type").value,value:$("seed").value,scope:"self_audit"})}); stream?.close(); searchId = result.id; questionId = null; $("image-results").replaceChildren(); $("image-status").textContent = ""; localStorage.setItem("deus-search",searchId); history.replaceState(null,"",`?search=${searchId}`); connect(); await refresh(); document.getElementById("view-graph")?.scrollIntoView({behavior:"smooth", block:"start"}); } catch(err) {error(err);} finally {setBusy(false);} };
 for (const [id, action] of [["continue-search","continue"],["stop-search","stop"]]) $(id).onclick = async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/${action}`,{method:"POST"}); await refresh(); } catch(e) {error(e);} };
-document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== `view-${b.dataset.view}`); document.querySelectorAll("[data-view]").forEach(t => t.setAttribute("aria-pressed",String(t === b))); });
 $("graph-reset").onclick = () => renderGraph(); $("print-report").onclick = () => window.print();
 const saved = new URLSearchParams(location.search).get("search") || localStorage.getItem("deus-search");
 if (saved && /^[0-9a-f-]{36}$/i.test(saved)) { searchId = saved; refresh().then(connect).catch(error); }
@@ -170,3 +176,138 @@ $("clear-image").onclick = () => {
   $("image-results").replaceChildren(); $("check-image").disabled = true;
   $("image-status").textContent = "Local selection and results cleared. An in-flight server check may finish within its bounded timeout; nothing is saved.";
 };
+
+// ── Hero CTA: scroll to search form and focus seed input ──
+document.getElementById("hero-cta")?.addEventListener("click", () => {
+  const form = document.getElementById("search-form");
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => document.getElementById("seed").focus(), 380);
+});
+
+// ── Email OSINT: parallel identity discovery via /api/osint/email ──
+// Called automatically when a search with seed_type=EMAIL reaches terminal status.
+// Does NOT affect the standard search pipeline or any existing results.
+let _emailOsintController = null;
+
+async function fetchEmailOsint(email) {
+  const section   = document.getElementById("email-osint-section");
+  const metaEl    = document.getElementById("email-osint-meta");
+  const sourcesEl = document.getElementById("email-osint-sources");
+  if (!section || !metaEl || !sourcesEl) return;
+
+  // Cancel any previous in-flight request for this session
+  _emailOsintController?.abort();
+  _emailOsintController = new AbortController();
+
+  section.hidden = false;
+  metaEl.className = "metrics";
+  metaEl.replaceChildren(node("div", "Scanning identity sources\u2026"));
+  sourcesEl.replaceChildren();
+  emailFetchedFor = email;
+
+  try {
+    const res = await fetch("/api/osint/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+      signal: _emailOsintController.signal,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `Email OSINT error ${res.status}`);
+    emailOsintData = data;
+    renderEmailOsint(data, metaEl, sourcesEl);
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      metaEl.className = "";
+      metaEl.textContent = `Email OSINT error: ${e.message}`;
+    }
+  } finally {
+    _emailOsintController = null;
+  }
+}
+
+function renderEmailOsint(data, metaEl, sourcesEl) {
+  metaEl.className = "metrics";
+  metaEl.replaceChildren();
+  const foundAccounts = (data.source_results ?? []).filter(src => src.account_exists || src.canonical_url);
+  const sourceResults = data.source_results ?? [];
+  const identifiers = data.discovered_identifiers ?? [];
+  const summaryItems = [
+    ["accounts", String(foundAccounts.length || data.accounts_found || 0), "Accounts found"],
+    ["sources", String(data.sources_checked ?? sourceResults.length), "Sources checked"],
+    ["identifiers", String(identifiers.length), "Identifiers extracted"],
+    ["domain", Math.round((data.overall_confidence ?? 0) * 100) + "%", "Confidence"],
+  ];
+  for (const [view, val, lbl] of summaryItems) {
+    const div = node("button", "", "metric-tab");
+    div.type = "button";
+    div.setAttribute("aria-pressed", String(emailOsintView === view));
+    div.onclick = () => { emailOsintView = view; renderEmailOsint(emailOsintData, metaEl, sourcesEl); };
+    const strong = node("strong", val);
+    const span   = node("span",   lbl);
+    div.append(strong, span);
+    metaEl.append(div);
+  }
+
+  sourcesEl.replaceChildren();
+  sourcesEl.className = "email-detail-grid";
+  const STATUS_ORDER = { FOUND: 0, UNKNOWN: 1, NOT_FOUND: 2, RATE_LIMITED: 3, TIMEOUT: 4, ERROR: 5 };
+  const sorted = [...sourceResults]
+    .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+
+  if (emailOsintView === "accounts") {
+    const accounts = foundAccounts.length ? foundAccounts : sorted.filter(src => src.status === "FOUND");
+    for (const src of accounts) sourcesEl.append(emailSourceCard(src, true));
+    if (!accounts.length) sourcesEl.append(node("p", "No linked account URLs returned by email sources yet.", "empty"));
+    return;
+  }
+
+  if (emailOsintView === "sources") {
+    for (const src of sorted) sourcesEl.append(emailSourceCard(src, false));
+    return;
+  }
+
+  if (emailOsintView === "identifiers") {
+    for (const id of identifiers) {
+      const card = node("article", "", "card email-account-card");
+      card.append(node("p", id.source, "platform"), node("strong", `${id.type}: ${id.value}`));
+      card.append(node("p", `Confidence ${Math.round(id.confidence * 100)}%`));
+      if (id.type.includes("url")) card.append(safeLink(id.value, "Open source ↗"));
+      sourcesEl.append(card);
+    }
+    if (!identifiers.length) sourcesEl.append(node("p", "No reusable identifiers extracted yet.", "empty"));
+    return;
+  }
+
+  if (data.domain_intel) {
+    const d = data.domain_intel;
+    const card = node("article", "", "card email-account-card");
+    card.append(node("p", "domain intelligence", "platform"), node("strong", d.domain));
+    card.append(node("p", `${d.provider_name || "Unknown provider"} · ${d.provider_type || "UNKNOWN"}`));
+    if (d.is_free_provider) card.append(node("span", "Free provider", "badge"));
+    if (d.is_disposable) card.append(node("span", "Disposable domain", "badge"));
+    sourcesEl.append(card);
+  }
+}
+
+function emailSourceCard(src, accountOnly) {
+    const card = node("article", "", "card email-account-card");
+    card.dataset.status =
+      src.status === "FOUND"   ? "RUNNING" :
+      src.status === "ERROR"   ? "FAILED"  :
+      src.status === "TIMEOUT" ? "FAILED"  : "";
+
+    card.append(node("p", src.category || "source", "platform"));
+    const title = src.username ? `${src.source_name.replace(/_/g, " ")} · @${src.username}` : src.source_name.replace(/_/g, " ");
+    card.append(node("strong", title), node("span", src.status, "badge"));
+
+    if (src.display_name) card.append(node("small", `Display: ${src.display_name}`));
+    if (src.message && !accountOnly) card.append(node("small", src.message));
+    if (src.canonical_url) {
+      const link = safeLink(src.canonical_url, "View profile \u2197");
+      card.append(link);
+    }
+    if (!src.canonical_url && src.status === "FOUND") card.append(node("p", "Found, but this source did not return a public profile link.", "muted"));
+    if (src.response_time_ms) card.append(node("small", `${Math.round(src.response_time_ms)} ms`));
+    return card;
+}

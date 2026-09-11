@@ -1,27 +1,189 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deus · Public identity research</title><link rel="stylesheet" href="/styles.css"></head>
-<body><main>
-<header class="topbar"><a class="brand" href="/">◈ DEUS <span>PUBLIC IDENTITY RESEARCH</span></a><span class="live">● LIVE SOURCES</span></header>
-<section class="intro"><p class="eyebrow">FOLLOW THE EVIDENCE</p><h1>Find the connections.<br><span>Keep the uncertainty.</span></h1><p>Discover public accounts, refine your search, and inspect the evidence behind every lead.</p></section>
-<form id="search-form" class="searchbar"><label>Start with<select id="seed-type"><option value="USERNAME">Username</option><option value="NAME">Name</option><option value="PROFILE_URL">Social profile URL</option><option value="EMAIL">Email address (OSINT)</option></select></label><label class="seed-label">Search seed<input id="seed" autocomplete="off" required maxlength="500" placeholder="A public username, name, profile URL, or email address"></label><button id="search-button" type="submit">Investigate ↗</button></form>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deus · Public identity research</title>
+  <meta name="description" content="Discover public accounts, refine your search, and inspect the evidence behind every lead. Deus public identity research.">
+  <link rel="stylesheet" href="/styles.css?v=3">
+</head>
+<body>
+<main>
+
+<!-- ═══ TOP NAV — untouched ═══ -->
+<header class="topbar">
+  <a class="brand" href="/">◈ DEUS <span>PUBLIC IDENTITY RESEARCH</span></a>
+  <nav class="main-nav" aria-label="Page sections">
+    <a href="#search-form">Search</a>
+    <a href="#view-graph">Graph</a>
+    <a href="#view-overview">Leads</a>
+    <a href="#view-evidence">Evidence</a>
+  </nav>
+  <span class="live">● LIVE SOURCES</span>
+</header>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero" aria-label="Deus — public identity research">
+
+  <div class="hero-rule hero-rule--left" aria-hidden="true"></div>
+  <div class="hero-rule hero-rule--right" aria-hidden="true"></div>
+
+  <div class="hero-chip hero-chip--1" aria-hidden="true">
+    <span class="chip-label">► SOURCES ACTIVE</span>
+    <span class="chip-value">14 connectors</span>
+  </div>
+  <div class="hero-chip hero-chip--2" aria-hidden="true">
+    <span class="chip-label">► EVIDENCE MODE</span>
+    <span class="chip-value">public signals only</span>
+  </div>
+
+  <button class="hero-float-card" type="button" id="hero-source-card" aria-label="Highlight GitHub connector">
+    <span class="fc-mark">◈</span>
+    <span class="fc-label">Connector run</span>
+    <span class="fc-name">GitHub · <span class="fc-status">FOUND</span></span>
+    <span class="fc-value">3 identifiers extracted</span>
+  </button>
+
+  <div class="hero-center">
+    <p class="eyebrow">FOLLOW THE EVIDENCE</p>
+    <h1>Find the connections.<br><span>Keep the uncertainty.</span></h1>
+
+    <div class="hero-coin-wrap" aria-hidden="true" tabindex="-1" id="hero-coin"></div>
+
+    <p class="hero-subhead">Discover public accounts, refine your search, and inspect the evidence behind every lead.</p>
+    <button class="hero-cta-btn" type="button" id="hero-cta" aria-label="Start investigating — scroll to search form">Investigate ↗</button>
+  </div>
+
+</section>
+
+<!-- ═══ SEARCH FORM — untouched logic, same IDs ═══ -->
+<section class="search-panel" aria-label="Investigation input">
+  <div>
+    <p class="eyebrow">SEARCH INPUT</p>
+    <h2>Start from one public clue</h2>
+  </div>
+  <form id="search-form" class="searchbar" aria-label="Start an investigation">
+    <label>Input type
+      <select id="seed-type">
+        <option value="USERNAME">Username</option>
+        <option value="NAME">Name</option>
+        <option value="PROFILE_URL">Social profile URL</option>
+        <option value="EMAIL">Email address (OSINT)</option>
+      </select>
+    </label>
+    <label class="seed-label">Value
+      <input id="seed" autocomplete="off" required maxlength="500" placeholder="Username, name, profile URL, or email address">
+    </label>
+    <button id="search-button" type="submit">Investigate ↗</button>
+  </form>
+</section>
+
 <div id="error" role="alert"></div>
-<section class="card" id="image-section"><h2>Optional · check image reuse</h2>
-<p id="image-prompt">Choose an image now to check it against collected avatars when the search finishes, or check the current candidates below.</p>
-<p>No facial recognition. Different photos of the same person will not match. Reuse does not establish ownership.</p>
-<label>JPEG, PNG or WebP · up to 5 MB<input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp"></label>
-<p>The selected file stays in this tab until comparison, then is cleared. The server does not save uploads, fingerprints or results. Closing this tab clears this workflow.</p>
-<button id="check-image" type="button" class="secondary" disabled>Check current candidates</button>
-<button id="clear-image" type="button" class="secondary">Clear image and results</button>
-<p id="image-status" role="status" aria-live="polite"></p><div id="image-results"></div></section>
-<section class="statusbar"><div><span id="connection">Ready</span><h2 id="status" aria-live="polite">Start an investigation</h2><small id="search-id"></small><p id="ai-status">AI adviser: Not run yet</p></div><div class="actions"><button id="continue-search" class="secondary" disabled>Skip / continue</button><button id="stop-search" class="secondary" disabled>Stop</button></div></section>
-<section id="question-section" class="question" hidden><div><p class="eyebrow">NARROW THE SEARCH</p><h2 id="question"></h2><p id="question-reason"></p></div><form id="question-form"><div id="question-options"></div></form></section>
-<div class="metrics"><div><strong id="candidate-count">0</strong><span>Public candidates</span></div><div><strong id="hypothesis-count">0</strong><span>Possible clusters</span></div><div><strong id="evidence-count">0</strong><span>Evidence signals</span></div><div><strong id="run-count">0</strong><span>Connector runs</span></div></div>
-<nav class="tabs" aria-label="Investigation views"><button data-view="overview" aria-pressed="true">Overview</button><button data-view="graph" aria-pressed="false">Connection graph</button><button data-view="evidence" aria-pressed="false">Evidence</button><button data-view="report" aria-pressed="false">Report</button></nav>
-<section id="view-overview" class="view"><div class="two-column"><section><div class="section-title"><h2>Leading candidates</h2><span>Search relevance ≠ identity</span></div><div id="candidates" class="cards empty">No search yet. Nothing here is pre-populated.</div></section><aside><h2>Collection progress</h2><div id="runs" class="empty">Tool outcomes appear here.</div><h2>Identity hypotheses</h2><p class="muted">Evidence scores are not calibrated probabilities.</p><div id="hypotheses"></div></aside></div></section>
-<section id="view-graph" class="view" hidden><div class="section-title"><h2>Connections from collected evidence</h2><button id="graph-reset" class="secondary">Reset selection</button></div><p class="muted">Select a node to inspect its connections. Darker edges represent stronger stored evidence, not certainty.</p><div class="graph-wrap"><svg id="graph" viewBox="0 0 1100 760" role="img" aria-label="Public candidate connection graph"></svg></div><div id="graph-detail" aria-live="polite"></div></section>
-<section id="view-evidence" class="view" hidden><h2>Evidence ledger</h2><p class="muted">Independent evidence families are deduplicated. Contradictions remain visible.</p><div id="evidence" class="empty">No evidence collected.</div></section>
-<section id="view-report" class="view" hidden><div class="section-title"><h2>Investigation report</h2><button id="print-report" class="secondary">Print / save PDF</button></div><div id="report" class="empty">A report appears when the investigation finishes.</div></section>
+
+<!-- ═══ EMAIL OSINT RESULTS — shown when seed-type = EMAIL ═══ -->
+<section class="card" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
+  <h2>Email OSINT · identity discovery</h2>
+  <div id="email-osint-meta" class="metrics" style="margin:12px 0 20px"></div>
+  <div id="email-osint-sources"></div>
+</section>
+
+<!-- ═══ STATUS BAR — untouched ═══ -->
+<section class="statusbar">
+  <div>
+    <span id="connection">Ready</span>
+    <h2 id="status" aria-live="polite">Start an investigation</h2>
+    <small id="search-id"></small>
+    <p id="ai-status">AI adviser: Not run yet</p>
+  </div>
+  <div class="actions">
+    <button id="continue-search" class="secondary" disabled>Skip / continue</button>
+    <button id="stop-search" class="secondary" disabled>Stop</button>
+  </div>
+</section>
+
+<!-- ═══ QUESTION — untouched ═══ -->
+<section id="question-section" class="question" hidden>
+  <div>
+    <p class="eyebrow">NARROW THE SEARCH</p>
+    <h2 id="question"></h2>
+    <p id="question-reason"></p>
+  </div>
+  <form id="question-form">
+    <div id="question-options"></div>
+  </form>
+</section>
+
+<!-- ═══ METRICS — untouched ═══ -->
+<div class="metrics">
+  <div><strong id="candidate-count">0</strong><span>Public candidates</span></div>
+  <div><strong id="hypothesis-count">0</strong><span>Possible clusters</span></div>
+  <div><strong id="evidence-count">0</strong><span>Evidence signals</span></div>
+  <div><strong id="run-count">0</strong><span>Connector runs</span></div>
+</div>
+
+<!-- ═══ VIEWS — untouched ═══ -->
+<section id="view-graph" class="view">
+  <div class="section-title">
+    <h2>Connection graph</h2>
+    <button id="graph-reset" class="secondary">Reset selection</button>
+  </div>
+  <p class="muted">Graph appears for every search type, including email. Select a node to inspect its stored connections.</p>
+  <div class="graph-wrap">
+    <svg id="graph" viewBox="0 0 1100 760" role="img" aria-label="Public candidate connection graph"></svg>
+  </div>
+  <div id="graph-detail" aria-live="polite"></div>
+</section>
+
+<section id="view-overview" class="view">
+  <div class="two-column">
+    <section>
+      <div class="section-title">
+        <h2>Leading candidates</h2>
+        <span>Search relevance ≠ identity</span>
+      </div>
+      <div id="candidates" class="cards empty">No search yet. Nothing here is pre-populated.</div>
+    </section>
+    <aside>
+      <h2>Collection progress</h2>
+      <div id="runs" class="empty">Tool outcomes appear here.</div>
+      <h2>Identity hypotheses</h2>
+      <p class="muted">Evidence scores are not calibrated probabilities.</p>
+      <div id="hypotheses"></div>
+    </aside>
+  </div>
+</section>
+
+<section id="view-evidence" class="view">
+  <h2>Evidence ledger</h2>
+  <p class="muted">Independent evidence families are deduplicated. Contradictions remain visible.</p>
+  <div id="evidence" class="empty">No evidence collected.</div>
+</section>
+
+<section id="view-report" class="view">
+  <div class="section-title">
+    <h2>Investigation report</h2>
+    <button id="print-report" class="secondary">Print / save PDF</button>
+  </div>
+  <div id="report" class="empty">A report appears when the investigation finishes.</div>
+</section>
+
+<section class="card utility-card" id="image-section">
+  <h2>Optional image reuse</h2>
+  <p id="image-prompt">Choose an image now to check it against collected avatars when the search finishes, or check the current candidates below.</p>
+  <p>No facial recognition. Different photos of the same person will not match. Reuse does not establish ownership.</p>
+  <label>JPEG, PNG or WebP · up to 5 MB<input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+  <button id="check-image" type="button" class="secondary" disabled>Check current candidates</button>
+  <button id="clear-image" type="button" class="secondary">Clear</button>
+  <p id="image-status" role="status" aria-live="polite"></p>
+  <div id="image-results"></div>
+</section>
+
 <footer>Public or authorized research only. A matching handle is a lead, not proof of ownership. No facial identification.</footer>
-</main><script src="/app.js" defer></script></body></html>
+
+</main>
+
+<script src="/app.js?v=3" defer></script>
+<!-- Coin animation: isolated ES module, loads after app.js, never blocks other pages -->
+<script type="module" src="/hero-coin.js?v=3"></script>
+</body>
+</html>

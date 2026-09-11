@@ -751,6 +751,57 @@ class PostgresInvestigationRepository:
             raise InvalidRepositoryState("PostgreSQL profile upsert returned no profile")
         return profile
 
+    async def upsert_profile(self, candidate: CandidateProfile) -> tuple[Profile, bool]:
+        """Public wrapper around profile upsert returning (profile, created_new)."""
+        values = _profile_values(candidate)
+        platform = values["platform"]
+        account_id = values["platform_account_id"]
+        canonical_url = values["canonical_url"]
+
+        conditions = [
+            (Profile.platform == platform) & (Profile.canonical_url == canonical_url),
+        ]
+        if account_id:
+            conditions.append(
+                (Profile.platform == platform) & (Profile.platform_account_id == account_id)
+            )
+        existing = await self.session.scalar(select(Profile).where(or_(*conditions)))
+        profile = await self._upsert_profile(candidate)
+        return profile, (existing is None)
+
+    async def create_observation(
+        self,
+        *,
+        search_id: UUID | str,
+        profile_id: UUID | str,
+        connector: str,
+        source_url: str | None = None,
+        normalized_data: Mapping[str, Any] | None = None,
+        raw_data: Mapping[str, Any] | None = None,
+    ) -> ProfileObservation:
+        """Public observation creation with automatic synthetic connector run creation."""
+        search = await self._require_search(search_id)
+        profile_uuid = _as_uuid(profile_id, "profile_id")
+        profile = await self.session.get(Profile, profile_uuid)
+        if profile is None:
+            raise RepositoryEntityNotFound("profile not found")
+
+        connector_run = await self.create_connector_run(
+            search_id=search.id,
+            connector=connector,
+        )
+        connector_run.status = ConnectorStatus.SUCCESS
+        connector_run.completed_at = utc_now()
+
+        observation = await self._add_profile_observation(
+            run=connector_run,
+            profile=profile,
+            source_url=source_url,
+            normalized_data=normalized_data or {},
+            raw_data=raw_data or {},
+        )
+        return observation
+
     async def _merge_profile_values(self, profile: Profile, values: Mapping[str, Any]) -> None:
         candidate_url = str(values["canonical_url"])
         if profile.canonical_url != candidate_url:

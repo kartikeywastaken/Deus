@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
+from backend.connectors.schemas import CandidateProfile
 from backend.connectors.schemas import ConnectorResult
 from backend.core.enums import (
     QuestionType,
@@ -79,6 +80,21 @@ class InvestigationRepository(Protocol):
     async def list_connector_runs(self, search_id: UUID | str) -> list[ConnectorRun]: ...
 
     async def list_profiles_for_search(self, search_id: UUID | str) -> list[Profile]: ...
+
+    async def upsert_profile(
+        self, candidate: CandidateProfile
+    ) -> tuple[Profile, bool]: ...
+
+    async def create_observation(
+        self,
+        *,
+        search_id: UUID | str,
+        profile_id: UUID | str,
+        connector: str,
+        source_url: str | None = None,
+        normalized_data: Mapping[str, Any] | None = None,
+        raw_data: Mapping[str, Any] | None = None,
+    ) -> ProfileObservation: ...
 
     async def list_profile_snapshots_for_search(
         self, search_id: UUID | str

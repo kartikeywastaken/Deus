@@ -137,7 +137,7 @@ async def execute_locked(job_id, search_id, worker_id):
     except asyncio.CancelledError:
         outcome, error = "CANCELLED", "Cancelled or worker lease lost."
     except Exception as exc:
-        outcome, error = "FAILED", f"{type(exc).__name__}: {exc}"
+        outcome, error = "FAILED", _public_worker_error(exc)
         log.exception("Investigation failed")
     finally:
         pulse.cancel()
@@ -174,6 +174,13 @@ async def execute_locked(job_id, search_id, worker_id):
                 }
             )
         )
+
+
+def _public_worker_error(exc: Exception) -> str:
+    message = f"{type(exc).__name__}: {exc}"
+    if "upsert_profile" in message:
+        return "Email account discovery failed while saving profiles. Please retry the search."
+    return message
 
 
 async def main():
