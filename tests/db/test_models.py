@@ -25,6 +25,7 @@ EXPECTED_TABLES = {
     "hypothesis_memberships",
     "identifiers",
     "identity_hypotheses",
+    "face_instances",
     "image_artifacts",
     "image_embeddings",
     "investigation_answers",

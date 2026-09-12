@@ -1,10 +1,13 @@
-"""Isolated GHunt runner using only metadata lookup, never max_details or private names."""
-
 import asyncio
 import contextlib
 import io
 import json
+from pathlib import Path
 import sys
+
+# Prevent backend/connectors/ghunt.py from shadowing the installed ghunt package
+_here = str(Path(__file__).resolve().parent)
+sys.path = [p for p in sys.path if str(Path(p or ".").resolve()) != _here]
 
 
 async def lookup(email):
