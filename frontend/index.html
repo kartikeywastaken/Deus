@@ -5,12 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Deus · Public identity research</title>
   <meta name="description" content="Discover public accounts, refine your search, and inspect the evidence behind every lead. Deus public identity research.">
-  <link rel="stylesheet" href="/styles.css?v=3">
+
+  <!-- Google Fonts: Montserrat & IBM Plex Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Montserrat:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,300&display=swap" rel="stylesheet">
+
+  <!-- Lenis Smooth Scroll -->
+  <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
+
+  <!-- GSAP & ScrollTrigger -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+  <link rel="stylesheet" href="/styles.css?v=4">
 </head>
 <body>
 <main>
 
-<!-- ═══ TOP NAV — untouched ═══ -->
+<!-- ═══ TOP NAV ═══ -->
 <header class="topbar">
   <a class="brand" href="/">◈ DEUS <span>PUBLIC IDENTITY RESEARCH</span></a>
   <nav class="main-nav" aria-label="Page sections">
@@ -45,21 +58,24 @@
   </button>
 
   <div class="hero-center">
-    <p class="eyebrow">FOLLOW THE EVIDENCE</p>
-    <h1>Find the connections.<br><span>Keep the uncertainty.</span></h1>
+    <p class="eyebrow hero-eyebrow">01. PUBLIC IDENTITY RESEARCH</p>
+    <h1 class="hero-headline">
+      <span class="line-wrap"><span class="line-text">Find the connections.</span></span>
+      <span class="line-wrap"><span class="line-text muted-text">Keep the uncertainty.</span></span>
+    </h1>
 
     <div class="hero-coin-wrap" aria-hidden="true" tabindex="-1" id="hero-coin"></div>
 
     <p class="hero-subhead">Discover public accounts, refine your search, and inspect the evidence behind every lead.</p>
-    <button class="hero-cta-btn" type="button" id="hero-cta" aria-label="Start investigating — scroll to search form">Investigate ↗</button>
+    <button class="hero-cta-btn wipe-btn" type="button" id="hero-cta" aria-label="Start investigating — scroll to search form">Investigate ↗</button>
   </div>
 
 </section>
 
-<!-- ═══ SEARCH FORM — untouched logic, same IDs ═══ -->
-<section class="search-panel" aria-label="Investigation input">
+<!-- ═══ SEARCH FORM ═══ -->
+<section class="search-panel reveal-section" aria-label="Investigation input">
   <div>
-    <p class="eyebrow">SEARCH INPUT</p>
+    <p class="eyebrow">02. SEARCH INPUT</p>
     <h2>Start from one public clue</h2>
   </div>
   <form id="search-form" class="searchbar" aria-label="Start an investigation">
@@ -74,21 +90,22 @@
     <label class="seed-label">Value
       <input id="seed" autocomplete="off" required maxlength="500" placeholder="Username, name, profile URL, or email address">
     </label>
-    <button id="search-button" type="submit">Investigate ↗</button>
+    <button id="search-button" class="wipe-btn" type="submit">Investigate ↗</button>
   </form>
 </section>
 
 <div id="error" role="alert"></div>
 
 <!-- ═══ EMAIL OSINT RESULTS — shown when seed-type = EMAIL ═══ -->
-<section class="card" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
+<section class="card reveal-section" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
+  <p class="eyebrow">EMAIL SIGNAL DISCOVERY</p>
   <h2>Email OSINT · identity discovery</h2>
   <div id="email-osint-meta" class="metrics" style="margin:12px 0 20px"></div>
   <div id="email-osint-sources"></div>
 </section>
 
-<!-- ═══ STATUS BAR — untouched ═══ -->
-<section class="statusbar">
+<!-- ═══ STATUS BAR ═══ -->
+<section class="statusbar reveal-section">
   <div>
     <span id="connection">Ready</span>
     <h2 id="status" aria-live="polite">Start an investigation</h2>
@@ -96,13 +113,13 @@
     <p id="ai-status">AI adviser: Not run yet</p>
   </div>
   <div class="actions">
-    <button id="continue-search" class="secondary" disabled>Skip / continue</button>
-    <button id="stop-search" class="secondary" disabled>Stop</button>
+    <button id="continue-search" class="secondary wipe-btn" disabled>Skip / continue</button>
+    <button id="stop-search" class="secondary wipe-btn" disabled>Stop</button>
   </div>
 </section>
 
-<!-- ═══ QUESTION — untouched ═══ -->
-<section id="question-section" class="question" hidden>
+<!-- ═══ QUESTION ═══ -->
+<section id="question-section" class="question reveal-section" hidden>
   <div>
     <p class="eyebrow">NARROW THE SEARCH</p>
     <h2 id="question"></h2>
@@ -113,19 +130,25 @@
   </form>
 </section>
 
-<!-- ═══ METRICS — untouched ═══ -->
-<div class="metrics">
-  <div><strong id="candidate-count">0</strong><span>Public candidates</span></div>
-  <div><strong id="hypothesis-count">0</strong><span>Possible clusters</span></div>
-  <div><strong id="evidence-count">0</strong><span>Evidence signals</span></div>
-  <div><strong id="run-count">0</strong><span>Connector runs</span></div>
-</div>
+<!-- ═══ METRICS ═══ -->
+<section class="metrics-container reveal-section" aria-label="Recon metrics">
+  <p class="eyebrow">03. RECON METRICS</p>
+  <div class="metrics">
+    <div><strong id="candidate-count" class="count-up-metric">0</strong><span>Public candidates</span></div>
+    <div><strong id="hypothesis-count" class="count-up-metric">0</strong><span>Possible clusters</span></div>
+    <div><strong id="evidence-count" class="count-up-metric">0</strong><span>Evidence signals</span></div>
+    <div><strong id="run-count" class="count-up-metric">0</strong><span>Connector runs</span></div>
+  </div>
+</section>
 
-<!-- ═══ VIEWS — untouched ═══ -->
-<section id="view-graph" class="view">
+<!-- ═══ VIEWS ═══ -->
+<section id="view-graph" class="view reveal-section">
   <div class="section-title">
-    <h2>Connection graph</h2>
-    <button id="graph-reset" class="secondary">Reset selection</button>
+    <div>
+      <p class="eyebrow">04. CONNECTION GRAPH</p>
+      <h2>Connection graph</h2>
+    </div>
+    <button id="graph-reset" class="secondary wipe-btn">Reset selection</button>
   </div>
   <p class="muted">Graph appears for every search type, including email. Select a node to inspect its stored connections.</p>
   <div class="graph-wrap">
@@ -134,11 +157,14 @@
   <div id="graph-detail" aria-live="polite"></div>
 </section>
 
-<section id="view-overview" class="view">
+<section id="view-overview" class="view reveal-section">
   <div class="two-column">
     <section>
       <div class="section-title">
-        <h2>Leading candidates</h2>
+        <div>
+          <p class="eyebrow">05. LEADING CANDIDATES</p>
+          <h2>Leading candidates</h2>
+        </div>
         <span>Search relevance ≠ identity</span>
       </div>
       <div id="candidates" class="cards empty">No search yet. Nothing here is pre-populated.</div>
@@ -153,27 +179,35 @@
   </div>
 </section>
 
-<section id="view-evidence" class="view">
+<section id="view-evidence" class="view reveal-section">
+  <p class="eyebrow">06. EVIDENCE LEDGER</p>
   <h2>Evidence ledger</h2>
   <p class="muted">Independent evidence families are deduplicated. Contradictions remain visible.</p>
   <div id="evidence" class="empty">No evidence collected.</div>
 </section>
 
-<section id="view-report" class="view">
+<section id="view-report" class="view reveal-section">
   <div class="section-title">
-    <h2>Investigation report</h2>
-    <button id="print-report" class="secondary">Print / save PDF</button>
+    <div>
+      <p class="eyebrow">07. INVESTIGATION REPORT</p>
+      <h2>Investigation report</h2>
+    </div>
+    <button id="print-report" class="secondary wipe-btn">Print / save PDF</button>
   </div>
   <div id="report" class="empty">A report appears when the investigation finishes.</div>
 </section>
 
-<section class="card utility-card" id="image-section">
+<section class="card utility-card reveal-section" id="image-section">
+  <p class="eyebrow">08. OPTIONAL IMAGE REUSE</p>
   <h2>Optional image reuse</h2>
   <p id="image-prompt">Choose an image now to check it against collected avatars when the search finishes, or check the current candidates below.</p>
-  <p>No facial recognition. Different photos of the same person will not match. Reuse does not establish ownership.</p>
+  <p class="muted">No facial recognition. Different photos of the same person will not match. Reuse does not establish ownership.</p>
   <label>JPEG, PNG or WebP · up to 5 MB<input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp"></label>
-  <button id="check-image" type="button" class="secondary" disabled>Check current candidates</button>
-  <button id="clear-image" type="button" class="secondary">Clear</button>
+
+  <div class="image-actions" style="margin-top:14px; display:flex; gap:10px;">
+    <button id="check-image" type="button" class="secondary wipe-btn" disabled>Check current candidates</button>
+    <button id="clear-image" type="button" class="secondary wipe-btn">Clear</button>
+  </div>
   <p id="image-status" role="status" aria-live="polite"></p>
   <div id="image-results"></div>
 </section>
@@ -182,8 +216,8 @@
 
 </main>
 
-<script src="/app.js?v=3" defer></script>
+<script src="/app.js?v=4" defer></script>
 <!-- Coin animation: isolated ES module, loads after app.js, never blocks other pages -->
-<script type="module" src="/hero-coin.js?v=3"></script>
+<script type="module" src="/hero-coin.js?v=4"></script>
 </body>
 </html>

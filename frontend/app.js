@@ -10,6 +10,39 @@ const node = (tag, text = "", cls = "") => { const n = document.createElement(ta
 const label = p => `${p.platform} ${p.username ? "@" + p.username : p.display_name || "profile"}`;
 const points = v => Math.round(Math.max(0, Math.min(1, v || 0)) * 100);
 function safeLink(url, text) { const a = node("a", text); try { if (new URL(url).protocol !== "https:") return node("span", text); } catch { return node("span", text); } a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
+
+// ── Metric Count-Up Animation ──
+const animatedMetricValues = {
+  "candidate-count": 0,
+  "hypothesis-count": 0,
+  "evidence-count": 0,
+  "run-count": 0
+};
+
+function animateMetricCount(id, targetVal) {
+  const el = $(id);
+  if (!el) return;
+  const numericTarget = parseInt(targetVal, 10) || 0;
+  const obj = { val: animatedMetricValues[id] ?? 0 };
+  if (window.gsap && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    gsap.to(obj, {
+      val: numericTarget,
+      duration: 1.5,
+      ease: "power2.out",
+      onUpdate: () => {
+        el.textContent = Math.round(obj.val);
+      },
+      onComplete: () => {
+        animatedMetricValues[id] = numericTarget;
+        el.textContent = numericTarget;
+      }
+    });
+  } else {
+    animatedMetricValues[id] = numericTarget;
+    el.textContent = numericTarget;
+  }
+}
+
 async function request(path, options = {}) {
   const response = await fetch(path, {headers:{"Content-Type":"application/json"}, ...options});
   const payload = await response.json();
@@ -46,7 +79,13 @@ async function refresh() {
     latest = {state, candidates:candidates.items, hypotheses:hypotheses.items, question:question.item, report:report.report_data, runs:runs.items, evidence:evidence.items, graph};
     $("status").textContent = state.status.replaceAll("_", " "); $("search-id").textContent = id;
     $("ai-status").textContent = `AI adviser: ${state.ai_assist?.status || "Not run yet"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
-    $("candidate-count").textContent = candidates.items.length; $("hypothesis-count").textContent = hypotheses.items.length; $("evidence-count").textContent = evidence.items.length; $("run-count").textContent = runs.items.length;
+    
+    // Smooth GSAP count-up for metrics
+    animateMetricCount("candidate-count", candidates.items.length);
+    animateMetricCount("hypothesis-count", hypotheses.items.length);
+    animateMetricCount("evidence-count", evidence.items.length);
+    animateMetricCount("run-count", runs.items.length);
+
     $("stop-search").disabled = terminal(state.status); $("continue-search").disabled = state.status !== "AWAITING_USER";
     if (terminal(state.status)) { stream?.close(); clearTimeout(fallbackTimer); $("connection").textContent = "Saved investigation"; if (currentSeedType === "EMAIL" && currentSeedValue && emailFetchedFor !== currentSeedValue) fetchEmailOsint(currentSeedValue); }
     if (state.error_summary) error(new Error(state.error_summary));
@@ -98,12 +137,12 @@ function renderQuestion() {
   $("question-form").onsubmit = e => e.preventDefault();
   if (q.question_type === "TEXT") {
     const input = node("input"); input.type = "text"; input.required = true; input.name = "answer"; input.setAttribute("aria-label", q.context.input_label || "Your answer"); input.placeholder = q.context.placeholder || "Your clue"; input.maxLength = q.context.max_length || 64; if (q.context.pattern) input.pattern = q.context.pattern;
-    const button = node("button", "Search with this clue"); button.type = "submit"; choices.append(input, button); $("question-form").onsubmit = e => { e.preventDefault(); if ($("question-form").reportValidity()) answer(input.value); };
+    const button = node("button", "Search with this clue", "wipe-btn"); button.type = "submit"; choices.append(input, button); $("question-form").onsubmit = e => { e.preventDefault(); if ($("question-form").reportValidity()) answer(input.value); };
   } else if (q.question_type === "MULTI_SELECT") {
     q.options.filter(o => o.value !== "skip").forEach(o => { const l = node("label"), i = node("input"); i.type = "checkbox"; i.value = o.value; l.append(i, document.createTextNode(o.label)); choices.append(l); });
-    const b = node("button", "Prioritize these"); b.type = "submit"; choices.append(b); $("question-form").onsubmit = e => { e.preventDefault(); const values = [...choices.querySelectorAll("input:checked")].map(i => i.value); if (values.length) answer(values); };
+    const b = node("button", "Prioritize these", "wipe-btn"); b.type = "submit"; choices.append(b); $("question-form").onsubmit = e => { e.preventDefault(); const values = [...choices.querySelectorAll("input:checked")].map(i => i.value); if (values.length) answer(values); };
   }
-  q.options.filter(o => q.question_type !== "MULTI_SELECT" || o.value === "skip").forEach(o => { const b = node("button", o.label, "secondary"); b.type = "button"; b.onclick = () => answer(o.value); choices.append(b); });
+  q.options.filter(o => q.question_type !== "MULTI_SELECT" || o.value === "skip").forEach(o => { const b = node("button", o.label, "secondary wipe-btn"); b.type = "button"; b.onclick = () => answer(o.value); choices.append(b); });
 }
 async function answer(value) { if (busy) return; setBusy(true); try { await request(`/api/searches/${searchId}/question-answer`, {method:"POST", body:JSON.stringify({question_id:questionId, value})}); await refresh(); } catch(e) { error(e); } finally { setBusy(false); } }
 function renderEvidence() {
@@ -129,8 +168,8 @@ function renderGraph(selected = null) {
   const orbit = nodes.filter(n => n.type !== "search");
   nodes.filter(n => n.type === "search").forEach(n => positions.set(n.id,[550,365]));
   orbit.forEach((n,i) => { const angle = 2*Math.PI*i/Math.max(1,orbit.length); const ring = i%2 ? 280 : 205; positions.set(n.id, [520+ring*Math.cos(angle), 365+ring*Math.sin(angle)]); });
-  latest.graph.edges.forEach(e => { const a = positions.get(e.source), b = positions.get(e.target); if (!a || !b) return; const related = !selected || e.source === selected || e.target === selected; const weight = points(Math.abs(e.score || 0))/100; svg.append(make("line", {x1:a[0], y1:a[1], x2:b[0], y2:b[1], stroke:e.type.includes("CONTRADICT") || e.score < 0 ? "#ac554e" : "#167661", "stroke-width":1+3*weight, opacity:related ? .2+.6*weight : .04})); });
-  nodes.forEach(n => { const [x,y] = positions.get(n.id); const g = make("g", {tabindex:0, role:"button", "aria-label":n.label}); g.append(make("circle", {cx:x,cy:y,r:n.type === "profile" ? 8 : 11,fill:n.id === selected ? "#ddab47" : n.type === "profile" ? "#167661" : "#8b9b90"})); const t = make("text", {x:x+13,y:y+4}); t.textContent = n.label.length > 27 ? n.label.slice(0,24)+"…" : n.label; g.append(t); const choose = () => { renderGraph(n.id); $("graph-detail").textContent = `${n.label} · ${n.type} · ${latest.graph.edges.filter(e => e.source === n.id || e.target === n.id).length} stored connections`; }; g.onclick = choose; g.onkeydown = e => { if (["Enter"," "].includes(e.key)) {e.preventDefault(); choose();} }; svg.append(g); });
+  latest.graph.edges.forEach(e => { const a = positions.get(e.source), b = positions.get(e.target); if (!a || !b) return; const related = !selected || e.source === selected || e.target === selected; const weight = points(Math.abs(e.score || 0))/100; svg.append(make("line", {x1:a[0], y1:a[1], x2:b[0], y2:b[1], stroke:e.type.includes("CONTRADICT") || e.score < 0 ? "#ef4444" : "#3b82f6", "stroke-width":1+3*weight, opacity:related ? .2+.6*weight : .04})); });
+  nodes.forEach(n => { const [x,y] = positions.get(n.id); const g = make("g", {tabindex:0, role:"button", "aria-label":n.label}); g.append(make("circle", {cx:x,cy:y,r:n.type === "profile" ? 8 : 11,fill:n.id === selected ? "#3b82f6" : n.type === "profile" ? "#60a5fa" : "#52525b"})); const t = make("text", {x:x+13,y:y+4}); t.textContent = n.label.length > 27 ? n.label.slice(0,24)+"…" : n.label; g.append(t); const choose = () => { renderGraph(n.id); $("graph-detail").textContent = `${n.label} · ${n.type} · ${latest.graph.edges.filter(e => e.source === n.id || e.target === n.id).length} stored connections`; }; g.onclick = choose; g.onkeydown = e => { if (["Enter"," "].includes(e.key)) {e.preventDefault(); choose();} }; svg.append(g); });
   if (!selected) $("graph-detail").textContent = nodes.length ? `${nodes.length} of ${latest.graph.nodes.length} nodes shown. Layout does not imply identity.` : "No graph data yet.";
 }
 $("search-form").onsubmit = async e => { e.preventDefault(); if (busy || imageBusy) return; setBusy(true); $("error").textContent = ""; currentSeedType = $("seed-type").value; currentSeedValue = $("seed").value.trim(); emailFetchedFor = null; emailOsintData = null; try { const result = await request("/api/searches", {method:"POST",body:JSON.stringify({seed_type:$("seed-type").value,value:$("seed").value,scope:"self_audit"})}); stream?.close(); searchId = result.id; questionId = null; $("image-results").replaceChildren(); $("image-status").textContent = ""; localStorage.setItem("deus-search",searchId); history.replaceState(null,"",`?search=${searchId}`); connect(); await refresh(); document.getElementById("view-graph")?.scrollIntoView({behavior:"smooth", block:"start"}); } catch(err) {error(err);} finally {setBusy(false);} };
@@ -185,8 +224,6 @@ document.getElementById("hero-cta")?.addEventListener("click", () => {
 });
 
 // ── Email OSINT: parallel identity discovery via /api/osint/email ──
-// Called automatically when a search with seed_type=EMAIL reaches terminal status.
-// Does NOT affect the standard search pipeline or any existing results.
 let _emailOsintController = null;
 
 async function fetchEmailOsint(email) {
@@ -195,7 +232,6 @@ async function fetchEmailOsint(email) {
   const sourcesEl = document.getElementById("email-osint-sources");
   if (!section || !metaEl || !sourcesEl) return;
 
-  // Cancel any previous in-flight request for this session
   _emailOsintController?.abort();
   _emailOsintController = new AbortController();
 
@@ -311,3 +347,78 @@ function emailSourceCard(src, accountOnly) {
     if (src.response_time_ms) card.append(node("small", `${Math.round(src.response_time_ms)} ms`));
     return card;
 }
+
+// ── Lenis & GSAP Motion Initialization ──
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize Lenis Smooth Scroll
+  let lenis = null;
+  if (window.Lenis && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothTouch: false,
+    });
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+    requestAnimationFrame(raf);
+  }
+
+  // Initialize GSAP & ScrollTrigger Animations
+  if (window.gsap && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (window.ScrollTrigger) {
+      gsap.registerPlugin(ScrollTrigger);
+      if (lenis) {
+        lenis.on('scroll', ScrollTrigger.update);
+        gsap.ticker.add((time) => {
+          lenis.raf(time * 1000);
+        });
+        gsap.ticker.lagSmoothing(0, 0);
+      }
+
+      // Reveal section animations
+      document.querySelectorAll(".reveal-section").forEach((el) => {
+        gsap.fromTo(el,
+          { opacity: 0, y: 36 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.85,
+            ease: "power2.out",
+            scrollTrigger: {
+              trigger: el,
+              start: "top 88%",
+              toggleActions: "play none none none"
+            }
+          }
+        );
+      });
+    }
+
+    // Hero headline staggered line entrance
+    const heroLines = document.querySelectorAll(".hero-headline .line-text");
+    if (heroLines.length) {
+      gsap.fromTo(heroLines,
+        { y: "100%", opacity: 0 },
+        { y: "0%", opacity: 1, duration: 1.0, ease: "power3.out", stagger: 0.18, delay: 0.15 }
+      );
+    }
+
+    const heroEyebrow = document.querySelector(".hero-eyebrow");
+    if (heroEyebrow) {
+      gsap.fromTo(heroEyebrow,
+        { opacity: 0, y: -10 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }
+      );
+    }
+
+    const heroCta = document.getElementById("hero-cta");
+    if (heroCta) {
+      gsap.fromTo(heroCta,
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power2.out", delay: 0.6 }
+      );
+    }
+  }
+});

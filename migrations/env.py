@@ -24,7 +24,7 @@ target_metadata = Base.metadata
 def database_url() -> str:
     """Return the environment-derived URL escaped for ConfigParser."""
 
-    return get_settings().database_url.replace("%", "%%")
+    return get_settings().database_url.replace
 
 
 def run_migrations_offline() -> None:
