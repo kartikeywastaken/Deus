@@ -43,10 +43,10 @@
   const radius = 120;
   const sphereGeo = new THREE.IcosahedronGeometry(radius, 4);
   const sphereMat = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
+    color: 0x7a2e34,
     wireframe: true,
     transparent: true,
-    opacity: 0.38
+    opacity: 0.45
   });
   const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
   globeGroup.add(sphereMesh);
@@ -54,10 +54,10 @@
   // Inner Core Density Grid
   const coreGeo = new THREE.IcosahedronGeometry(radius * 0.98, 2);
   const coreMat = new THREE.MeshBasicMaterial({
-    color: 0x0284c7,
+    color: 0x7a5c46,
     wireframe: true,
     transparent: true,
-    opacity: 0.20
+    opacity: 0.25
   });
   const coreMesh = new THREE.Mesh(coreGeo, coreMat);
   globeGroup.add(coreMesh);
@@ -65,10 +65,10 @@
   // Orbital Ring A
   const ringGeoA = new THREE.TorusGeometry(radius * 1.35, 1.2, 16, 100);
   const ringMatA = new THREE.MeshBasicMaterial({
-    color: 0x06b6d4,
+    color: 0x7a2e34,
     wireframe: true,
     transparent: true,
-    opacity: 0.55
+    opacity: 0.50
   });
   const ringA = new THREE.Mesh(ringGeoA, ringMatA);
   ringA.rotation.x = Math.PI / 3;
@@ -78,10 +78,10 @@
   // Orbital Ring B
   const ringGeoB = new THREE.TorusGeometry(radius * 1.5, 1, 16, 100);
   const ringMatB = new THREE.MeshBasicMaterial({
-    color: 0x3b82f6,
+    color: 0x7a5c46,
     wireframe: true,
     transparent: true,
-    opacity: 0.35
+    opacity: 0.40
   });
   const ringB = new THREE.Mesh(ringGeoB, ringMatB);
   ringB.rotation.x = -Math.PI / 4;
@@ -91,7 +91,7 @@
   // Floating 3D Node Markers on Globe Surface
   const nodeCount = 18;
   const nodeGeo = new THREE.SphereGeometry(3.5, 12, 12);
-  const nodeMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+  const nodeMat = new THREE.MeshBasicMaterial({ color: 0xeba36b });
 
   for (let i = 0; i < nodeCount; i++) {
     const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);

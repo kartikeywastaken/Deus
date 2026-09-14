@@ -586,6 +586,16 @@
     // 1. OS & Browser
     const osBrowser = getOSAndBrowser();
     setSignalValue('sig-os-browser', osBrowser);
+    // Split targets if separate definition list rows exist
+    const osBrowserParts = osBrowser.split(' · ');
+    if (document.getElementById('val-os')) {
+      document.getElementById('val-os').classList.remove('skeleton');
+      document.getElementById('val-os').textContent = osBrowserParts[0] || 'Linux / Unix';
+    }
+    if (document.getElementById('val-browser')) {
+      document.getElementById('val-browser').classList.remove('skeleton');
+      document.getElementById('val-browser').textContent = osBrowserParts.slice(1).join(' · ') || osBrowser;
+    }
 
     // 2. CPU Cores
     const cpuInfo = getCPUInfo();
@@ -594,10 +604,23 @@
     // 3. GPU Info
     const gpuInfo = getGPUInfo();
     setSignalValue('sig-gpu', gpuInfo);
+    const gpuParts = gpuInfo.split(' · ');
+    if (document.getElementById('val-gpu-vendor')) {
+      document.getElementById('val-gpu-vendor').classList.remove('skeleton');
+      document.getElementById('val-gpu-vendor').textContent = gpuParts[0] || 'Standard WebGL Vendor';
+    }
+    if (document.getElementById('val-gpu-model')) {
+      document.getElementById('val-gpu-model').classList.remove('skeleton');
+      document.getElementById('val-gpu-model').textContent = gpuParts[1] || gpuInfo;
+    }
 
     // 4. Screen Config
     const screenInfo = getScreenInfo();
     setSignalValue('sig-screen', screenInfo);
+    if (document.getElementById('val-display')) {
+      document.getElementById('val-display').classList.remove('skeleton');
+      document.getElementById('val-display').textContent = screenInfo;
+    }
 
     // 5. Timezone & Live Clock
     const valTz = document.getElementById('val-timezone');
@@ -609,10 +632,27 @@
     // 6. Geo & ISP
     const geoObj = await getGeoAndISP();
     setSignalValue('sig-location', geoObj.locationStr);
+    if (document.getElementById('val-location-city')) {
+      document.getElementById('val-location-city').classList.remove('skeleton');
+      const locText = [geoObj.city, geoObj.region, geoObj.country].filter(Boolean).filter(s => s !== 'Unknown').join(', ');
+      document.getElementById('val-location-city').textContent = locText || 'IP Geolocation Restricted';
+    }
+    if (document.getElementById('val-network')) {
+      document.getElementById('val-network').classList.remove('skeleton');
+      document.getElementById('val-network').textContent = geoObj.org || 'Private Network / ISP';
+    }
 
     // 7. Media Devices
     const mediaInfo = await getMediaDevices();
     setSignalValue('sig-media', mediaInfo);
+    if (document.getElementById('val-camera')) {
+      document.getElementById('val-camera').classList.remove('skeleton');
+      document.getElementById('val-camera').textContent = mediaInfo.includes('video input') ? mediaInfo.split('·')[0].trim() : 'Enumerated (0 camera inputs)';
+    }
+    if (document.getElementById('val-mic')) {
+      document.getElementById('val-mic').classList.remove('skeleton');
+      document.getElementById('val-mic').textContent = mediaInfo.includes('audio input') ? (mediaInfo.split('·')[1] || mediaInfo).trim() : 'Enumerated (0 microphone inputs)';
+    }
 
     // Session ID
     if (sessionIdEl) {

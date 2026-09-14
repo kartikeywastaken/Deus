@@ -143,14 +143,22 @@ async function refresh() {
     $("status").textContent = state.status.replaceAll("_", " "); $("search-id").textContent = id;
     $("ai-status").textContent = `AI adviser: ${state.ai_assist?.status || "Not run yet"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     
-    // Update Confidence Badge
+    // Update Confidence Badge & AI Chip
     const confidenceBadge = $("confidence-badge");
     if (confidenceBadge) {
       const topHypothesisScore = hypotheses.items.length ? points(hypotheses.items[0].overall_score) : 0;
       const topCandidateScore = candidates.items.length ? Math.max(...candidates.items.map(c => points(c.identity_score || c.score || 0))) : 0;
       const confidenceVal = Math.max(topHypothesisScore, topCandidateScore, state.status === "COMPLETED" ? 88 : 45);
-      confidenceBadge.textContent = `Confidence Rate: ${confidenceVal}%`;
-      confidenceBadge.style.display = "inline-block";
+      confidenceBadge.textContent = `Confidence: ${confidenceVal}%`;
+      confidenceBadge.className = `status-chip ${confidenceVal >= 70 ? "status-chip--found" : "status-chip--neutral"}`;
+      confidenceBadge.style.display = "inline-flex";
+    }
+
+    const aiChip = $("ai-status");
+    if (aiChip) {
+      const isRun = Boolean(state.ai_assist?.status);
+      aiChip.className = `status-chip ${isRun ? "status-chip--active" : "status-chip--disabled"}`;
+      aiChip.textContent = `AI adviser: ${state.ai_assist?.status || "Disabled"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     }
 
     // Smooth GSAP count-up for metrics
@@ -194,14 +202,14 @@ function renderCandidates() {
       renderedCount += items.length;
     }
     for (const p of items) {
-      const card = node("article", "", "card"), top = node("div", "", "card-top"), title = node("div");
+      const card = node("article", "", "case-card card"), top = node("div", "", "card-top"), title = node("div");
       title.append(node("p", p.platform.toUpperCase(), "platform"), node("strong", p.username ? "@" + p.username : p.display_name || "Public profile"));
-      top.append(title, node("span", `${points(p.score || p.identity_score || 0.85)}% confidence`, "score"));
+      top.append(title, node("span", `${points(p.score || p.identity_score || 0.85)}% match`, "status-chip status-chip--found"));
       card.append(top, node("p", p.reason || "Confirmed public identity lead"));
       card.append(node("p", `Identity Evidence: ${points(p.identity_score || 0.85)}/100 · ${p.classification || "verified match"}`));
-      if (p.relevance === "USER_HINT_MATCH") card.append(node("p", "Matches search clue", "badge"));
+      if (p.relevance === "USER_HINT_MATCH") card.append(node("p", "Matches search clue", "status-chip status-chip--neutral"));
       for (const edge of p.linked_accounts || []) card.append(node("p", `Public link: ${edge.source_url} → ${edge.target_url}`));
-      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public source ↗")); 
+      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public source")); 
       $("candidates").append(card);
     }
   }
@@ -209,17 +217,25 @@ function renderCandidates() {
   // Fallback for remaining confirmed candidates if any had uncategorized status
   if (!renderedCount && confirmedCandidates.length) {
     for (const p of confirmedCandidates) {
-      const card = node("article", "", "card"), top = node("div", "", "card-top"), title = node("div");
+      const card = node("article", "", "case-card card"), top = node("div", "", "card-top"), title = node("div");
       title.append(node("p", p.platform.toUpperCase(), "platform"), node("strong", p.username ? "@" + p.username : p.display_name || "Public profile"));
-      top.append(title, node("span", `${points(p.score || 0.85)}% match`, "score"));
-      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open profile ↗"));
+      top.append(title, node("span", `${points(p.score || 0.85)}% match`, "status-chip status-chip--found"));
+      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open profile"));
       $("candidates").append(card);
     }
     renderedCount = confirmedCandidates.length;
   }
 
   if (!renderedCount) {
-    $("candidates").append(node("p", "No confirmed public candidates matching this handle.", "empty"));
+    const emptyBox = node("div", "", "case-card empty-state-card");
+    const icon = document.createElement("i");
+    icon.setAttribute("data-lucide", "search-x");
+    icon.className = "empty-icon";
+    const title = node("p", "No confirmed public candidates matching this handle", "empty-title");
+    const sub = node("p", "Try broadening your query with a username variant, name, or linked email address.", "empty-sub");
+    emptyBox.append(icon, title, sub);
+    $("candidates").append(emptyBox);
+    if (window.lucide) window.lucide.createIcons();
   }
 }
 
@@ -331,44 +347,36 @@ function renderGraph(selected = null) {
     const a = positions.get(e.source), b = positions.get(e.target);
     if (!a || !b) return;
     const isRelated = !selected || e.source === selected || e.target === selected;
-    const strokeColor = e.type.includes("CONTRADICT") ? "#dc2626" : "#2563eb";
+    const strokeColor = e.type.includes("CONTRADICT") ? "#8C3A2E" : "#7A5C46";
     svg.append(make("line", {
       x1: a[0], y1: a[1], x2: b[0], y2: b[1],
       stroke: strokeColor,
-      "stroke-width": isRelated ? 2.5 : 1,
-      opacity: isRelated ? 0.65 : 0.1
+      "stroke-width": isRelated ? 2.5 : 1.2,
+      opacity: isRelated ? 0.8 : 0.25
     }));
   });
 
-  // Color map for platforms
-  const platformColors = {
-    github: "#10b981", twitter: "#38bdf8", duolingo: "#84cc16", chess: "#f59e0b",
-    spotify: "#1ed760", imgur: "#8b5cf6", adobe: "#ff0000", gravatar: "#0284c7"
-  };
-
-  // Render nodes
+  // Render nodes using case-file palette
   nodes.forEach(n => {
     const pos = positions.get(n.id) || [550, 365];
     const [x, y] = pos;
     const isSearch = n.type === "search";
     
-    let fillColor = isSearch ? "#38bdf8" : "#60a5fa";
-    const labelLower = n.label.toLowerCase();
-    for (const [key, color] of Object.entries(platformColors)) {
-      if (labelLower.includes(key)) { fillColor = color; break; }
-    }
-    if (n.id === selected) fillColor = "#f43f5e";
+    // Pastel Orange for matched nodes, Brown for unconfirmed, Maroon for search/selected
+    let fillColor = isSearch ? "#7A2E34" : "#EBA36B";
+    if (n.unconfirmed) fillColor = "#7A5C46";
+    if (n.id === selected) fillColor = "#7A2E34";
 
     const g = make("g", { tabindex: 0, role: "button", "aria-label": n.label });
     g.append(make("circle", {
       cx: x, cy: y,
       r: isSearch ? 14 : 9,
       fill: fillColor,
-      stroke: "#0f172a",
+      stroke: "#2B1B18",
       "stroke-width": 2
     }));
 
-    const text = make("text", { x: x + 14, y: y + 5, fill: "#f8fafc", "font-weight": isSearch ? "600" : "400" });
+    const text = make("text", { x: x + 14, y: y + 5, fill: "#2B1B18", "font-weight": isSearch ? "600" : "400" });
     text.textContent = n.label.length > 25 ? n.label.slice(0, 22) + "…" : n.label;
     g.append(text);
 
