@@ -10,6 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Montserrat:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,300&display=swap" rel="stylesheet">
+  <!-- Three.js for 3D Wireframe Globe -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <!-- Lenis Smooth Scroll -->
   <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
@@ -18,7 +20,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/styles.css?v=9">
 </head>
 <body>
 
@@ -47,128 +49,98 @@
     <a href="#stage2-fingerprint">Fingerprint</a>
     <a href="#search-form">Search</a>
     <a href="#view-graph">Graph</a>
-    <a href="#view-evidence">Evidence</a>
-    <a href="#stage4-explainer">Explainer</a>
+    <a href="#view-overview">Candidates</a>
+    <a href="#view-report">Report</a>
   </nav>
   <span class="live">● LIVE SIGNALS</span>
 </header>
 
-<!-- ═══ STAGE 2 — FINGERPRINT HERO ═══ -->
-<section id="stage2-fingerprint" class="fingerprint-hero-section" aria-label="Stage 2 — Live Browser Fingerprint Reveal">
-  <div class="terminal-receipt">
-    <div class="receipt-header">
-      <div class="receipt-title">
-        <span class="receipt-badge">STAGE 01 // PASSIVE RECONNAISSANCE</span>
-        <h2>LIVE BROWSER FINGERPRINT RECEIPT</h2>
+<!-- ═══ STAGE 2 — FINGERPRINT RECEIPT (KUBER COOKIE RECEIPT STYLE) ═══ -->
+<!-- ═══ STAGE 2 — FINGERPRINT RECEIPT (KUBER COOKIE RECEIPT STYLE) ═══ -->
+<section id="stage2-fingerprint" class="fingerprint-hero-section" aria-label="Stage 2 — Live Browser Fingerprint Receipt">
+
+  <div class="fp-section-intro">
+    <p class="eyebrow">01. PASSIVE BROWSER AUDIT</p>
+    <h2 class="fp-section-headline">Your Browser Fingerprint Receipt</h2>
+    <p class="fp-section-sub">Passive hardware and environment parameters collected without cookies or permissions.</p>
+  </div>
+
+  <!-- Receipt Card -->
+  <div class="kuber-receipt">
+    <!-- Receipt Header -->
+    <div class="kuber-receipt__header">
+      <div class="kuber-receipt__subtitle">PASSIVE BROWSER FINGERPRINT AUDIT</div>
+      <div class="kuber-receipt__divider">================================================</div>
+      <div class="kuber-receipt__meta">
+        <span id="fp-timestamp">TIMESTAMP: RESOLVING...</span>
+        <span id="fp-session-id">TICKET ID: RESOLVING...</span>
       </div>
-      <div class="receipt-meta">
-        <span id="fp-timestamp">RESOLVING...</span>
-        <span id="fp-session-id">SESSION ID: RESOLVING...</span>
-      </div>
+      <div class="kuber-receipt__divider">------------------------------------------------</div>
     </div>
 
-    <div class="receipt-body" id="fingerprint-signals">
+    <!-- Receipt Body — scroll-revealed rows -->
+    <div class="kuber-receipt__body" id="fingerprint-signals">
+
       <!-- 01. OS & Browser -->
-      <div class="signal-row" id="sig-os-browser">
-        <span class="sig-label">01. SYSTEM & BROWSER</span>
-        <span class="sig-value skeleton">Parsing user agent & client hints...</span>
+      <div class="fp-row reveal-fp-item" id="sig-os-browser">
+        <div class="fp-row__label">01 · SYSTEM & BROWSER</div>
+        <div class="fp-row__value skeleton" id="val-os-browser">Parsing user agent & client hints...</div>
       </div>
 
-      <!-- 02. CPU Logical Cores -->
-      <div class="signal-row" id="sig-cpu">
-        <span class="sig-label">02. CPU HARDWARE</span>
-        <span class="sig-value skeleton">Reading hardware concurrency...</span>
+      <!-- 02. CPU -->
+      <div class="fp-row reveal-fp-item" id="sig-cpu">
+        <div class="fp-row__label">02 · CPU HARDWARE</div>
+        <div class="fp-row__value skeleton" id="val-cpu">Reading hardware concurrency...</div>
       </div>
 
-      <!-- 03. GPU Accelerator -->
-      <div class="signal-row" id="sig-gpu">
-        <span class="sig-label">03. GPU ACCELERATOR</span>
-        <span class="sig-value skeleton">Querying WebGL debug extension...</span>
+      <!-- 03. GPU -->
+      <div class="fp-row reveal-fp-item" id="sig-gpu">
+        <div class="fp-row__label">03 · GPU ACCELERATOR</div>
+        <div class="fp-row__value skeleton" id="val-gpu">Querying WebGL debug extension...</div>
       </div>
 
-      <!-- 04. Display Configuration -->
-      <div class="signal-row" id="sig-screen">
-        <span class="sig-label">04. DISPLAY CONFIGURATION</span>
-        <span class="sig-value skeleton">Measuring screen bounds & DPR...</span>
+      <!-- 04. Display -->
+      <div class="fp-row reveal-fp-item" id="sig-screen">
+        <div class="fp-row__label">04 · DISPLAY CONFIGURATION</div>
+        <div class="fp-row__value skeleton" id="val-screen">Measuring screen bounds & DPR...</div>
       </div>
 
-      <!-- 05. Timezone & Clock -->
-      <div class="signal-row" id="sig-timezone">
-        <span class="sig-label">05. TIMEZONE & LIVE CLOCK</span>
-        <span class="sig-value skeleton">Reading resolved locale...</span>
+      <!-- 05. Timezone -->
+      <div class="fp-row reveal-fp-item" id="sig-timezone">
+        <div class="fp-row__label">05 · TIMEZONE & LIVE CLOCK</div>
+        <div class="fp-row__value skeleton" id="val-timezone">Reading resolved locale...</div>
       </div>
 
       <!-- 06. Geo & ISP -->
-      <div class="signal-row" id="sig-location">
-        <span class="sig-label">06. NETWORK GEO & ISP</span>
-        <span class="sig-value skeleton">Querying IP intelligence endpoint...</span>
+      <div class="fp-row reveal-fp-item" id="sig-location">
+        <div class="fp-row__label">06 · NETWORK GEO & ISP</div>
+        <div class="fp-row__value skeleton" id="val-location">Querying IP intelligence endpoint...</div>
       </div>
 
       <!-- 07. Media Devices -->
-      <div class="signal-row" id="sig-media">
-        <span class="sig-label">07. MEDIA INPUT HARDWARE</span>
-        <span class="sig-value skeleton">Enumerating media devices (no permissions requested)...</span>
+      <div class="fp-row reveal-fp-item" id="sig-media">
+        <div class="fp-row__label">07 · MEDIA INPUT HARDWARE</div>
+        <div class="fp-row__value skeleton" id="val-media">Enumerating media devices (no permissions requested)...</div>
       </div>
 
-      <!-- 08. Installed Fonts -->
-      <div class="signal-row" id="sig-fonts">
-        <span class="sig-label">08. INSTALLED DEV FONTS</span>
-        <span class="sig-value skeleton">Comparing canvas font metrics...</span>
+      <!-- 08. Rarity & Entropy -->
+      <div class="fp-row fp-row--rarity reveal-fp-item" id="sig-rarity">
+        <div class="fp-row__label">08 · ESTIMATED UNICITY & ENTROPY</div>
+        <div class="fp-row__value skeleton" id="val-rarity">Calculating population rarity model...</div>
       </div>
 
-      <!-- 09. Pointer Type Classifier -->
-      <div class="signal-row" id="sig-pointer">
-        <span class="sig-label">09. POINTER DELTA CLASSIFIER</span>
-        <span class="sig-value skeleton">Sampling wheel delta patterns (scroll to test)...</span>
-      </div>
+    </div>
 
-      <!-- 10. Typing Rhythm Biometrics -->
-      <div class="signal-row typing-challenge-row" id="sig-typing">
-        <div class="sig-label">10. TYPING RHYTHM BIOMETRICS</div>
-        <div class="typing-container">
-          <p class="typing-instruction">Type the phrase below into the box to benchmark your keystroke velocity and error cadence:</p>
-          <div class="typing-target">"the quick brown fox jumps over the lazy dog"</div>
-          <input type="text" id="typing-input" placeholder="Start typing phrase here..." autocomplete="off" spellcheck="false" />
-          <div class="typing-results" id="typing-results" hidden>
-            <div class="typing-stats">
-              <span id="type-wpm" class="stat-badge">0 WPM</span> ·
-              <span id="type-time" class="stat-badge">0.0s</span> ·
-              <span id="type-errors" class="stat-badge">0 corrections</span>
-            </div>
-            <div class="typing-readout" id="type-readout"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 11. WebRTC Network Leak -->
-      <div class="signal-row" id="sig-webrtc">
-        <span class="sig-label">11. WEBRTC NETWORK LEAK</span>
-        <span class="sig-value skeleton">Gathering STUN ICE candidates...</span>
-      </div>
-
-      <!-- 12. Session Persistence -->
-      <div class="signal-row" id="sig-return">
-        <span class="sig-label">12. SESSION PERSISTENCE (NO COOKIES)</span>
-        <span class="sig-value skeleton">Checking local fingerprint state...</span>
-      </div>
-
-      <!-- 13. Estimated Rarity & Entropy -->
-      <div class="signal-row rarity-row" id="sig-rarity">
-        <span class="sig-label">13. ESTIMATED UNICITY & ENTROPY</span>
-        <div class="sig-value skeleton">Calculating population rarity model...</div>
-      </div>
-
-      <!-- 14. OpenRTB 2.6 Bid Request Payload -->
-      <div class="signal-row openrtb-row" id="sig-openrtb">
-        <span class="sig-label">14. OPENRTB 2.6 AD AUCTION PAYLOAD</span>
-        <pre class="openrtb-json" id="openrtb-json">Generating real-time ad exchange bid request...</pre>
-        <p class="openrtb-note">Note: Audience-segment field is synthetic; all hardware and network parameters above reflect your live device signal as read by ad auction exchanges.</p>
-      </div>
+    <!-- Receipt Footer -->
+    <div class="kuber-receipt__footer">
+      <div class="kuber-receipt__divider">------------------------------------------------</div>
+      <div class="kuber-receipt__thankyou">*** FINGERPRINT RECEIPT GENERATED ***</div>
+      <div class="kuber-receipt__barcode">||| | ||||| ||| |||| || |||||| ||| |||| |</div>
     </div>
   </div>
 </section>
 
-<!-- ═══ STAGE 3 — EXISTING LOOKUP & GRAPH TOOL (UNTOUCHED CORE) ═══ -->
+<!-- ═══ STAGE 3 — IDENTITY LOOKUP ENGINE ═══ -->
 <div id="stage3-lookup-tool">
   <!-- HERO -->
   <section class="hero" aria-label="Deus — public identity research">
@@ -198,19 +170,21 @@
         <span class="line-wrap"><span class="line-text muted-text">Keep the uncertainty.</span></span>
       </h1>
 
-      <div class="hero-coin-wrap" aria-hidden="true" tabindex="-1" id="hero-coin"></div>
+      <!-- 3D Wireframe Globe -->
+      <div id="hero-coin" class="hero-globe-wrap" aria-hidden="true"></div>
 
       <p class="hero-subhead">Discover public accounts, refine your search, and inspect the evidence behind every lead.</p>
-      <button class="hero-cta-btn wipe-btn" type="button" id="hero-cta" aria-label="Start investigating — scroll to search form">Investigate ↗</button>
     </div>
   </section>
 
-  <!-- SEARCH FORM -->
-  <section class="search-panel reveal-section" aria-label="Investigation input">
-    <div>
+  <!-- 1. SEARCH FORM & INPUT SECTION -->
+  <section class="search-panel" aria-label="Investigation input" id="search-panel-section">
+    <div class="search-header">
       <p class="eyebrow">03. SEARCH INPUT</p>
       <h2>Start from one public clue</h2>
+      <p class="search-header__sub">Enter a username, name, social profile URL, or email address. The investigation will surface public accounts and connections.</p>
     </div>
+
     <form id="search-form" class="searchbar" aria-label="Start an investigation">
       <label>Input type
         <select id="seed-type">
@@ -225,24 +199,37 @@
       </label>
       <button id="search-button" class="wipe-btn" type="submit">Investigate ↗</button>
     </form>
+
+    <!-- INVESTIGATION STATUS MESSAGES (shown while running) -->
+    <div id="investigation-status-bar" class="investigation-status-bar" hidden>
+      <div class="isb-pulse"></div>
+      <span id="investigation-status-msg" class="isb-msg">Initialising investigation...</span>
+    </div>
+
+    <!-- OPTIONAL IMAGE REUSE (PLACED DIRECTLY BELOW INPUT OPTIONS) -->
+    <div class="card utility-card inline-image-card" id="image-section">
+      <p class="eyebrow">OPTIONAL IMAGE REUSE</p>
+      <p id="image-prompt" style="font-size:12px; margin-bottom:8px;">Choose an avatar image to check reuse across collected public accounts:</p>
+      <label style="font-size:12px;">JPEG, PNG or WebP · up to 5 MB<input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+
+      <div class="image-actions" style="margin-top:10px; display:flex; gap:10px;">
+        <button id="check-image" type="button" class="secondary wipe-btn" disabled>Check current candidates</button>
+        <button id="clear-image" type="button" class="secondary wipe-btn">Clear</button>
+      </div>
+      <p id="image-status" role="status" aria-live="polite" style="font-size:12px; margin-top:8px;"></p>
+      <div id="image-results"></div>
+    </div>
   </section>
 
   <div id="error" role="alert"></div>
 
-  <!-- EMAIL OSINT RESULTS -->
-  <section class="card reveal-section" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
-    <p class="eyebrow">EMAIL SIGNAL DISCOVERY</p>
-    <h2>Email OSINT · identity discovery</h2>
-    <div id="email-osint-meta" class="metrics" style="margin:12px 0 20px"></div>
-    <div id="email-osint-sources"></div>
-  </section>
-
-  <!-- STATUS BAR -->
+  <!-- STATUS BAR & AI ADVISER -->
   <section class="statusbar reveal-section">
     <div>
       <span id="connection">Ready</span>
       <h2 id="status" aria-live="polite">Start an investigation</h2>
       <small id="search-id"></small>
+      <div id="confidence-badge-wrap" style="margin-top:6px;"><span id="confidence-badge" class="badge" style="display:none; background:#0284c7; color:#fff; font-weight:600; padding:4px 10px; border-radius:4px; font-size:0.85rem;">Confidence: 0%</span></div>
       <p id="ai-status">AI adviser: Not run yet</p>
     </div>
     <div class="actions">
@@ -251,7 +238,7 @@
     </div>
   </section>
 
-  <!-- QUESTION -->
+  <!-- QUESTION & HINTS -->
   <section id="question-section" class="question reveal-section" hidden>
     <div>
       <p class="eyebrow">NARROW THE SEARCH</p>
@@ -263,8 +250,8 @@
     </form>
   </section>
 
-  <!-- METRICS -->
-  <section class="metrics-container reveal-section" aria-label="Recon metrics">
+  <!-- METRICS — hidden until search runs -->
+  <section class="metrics-container reveal-section" aria-label="Recon metrics" id="metrics-section" hidden>
     <p class="eyebrow">04. RECON METRICS</p>
     <div class="metrics">
       <div><strong id="candidate-count" class="count-up-metric">0</strong><span>Public candidates</span></div>
@@ -274,8 +261,8 @@
     </div>
   </section>
 
-  <!-- VIEWS -->
-  <section id="view-graph" class="view reveal-section">
+  <!-- CONNECTION GRAPH — hidden until search runs -->
+  <section id="view-graph" class="view reveal-section" hidden>
     <div class="section-title">
       <div>
         <p class="eyebrow">05. CONNECTION GRAPH</p>
@@ -283,118 +270,57 @@
       </div>
       <button id="graph-reset" class="secondary wipe-btn">Reset selection</button>
     </div>
-    <p class="muted">Graph appears for every search type, including email. Select a node to inspect its stored connections.</p>
+    <p class="muted">Graph displays clear social profile nodes for every search type (username, profile URL, email). Select a node to inspect connections.</p>
     <div class="graph-wrap">
       <svg id="graph" viewBox="0 0 1100 760" role="img" aria-label="Public candidate connection graph"></svg>
     </div>
     <div id="graph-detail" aria-live="polite"></div>
   </section>
 
-  <section id="view-overview" class="view reveal-section">
-    <div class="two-column">
-      <section>
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">06. LEADING CANDIDATES</p>
-            <h2>Leading candidates</h2>
-          </div>
-          <span>Search relevance ≠ identity</span>
+  <!-- LEADING CANDIDATES — hidden until search runs -->
+  <section id="view-overview" class="view reveal-section" hidden>
+    <div class="full-width-candidates">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow">06. LEADING CANDIDATES</p>
+          <h2>Leading candidates</h2>
         </div>
-        <div id="candidates" class="cards empty">No search yet. Nothing here is pre-populated.</div>
-      </section>
-      <aside>
-        <h2>Collection progress</h2>
-        <div id="runs" class="empty">Tool outcomes appear here.</div>
-        <h2>Identity hypotheses</h2>
-        <p class="muted">Evidence scores are not calibrated probabilities.</p>
-        <div id="hypotheses"></div>
-      </aside>
+        <span>Confirmed social profiles & leads</span>
+      </div>
+      <div id="candidates" class="cards empty">No search yet. Nothing here is pre-populated.</div>
     </div>
   </section>
 
-  <section id="view-evidence" class="view reveal-section">
-    <p class="eyebrow">07. EVIDENCE LEDGER</p>
-    <h2>Evidence ledger</h2>
-    <p class="muted">Independent evidence families are deduplicated. Contradictions remain visible.</p>
-    <div id="evidence" class="empty">No evidence collected.</div>
+  <!-- EMAIL OSINT RESULTS -->
+  <section class="card reveal-section" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
+    <p class="eyebrow">EMAIL SIGNAL DISCOVERY</p>
+    <h2>Email OSINT · Registered Websites & Account Discovery</h2>
+    <div id="email-osint-meta" class="metrics" style="margin:12px 0 20px"></div>
+    <div id="email-osint-sources"></div>
   </section>
 
-  <section id="view-report" class="view reveal-section">
+  <!-- INVESTIGATION REPORT — hidden until search runs -->
+  <section id="view-report" class="view reveal-section" hidden>
     <div class="section-title">
       <div>
-        <p class="eyebrow">08. INVESTIGATION REPORT</p>
+        <p class="eyebrow">07. INVESTIGATION REPORT</p>
         <h2>Investigation report</h2>
       </div>
       <button id="print-report" class="secondary wipe-btn">Print / save PDF</button>
     </div>
-    <div id="report" class="empty">A report appears when the investigation finishes.</div>
-  </section>
-
-  <section class="card utility-card reveal-section" id="image-section">
-    <p class="eyebrow">09. OPTIONAL IMAGE REUSE</p>
-    <h2>Optional image reuse</h2>
-    <p id="image-prompt">Choose an image now to check it against collected avatars when the search finishes, or check the current candidates below.</p>
-    <p class="muted">No facial recognition. Different photos of the same person will not match. Reuse does not establish ownership.</p>
-    <label>JPEG, PNG or WebP · up to 5 MB<input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp"></label>
-
-    <div class="image-actions" style="margin-top:14px; display:flex; gap:10px;">
-      <button id="check-image" type="button" class="secondary wipe-btn" disabled>Check current candidates</button>
-      <button id="clear-image" type="button" class="secondary wipe-btn">Clear</button>
-    </div>
-    <p id="image-status" role="status" aria-live="polite"></p>
-    <div id="image-results"></div>
+    <div id="report" class="empty">A comprehensive identity report appears when the investigation finishes.</div>
   </section>
 </div>
 
-<!-- ═══ STAGE 4 — EXPLAINER SECTION ═══ -->
-<section id="stage4-explainer" class="explainer-section reveal-section" aria-label="Stage 4 — Fingerprinting & OSINT Methodology">
-  <div class="explainer-container">
-    <div class="explainer-header">
-      <p class="eyebrow">10. FINGERPRINTING & OSINT METHODOLOGY</p>
-      <h2>How You Were Identified & Why OSINT Is Legal</h2>
-    </div>
 
-    <div class="explainer-grid">
-      <article class="explainer-card">
-        <h3>01 // Passive Browser Fingerprinting</h3>
-        <p>
-          Modern browsers reveal an astonishing depth of hardware, graphics, and system parameters without asking for permissions or setting persistent cookies. WebGL renderer strings, canvas text metrics, CPU core counts, WebRTC local candidate structures, and precise pointer scroll deltas can be combined into a uniquely identifiable device signature.
-        </p>
-        <p>
-          Because every device possesses slight hardware and font configuration variances, these zero-permission browser APIs allow trackers and security systems to re-identify your machine across different web domains in real time.
-        </p>
-      </article>
-
-      <article class="explainer-card">
-        <h3>02 // Open Source Intelligence (OSINT)</h3>
-        <p>
-          OSINT refers to the practice of collecting and correlating information from publicly available sources. The lookup tool above operates strictly within public boundaries — querying publicly indexed user handles, domain records, platform profiles, and public API endpoints.
-        </p>
-        <p>
-          No credential theft, private account bypass, or unauthorized access is performed. Every candidate, link, and evidence score surfaced by Deus originates from open data that was already accessible on the public web.
-        </p>
-      </article>
-
-      <article class="explainer-card">
-        <h3>03 // Responsible Use & Privacy Hygiene</h3>
-        <p>
-          Understanding how passive fingerprinting and identity correlation work is the first step toward digital self-defense and threat modeling. By exposing these signals transparently, Deus allows researchers and individuals to audit their online exposure and understand how data points connect across platforms.
-        </p>
-        <p class="responsible-note">
-          <strong>Responsible Use Notice:</strong> This toolkit is designed for self-auditing, research, and legitimate open-source intelligence verification. Users are responsible for adhering to applicable privacy laws and platform terms of service.
-        </p>
-      </article>
-    </div>
-  </div>
-</section>
 
 <footer>Public or authorized research only. A matching handle is a lead, not proof of ownership. No facial identification.</footer>
 
 </main>
 
-<script src="/fingerprint.js?v=5"></script>
-<script src="/app.js?v=5" defer></script>
+<script src="/fingerprint.js?v=9"></script>
+<script src="/app.js?v=9" defer></script>
 <!-- Coin animation: isolated ES module -->
-<script type="module" src="/hero-coin.js?v=5"></script>
+<script type="module" src="/hero-coin.js?v=9"></script>
 </body>
 </html>

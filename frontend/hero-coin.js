@@ -1,80 +1,149 @@
 /**
- * Scroll-reactive 3D globe for the Deus hero.
- * The module is isolated from the search app; it only updates hero visuals.
+ * 3D Wireframe Globe in 3D Space using Three.js for Deus Hero Section.
  */
 
-(async function initHeroGlobe() {
+(function initHeroGlobe() {
   'use strict';
 
-  const mount = document.getElementById('hero-coin');
+  // Support both element IDs for the globe mount point
+  const mount = document.getElementById('hero-globe-wrap') || document.getElementById('hero-coin');
   if (!mount) return;
 
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const scene = document.createElement('div');
-  scene.className = 'space-globe';
-  scene.innerHTML = `
-    <div class="space-stars" aria-hidden="true"></div>
-    <div class="globe-shell" aria-hidden="true">
-      <div class="globe-core"></div>
-      <div class="globe-grid globe-grid-a"></div>
-      <div class="globe-grid globe-grid-b"></div>
-      <div class="globe-ring globe-ring-a"></div>
-      <div class="globe-ring globe-ring-b"></div>
-      <span class="globe-node globe-node-a"></span>
-      <span class="globe-node globe-node-b"></span>
-      <span class="globe-node globe-node-c"></span>
-    </div>
-  `;
-  mount.append(scene);
+  // Clear mount element
+  mount.replaceChildren();
 
-  const sourceCard = document.getElementById('hero-source-card');
-  sourceCard?.addEventListener('click', () => {
-    sourceCard.classList.add('is-embossed');
-    window.setTimeout(() => sourceCard.classList.remove('is-embossed'), 950);
+  // Check if THREE is available
+  if (typeof THREE === 'undefined') {
+    // Fallback simple wireframe element if Three.js script fails to load
+    const fallback = document.createElement('div');
+    fallback.className = 'space-globe';
+    mount.append(fallback);
+    return;
+  }
+
+  // Set up dimensions
+  const width = mount.clientWidth || 320;
+  const height = mount.clientHeight || 320;
+
+  // 1. Scene, Camera, Renderer
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
+  camera.position.z = 400;
+
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setSize(width, height);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  mount.appendChild(renderer.domElement);
+
+  // 2. Main 3D Globe Group
+  const globeGroup = new THREE.Group();
+  scene.add(globeGroup);
+
+  // Outer Wireframe Sphere
+  const radius = 120;
+  const sphereGeo = new THREE.IcosahedronGeometry(radius, 4);
+  const sphereMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.38
   });
+  const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+  globeGroup.add(sphereMesh);
 
-  if (reducedMotion) return;
+  // Inner Core Density Grid
+  const coreGeo = new THREE.IcosahedronGeometry(radius * 0.98, 2);
+  const coreMat = new THREE.MeshBasicMaterial({
+    color: 0x0284c7,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.20
+  });
+  const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+  globeGroup.add(coreMesh);
 
-  let anime;
-  try {
-    const mod = await import('https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.es.js');
-    anime = mod.default;
-  } catch {
-    anime = null;
+  // Orbital Ring A
+  const ringGeoA = new THREE.TorusGeometry(radius * 1.35, 1.2, 16, 100);
+  const ringMatA = new THREE.MeshBasicMaterial({
+    color: 0x06b6d4,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.55
+  });
+  const ringA = new THREE.Mesh(ringGeoA, ringMatA);
+  ringA.rotation.x = Math.PI / 3;
+  ringA.rotation.y = Math.PI / 6;
+  globeGroup.add(ringA);
+
+  // Orbital Ring B
+  const ringGeoB = new THREE.TorusGeometry(radius * 1.5, 1, 16, 100);
+  const ringMatB = new THREE.MeshBasicMaterial({
+    color: 0x3b82f6,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.35
+  });
+  const ringB = new THREE.Mesh(ringGeoB, ringMatB);
+  ringB.rotation.x = -Math.PI / 4;
+  ringB.rotation.y = -Math.PI / 5;
+  globeGroup.add(ringB);
+
+  // Floating 3D Node Markers on Globe Surface
+  const nodeCount = 18;
+  const nodeGeo = new THREE.SphereGeometry(3.5, 12, 12);
+  const nodeMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+
+  for (let i = 0; i < nodeCount; i++) {
+    const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);
+    const phi = Math.acos(-1 + (2 * i) / nodeCount);
+    const theta = Math.sqrt(nodeCount * Math.PI) * phi;
+
+    nodeMesh.position.x = radius * Math.cos(theta) * Math.sin(phi);
+    nodeMesh.position.y = radius * Math.sin(theta) * Math.sin(phi);
+    nodeMesh.position.z = radius * Math.cos(phi);
+
+    globeGroup.add(nodeMesh);
   }
 
-  if (anime) {
-    anime({
-      targets: scene.querySelectorAll('.globe-node'),
-      scale: [.75, 1.35],
-      opacity: [.38, 1],
-      delay: anime.stagger(260),
-      duration: 2100,
-      direction: 'alternate',
-      loop: true,
-      easing: 'easeInOutSine',
-    });
-    anime({
-      targets: sourceCard,
-      translateY: [-4, 5],
-      duration: 3800,
-      direction: 'alternate',
-      loop: true,
-      easing: 'easeInOutSine',
-    });
+  // Mouse & Scroll interactivity
+  let targetRotationX = 0;
+  let targetRotationY = 0;
+
+  function onMouseMove(event) {
+    const windowHalfX = window.innerWidth / 2;
+    const windowHalfY = window.innerHeight / 2;
+    targetRotationY = ((event.clientX - windowHalfX) / windowHalfX) * 0.4;
+    targetRotationX = ((event.clientY - windowHalfY) / windowHalfY) * 0.4;
   }
 
-  const updateScroll = () => {
-    const hero = document.querySelector('.hero');
-    const rect = hero?.getBoundingClientRect();
-    const viewport = window.innerHeight || 1;
-    const progress = rect ? Math.min(1, Math.max(0, (viewport - rect.top) / (viewport + rect.height))) : 0;
-    mount.style.setProperty('--scroll-tilt', `${-8 + progress * 8}deg`);
-    mount.style.setProperty('--scroll-y', `${progress * 22}px`);
-    if (sourceCard) sourceCard.style.setProperty('--tag-y', `${progress * 18}px`);
-  };
+  window.addEventListener('mousemove', onMouseMove, { passive: true });
 
-  updateScroll();
-  window.addEventListener('scroll', updateScroll, { passive: true });
-  window.addEventListener('resize', updateScroll);
+  // 3. Animation Loop
+  function animate() {
+    requestAnimationFrame(animate);
+
+    // Continuous 3D rotation
+    sphereMesh.rotation.y += 0.003;
+    coreMesh.rotation.y -= 0.002;
+    ringA.rotation.z += 0.004;
+    ringB.rotation.z -= 0.003;
+
+    // Smooth inertia tilt towards mouse
+    globeGroup.rotation.y += (targetRotationY - globeGroup.rotation.y) * 0.05;
+    globeGroup.rotation.x += (targetRotationX - globeGroup.rotation.x) * 0.05;
+
+    // Render 3D Scene
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  // Responsive Canvas Resize
+  window.addEventListener('resize', () => {
+    const newW = mount.clientWidth || 320;
+    const newH = mount.clientHeight || 320;
+    camera.aspect = newW / newH;
+    camera.updateProjectionMatrix();
+    renderer.setSize(newW, newH);
+  });
 })();

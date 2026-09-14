@@ -559,16 +559,18 @@
 
   // Helper to safely set element value and remove skeleton class
   function setSignalValue(elementId, text, isHtml = false) {
-    const row = document.getElementById(elementId);
-    if (!row) return;
-    const valEl = row.querySelector('.sig-value');
-    if (!valEl) return;
+    // Support both old row-based (sig-*) and new direct value elements (val-*)
+    const valEl = document.getElementById('val-' + elementId.replace('sig-', ''));
+    const rowEl = document.getElementById(elementId);
 
-    valEl.classList.remove('skeleton');
+    const target = valEl || (rowEl ? rowEl.querySelector('.sig-value, .fp-row__value') : null);
+    if (!target) return;
+
+    target.classList.remove('skeleton');
     if (isHtml) {
-      valEl.innerHTML = text;
+      target.innerHTML = text;
     } else {
-      valEl.textContent = text;
+      target.textContent = text;
     }
   }
 
@@ -598,13 +600,10 @@
     setSignalValue('sig-screen', screenInfo);
 
     // 5. Timezone & Live Clock
-    const tzRow = document.getElementById('sig-timezone');
-    if (tzRow) {
-      const valEl = tzRow.querySelector('.sig-value');
-      if (valEl) {
-        valEl.classList.remove('skeleton');
-        initTimezoneAndClock(valEl);
-      }
+    const valTz = document.getElementById('val-timezone');
+    if (valTz) {
+      valTz.classList.remove('skeleton');
+      initTimezoneAndClock(valTz);
     }
 
     // 6. Geo & ISP
@@ -615,49 +614,47 @@
     const mediaInfo = await getMediaDevices();
     setSignalValue('sig-media', mediaInfo);
 
-    // 8. Developer Fonts
-    const fontInfo = detectDeveloperFonts();
-    setSignalValue('sig-fonts', fontInfo);
-
-    // 9. Pointer Classifier
-    const pointerRow = document.getElementById('sig-pointer');
-    if (pointerRow) {
-      const valEl = pointerRow.querySelector('.sig-value');
-      if (valEl) {
-        valEl.classList.remove('skeleton');
-        initPointerClassifier(valEl);
-      }
-    }
-
-    // 10. Typing Rhythm Challenge
-    initTypingChallenge();
-
-    // 11. WebRTC Leak
-    const webrtcInfo = await checkWebRTCLeak();
-    setSignalValue('sig-webrtc', webrtcInfo);
-
-    // 12. Session Persistence
-    const returnInfo = await checkSessionPersistence(osBrowser, gpuInfo, screenInfo);
-    setSignalValue('sig-return', returnInfo);
-
+    // Session ID
     if (sessionIdEl) {
-      const storedId = localStorage.getItem('deus_fp_id') || 'fp_active';
+      let storedId = localStorage.getItem('deus_fp_id');
+      if (!storedId) {
+        storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('deus_fp_id', storedId);
+      }
       sessionIdEl.textContent = `SESSION ID: ${storedId}`;
     }
 
-    // 13. Rarity & Entropy
+    // 8. Rarity & Entropy
     const rarityInfo = calculateRarity(osBrowser, screenInfo);
-    const rarityRow = document.getElementById('sig-rarity');
-    if (rarityRow) {
-      const valEl = rarityRow.querySelector('.sig-value');
-      if (valEl) {
-        valEl.classList.remove('skeleton');
-        valEl.textContent = rarityInfo;
-      }
+    const valRarity = document.getElementById('val-rarity');
+    if (valRarity) {
+      valRarity.classList.remove('skeleton');
+      valRarity.textContent = rarityInfo;
     }
 
-    // 14. OpenRTB Bid Request Panel
-    renderOpenRTBPanel(osBrowser, geoObj);
+    // Initialize gradual scroll reveal for signal rows
+    initFingerprintScrollReveal();
+  }
+
+  // Progressive Scroll Reveal for Fingerprint Rows
+  function initFingerprintScrollReveal() {
+    const items = document.querySelectorAll('.reveal-fp-item');
+    if (!items.length) return;
+
+    if (window.IntersectionObserver) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.2 });
+
+      items.forEach(item => observer.observe(item));
+    } else {
+      items.forEach(item => item.classList.add('is-revealed'));
+    }
   }
 
   // DOM Content Loaded Handler
