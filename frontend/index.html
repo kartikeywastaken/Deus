@@ -117,70 +117,82 @@
 
       <div class="receipt-divider"></div>
 
-      <!-- Receipt Body — 2-Column Definition List -->
-      <dl class="def-list" id="fingerprint-signals">
+      <!-- Receipt Body — Line-by-Line Plain Text Log -->
+      <div class="fp-text-stream" id="fingerprint-signals">
 
-      <div class="def-row reveal-fp-item" id="sig-os">
-        <dt class="def-label">Operating System</dt>
-        <dd class="def-value skeleton mono-data" id="val-os">Parsing system kernel & OS hints...</dd>
+        <div class="fp-stream-line reveal-fp-item" id="sig-os">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Operating System:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-os">Parsing system kernel &amp; OS hints...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-browser">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Browser:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-browser">Reading user agent &amp; engine version...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-cpu">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">CPU Cores:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-cpu">Reading hardware concurrency...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-gpu-vendor">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">GPU Vendor:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-gpu-vendor">Querying WebGL debug extension...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-gpu-model">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">GPU Model:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-gpu-model">Reading unmasked renderer string...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-display">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Display:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-display">Measuring viewport, DPR &amp; depth...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-timezone">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Timezone &amp; Clock:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-timezone">Resolving locale and offset...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-location">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Location:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-location-city">Querying network geolocation...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-network">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Network / ISP:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-network">Querying provider &amp; ASN...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-camera">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Camera:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-camera">Enumerating video input devices...</span>
+        </div>
+
+        <div class="fp-stream-line reveal-fp-item" id="sig-mic">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Microphone:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-mic">Enumerating audio input devices...</span>
+        </div>
+
+        <div class="fp-stream-line fp-stream-line--rarity reveal-fp-item" id="sig-rarity">
+          <span class="fp-line-prefix">&gt;</span>
+          <span class="fp-line-label">Estimated Unicity:</span>
+          <span class="fp-line-val skeleton mono-data" id="val-rarity">Calculating population rarity model...</span>
+        </div>
+
       </div>
-
-      <div class="def-row reveal-fp-item" id="sig-browser">
-        <dt class="def-label">Browser</dt>
-        <dd class="def-value skeleton mono-data" id="val-browser">Reading user agent & engine version...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-cpu">
-        <dt class="def-label">CPU Cores</dt>
-        <dd class="def-value skeleton mono-data" id="val-cpu">Reading hardware concurrency...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-gpu-vendor">
-        <dt class="def-label">GPU Vendor</dt>
-        <dd class="def-value skeleton mono-data" id="val-gpu-vendor">Querying WebGL debug extension...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-gpu-model">
-        <dt class="def-label">GPU Model</dt>
-        <dd class="def-value skeleton mono-data" id="val-gpu-model">Reading unmasked renderer string...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-display">
-        <dt class="def-label">Display</dt>
-        <dd class="def-value skeleton mono-data" id="val-display">Measuring viewport, DPR & depth...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-timezone">
-        <dt class="def-label">Timezone & Clock</dt>
-        <dd class="def-value skeleton mono-data" id="val-timezone">Resolving locale and offset...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-location">
-        <dt class="def-label">Location</dt>
-        <dd class="def-value skeleton mono-data" id="val-location-city">Querying network geolocation...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-network">
-        <dt class="def-label">Network / ISP</dt>
-        <dd class="def-value skeleton mono-data" id="val-network">Querying provider & ASN...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-camera">
-        <dt class="def-label">Camera</dt>
-        <dd class="def-value skeleton mono-data" id="val-camera">Enumerating video input devices...</dd>
-      </div>
-
-      <div class="def-row reveal-fp-item" id="sig-mic">
-        <dt class="def-label">Microphone</dt>
-        <dd class="def-value skeleton mono-data" id="val-mic">Enumerating audio input devices...</dd>
-      </div>
-
-      <div class="def-row def-row--rarity reveal-fp-item" id="sig-rarity">
-        <dt class="def-label">Estimated Unicity</dt>
-        <dd class="def-value skeleton mono-data" id="val-rarity">Calculating population rarity model...</dd>
-      </div>
-
-      </dl>
     </div>
   </div>
 </section>
