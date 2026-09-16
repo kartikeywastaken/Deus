@@ -76,7 +76,6 @@
     <nav class="main-nav" aria-label="Page sections">
       <a href="#stage2-fingerprint" class="active">Fingerprint</a>
       <a href="#search-panel-section">Search</a>
-      <a href="#view-graph">Graph</a>
       <a href="#view-overview">Candidates</a>
       <a href="#view-report">Report</a>
     </nav>
@@ -98,7 +97,7 @@
 <section id="stage2-fingerprint" class="fingerprint-hero-section" aria-label="Stage 2 — Live Browser Fingerprint Receipt">
 
   <div class="fp-section-intro">
-    <div class="stepper-badge"><span class="stepper-step">Step 1 of 5</span> — Passive Audit</div>
+    <div class="stepper-badge"><span class="stepper-step">Step 1 of 4</span> — Passive Audit</div>
     <h2 class="fp-section-headline">Your Browser Fingerprint Receipt</h2>
     <p class="fp-section-sub">Passive hardware and environment parameters collected without cookies or permissions.</p>
   </div>
@@ -214,7 +213,7 @@
     </div>
 
     <div class="hero-center">
-      <div class="stepper-badge"><span class="stepper-step">Step 2 of 5</span> — Dossier Pipeline</div>
+      <div class="stepper-badge"><span class="stepper-step">Step 2 of 4</span> — Dossier Pipeline</div>
 
       <p class="hero-subhead">Discover public accounts, refine your search, and inspect the evidence behind every lead.</p>
 
@@ -255,7 +254,7 @@
   <!-- SEARCH INPUT SECTION -->
   <section class="search-panel" aria-label="Investigation input" id="search-panel-section">
     <div class="search-header">
-      <div class="stepper-badge"><span class="stepper-step">Step 3 of 5</span> — Search Query</div>
+      <div class="stepper-badge"><span class="stepper-step">Step 3 of 4</span> — Search Query</div>
       <h2 class="search-title">Start with a clue</h2>
       <p class="search-header__sub">Enter a username, name, social profile URL, or email address to surface public accounts and connections.</p>
     </div>
@@ -364,28 +363,12 @@
     </div>
   </section>
 
-  <!-- CONNECTION GRAPH — HIDDEN UNTIL SEARCH RUNS -->
-  <section id="view-graph" class="view reveal-section" hidden>
-    <div class="section-title">
-      <div>
-        <div class="stepper-badge"><span class="stepper-step">Step 4 of 5</span> — Signal Map</div>
-        <h2>Connection graph</h2>
-      </div>
-      <button id="graph-reset" class="btn btn-secondary">Reset selection</button>
-    </div>
-    <p class="muted">Graph displays verified social profile nodes for search queries. Select a node to inspect connections.</p>
-    <div class="case-card graph-wrap">
-      <svg id="graph" viewBox="0 0 1100 760" role="img" aria-label="Public candidate connection graph"></svg>
-    </div>
-    <div id="graph-detail" aria-live="polite"></div>
-  </section>
-
   <!-- LEADING CANDIDATES — HIDDEN UNTIL SEARCH RUNS -->
   <section id="view-overview" class="view reveal-section" hidden>
     <div class="full-width-candidates">
       <div class="section-title">
         <div>
-          <div class="stepper-badge"><span class="stepper-step">Step 5 of 5</span> — Matched Profiles</div>
+          <div class="stepper-badge"><span class="stepper-step">Step 4 of 4</span> — Matched Profiles</div>
           <h2>Leading candidates</h2>
         </div>
         <span class="mono-data">Confirmed social profiles & leads</span>
@@ -402,7 +385,9 @@
 
   <!-- EMAIL OSINT RESULTS -->
   <section class="case-card reveal-section" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
-    <h2>Email OSINT · Registered Websites & Account Discovery</h2>
+    <h2>Email OSINT · Where this email is registered</h2>
+    <p class="muted">Every public site and account found for this email address, plus the general information available about the email and its domain.</p>
+    <div id="email-osint-overview"></div>
     <div id="email-osint-meta" class="metrics" style="margin:12px 0 20px"></div>
     <div id="email-osint-sources"></div>
   </section>
@@ -458,7 +443,6 @@
     <div class="footer-links-list">
       <a href="#stage2-fingerprint">FINGERPRINT AUDIT</a>
       <a href="#search-panel-section">SEARCH ENGINE</a>
-      <a href="#view-graph">SIGNAL MAP</a>
       <a href="#view-overview">CANDIDATES</a>
       <a href="#view-report">IDENTITY REPORT</a>
     </div>

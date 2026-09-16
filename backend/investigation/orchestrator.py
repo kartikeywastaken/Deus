@@ -98,20 +98,42 @@ class SearchOrchestrator:
                 )
                 email_candidates = []
                 for s_res in email_res.source_results:
-                    if s_res.account_exists and s_res.canonical_url:
+                    if s_res.account_exists:
+                        canonical = (
+                            s_res.canonical_url
+                            or f"https://{s_res.source_name.lower().replace(' ', '')}.com/account/{email_res.normalized_email}"
+                        )
+                        created_at_val = (
+                            s_res.evidence.get("created_at")
+                            or s_res.evidence.get("account_created")
+                            or s_res.evidence.get("joined")
+                            or s_res.evidence.get("date_created")
+                            or s_res.evidence.get("first_seen")
+                        )
+                        owner_val = (
+                            s_res.display_name
+                            or s_res.username
+                            or s_res.evidence.get("owner_info")
+                            or s_res.evidence.get("full_name")
+                            or s_res.evidence.get("name")
+                        )
                         email_candidates.append(
                             CandidateProfile(
                                 platform=s_res.source_name,
-                                canonical_url=s_res.canonical_url,
+                                canonical_url=canonical,
                                 username=s_res.username,
-                                display_name=s_res.display_name,
+                                display_name=owner_val,
                                 avatar_url=s_res.avatar_url,
-                                discovered_by=["email_osint"],
+                                discovered_by=["email_osint", s_res.source_name],
                                 raw={
                                     **s_res.evidence,
                                     "source_name": s_res.source_name,
                                     "category": s_res.category,
                                     "confidence": s_res.confidence,
+                                    "created_at": created_at_val,
+                                    "owner_info": owner_val,
+                                    "email": email_res.normalized_email,
+                                    "account_exists": True,
                                 },
                             )
                         )

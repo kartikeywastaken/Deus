@@ -1036,17 +1036,83 @@ def build_graph_snapshot(
         )
     ]
     edges: list[GraphEdgeData] = []
+    email_seed = next(
+        (s.normalized_value or s.original_value for s in search.seeds if _enum_value(s.seed_type) == "EMAIL"),
+        None,
+    )
+    email_node_id = None
+    if email_seed:
+        email_node_id = f"email:{email_seed}"
+        domain_part = email_seed.split("@")[-1] if "@" in email_seed else ""
+        nodes.append(
+            GraphNodeData(
+                id=email_node_id,
+                type="email",
+                label=f"Email: {email_seed}",
+                properties={"email": email_seed, "domain": domain_part},
+            )
+        )
+        edges.append(
+            GraphEdgeData(
+                id=f"search-email:{search_id}:{email_node_id}",
+                source=search_id,
+                target=email_node_id,
+                type="SEARCH_SEED",
+            )
+        )
+        if domain_part:
+            domain_node_id = f"domain:{domain_part}"
+            nodes.append(
+                GraphNodeData(
+                    id=domain_node_id,
+                    type="domain",
+                    label=f"Domain: {domain_part}",
+                    properties={"domain": domain_part},
+                )
+            )
+            edges.append(
+                GraphEdgeData(
+                    id=f"email-domain:{email_node_id}:{domain_node_id}",
+                    source=email_node_id,
+                    target=domain_node_id,
+                    type="USES_DOMAIN",
+                )
+            )
+
     for profile in profiles:
         profile_id = str(profile.id)
+        obs_raw = {}
+        if hasattr(profile, "observations") and profile.observations:
+            obs_raw = profile.observations[0].raw_data or profile.observations[0].normalized_data or {}
+
+        created_at_str = (
+            obs_raw.get("created_at")
+            or obs_raw.get("account_created")
+            or obs_raw.get("joined")
+            or obs_raw.get("date_created")
+            or (profile.first_seen_at.isoformat() if hasattr(profile, "first_seen_at") and profile.first_seen_at else None)
+        )
+        owner_str = (
+            profile.display_name
+            or profile.username
+            or obs_raw.get("owner_info")
+            or obs_raw.get("full_name")
+            or obs_raw.get("name")
+        )
+
         nodes.append(
             GraphNodeData(
                 id=profile_id,
                 type="profile",
-                label=profile.username or profile.display_name or profile.platform,
+                label=f"{profile.platform}: {profile.username or profile.display_name or 'Account'}",
                 properties={
                     "platform": profile.platform,
                     "canonical_url": profile.canonical_url,
                     "display_name": profile.display_name,
+                    "username": profile.username,
+                    "created_at": created_at_str,
+                    "owner": owner_str,
+                    "email": email_seed,
                 },
             )
         )
@@ -1058,6 +1124,15 @@ def build_graph_snapshot(
                 type="OBSERVED_PROFILE",
             )
         )
+        if email_node_id:
+            edges.append(
+                GraphEdgeData(
+                    id=f"email-profile:{email_node_id}:{profile_id}",
+                    source=email_node_id,
+                    target=profile_id,
+                    type="REGISTERED_WITH_EMAIL",
+                )
+            )
 
     for hypothesis in sorted(hypotheses, key=lambda item: item.rank):
         hypothesis_id = str(hypothesis.id)

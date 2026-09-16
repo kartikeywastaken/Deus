@@ -353,6 +353,11 @@ input:disabled, select:disabled {
   border-color: rgba(226, 232, 206, 0.25);
 }
 
+/* Highest-probability leading candidate is visually emphasised. */
+.case-card.card--top-match {
+  border-color: var(--color-accent);
+}
+
 /* ── STATUS CHIPS ── */
 .status-chip {
   font-family: var(--font-sans);
@@ -1123,7 +1128,226 @@ input:disabled, select:disabled {
   text-transform: uppercase;
 }
 
-/* ── GRAPH SECTION ── */
+/* ── EMAIL OSINT RESULTS ── */
+#email-osint-overview {
+  margin: 20px 0 8px;
+}
+
+.email-overview-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.email-overview-head strong {
+  font-family: var(--font-display);
+  font-size: 24px;
+  word-break: break-all;
+}
+
+.email-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1px;
+  background: var(--border-brown);
+  border: 1px solid var(--border-brown);
+}
+
+.email-overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.email-overview-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.email-overview-item strong {
+  font-size: 15px;
+  word-break: break-word;
+}
+
+.email-overview-registered {
+  margin-top: 24px;
+  border: 1px solid var(--border-brown);
+  padding: 20px;
+}
+
+.email-overview-registered h3 {
+  margin: 0 0 14px;
+}
+
+.email-registered-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.email-registered-list li {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.email-registered-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.email-registered-list li strong {
+  color: var(--text-ink);
+  margin-right: 8px;
+}
+
+.email-registered-list a {
+  color: var(--color-accent);
+}
+
+.email-overview-sites {
+  margin-top: 24px;
+  border: 1px solid var(--border-brown);
+  padding: 20px;
+}
+
+.email-overview-sites h3 {
+  margin: 0 0 8px;
+}
+
+.email-sites-summary {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.email-site-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.email-site-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.email-site-list li strong {
+  color: var(--text-ink);
+}
+
+.email-site-list .status-chip {
+  padding: 3px 10px;
+  font-size: 10px;
+}
+
+.email-site-list a {
+  color: var(--color-accent);
+}
+
+/* Clickable metric tabs inside the email OSINT panel */
+.metric-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-brown);
+  color: var(--text-ink);
+  font-family: var(--font-display);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.25s ease;
+}
+
+.metric-tab:hover,
+.metric-tab[aria-pressed="true"] {
+  border-color: var(--color-accent);
+}
+
+.metric-tab strong {
+  font-size: 28px;
+  color: var(--color-accent);
+}
+
+.metric-tab span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.email-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.email-detail-grid > h3,
+.email-detail-grid > .empty {
+  grid-column: 1 / -1;
+}
+
+.email-account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-brown);
+  padding: 20px;
+}
+
+.email-account-card strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+  word-break: break-word;
+}
+
+.email-account-card small {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.email-account-card a {
+  color: var(--color-accent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  background: rgba(255, 127, 17, 0.12);
+}
+
+/* ── RESULT SECTIONS ── */
 .view {
   padding: 60px 0;
   border-bottom: 1px solid var(--border-brown);
@@ -1134,27 +1358,6 @@ input:disabled, select:disabled {
   justify-content: space-between;
   align-items: flex-end;
   margin-bottom: 20px;
-}
-
-.graph-wrap {
-  padding: 0;
-  overflow: hidden;
-  margin-top: 20px;
-  background: #1a1a1a;
-  border: 1px solid var(--border-brown);
-}
-
-#graph {
-  width: 100%;
-  max-height: 640px;
-  display: block;
-}
-
-#graph text {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  fill: #E2E8CE;
 }
 
 /* ── CANDIDATES & WORK GALLERY (SPOTLIGHTED 650px COLUMN) ── */

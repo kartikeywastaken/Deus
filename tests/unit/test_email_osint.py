@@ -11,6 +11,12 @@ from backend.email_osint import (
     EmailSourceResult,
     EmailSourceStatus,
 )
+from backend.email_osint.adapters.holehe_public import (
+    PinterestChecker,
+    PUBLIC_CHECKERS,
+    RedditChecker,
+    TwitterChecker,
+)
 from backend.email_osint.adapters.domain_intel import DomainIntelAdapter
 from backend.email_osint.cache import EmailOSINTCache
 from backend.email_osint.correlation import EmailCorrelationEngine
@@ -114,3 +120,78 @@ def test_identity_graph_builder():
     assert len(graph.nodes) >= 3
     assert len(graph.edges) >= 2
     assert any(n.label == "target@example.com" for n in graph.nodes)
+
+def test_service_checkers_cover_named_sites():
+    names = {checker.name for checker in PUBLIC_CHECKERS}
+    for expected in {
+        "spotify",
+        "duolingo",
+        "reddit",
+        "linkedin",
+        "instagram",
+        "pinterest",
+        "twitter",
+        "microsoft",
+        "tiktok",
+        "snapchat",
+        "amazon",
+        "wordpress",
+        "firefox",
+    }:
+        assert expected in names, f"missing site checker: {expected}"
+    labels = {
+        checker.name: (getattr(checker, "label", "") or checker.name.replace("_", " ").title())
+        for checker in PUBLIC_CHECKERS
+    }
+    assert all(labels.values())
+
+
+def test_request_checkers_interpret_availability():
+    assert RedditChecker().interpret(200, "", {"available": False}) is True
+    assert RedditChecker().interpret(200, "", {"available": True}) is False
+    assert RedditChecker().interpret(200, "", {"unexpected": "shape"}) is None
+
+    assert PinterestChecker().interpret(
+        200, "", {"resource_response": {"data": {"id": "1"}}}
+    ) is True
+    assert PinterestChecker().interpret(200, "", {"resource_response": {"data": None}}) is False
+    assert PinterestChecker().interpret(500, "", None) is None
+
+    assert TwitterChecker().interpret(200, "", {"valid": False}) is True
+    assert TwitterChecker().interpret(200, "", {"valid": True}) is False
+    assert TwitterChecker().interpret(200, "", "not-json") is None
+
+
+@pytest.mark.asyncio
+async def test_holehe_adapter_records_every_site_status(monkeypatch):
+    from backend.email_osint.adapters import holehe_public as module
+
+    async def found(email, client):
+        return {
+            "exists": True,
+            "confidence": 0.9,
+            "canonical_url": "https://spotify.com",
+            "display_name": "Spotify Account",
+        }
+
+    async def absent(email, client):
+        return {"exists": False}
+
+    async def unknown(email, client):
+        return {"exists": None}
+
+    for index, checker in enumerate(module.PUBLIC_CHECKERS):
+        handler = found if index == 0 else absent if index == 1 else unknown
+        monkeypatch.setattr(checker, "check", handler, raising=False)
+
+    result = await module.HolehePublicAdapter().check("target@example.com")
+
+    assert result.status == EmailSourceStatus.FOUND
+    assert result.evidence["found_services"] == [module.PUBLIC_CHECKERS[0].name]
+
+    status = result.evidence["site_status"]
+    assert len(status) == len(module.PUBLIC_CHECKERS)
+    assert status[module.PUBLIC_CHECKERS[0].name]["exists"] is True
+    assert status[module.PUBLIC_CHECKERS[1].name]["exists"] is False
+    assert status[module.PUBLIC_CHECKERS[2].name]["exists"] is None
+    assert all(entry["label"] for entry in status.values())
