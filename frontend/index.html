@@ -6,16 +6,13 @@
   <title>DEUS · Passive Browser Fingerprint & OSINT Identity Research</title>
   <meta name="description" content="DEUS passive browser fingerprinting and public identity research engine. Discover digital footprints and public account connections without cookies or permissions.">
 
-  <!-- Google Fonts: Fraunces (Headings), Public Sans (UI/Body), IBM Plex Mono (Data Only) -->
+  <!-- Google Fonts: Bodoni Moda (High-Contrast Didone Serif - Regular & Italic Variable) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&display=swap" rel="stylesheet">
 
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-
-  <!-- Three.js for 3D Wireframe Globe -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <!-- Lenis Smooth Scroll -->
   <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
@@ -24,18 +21,35 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=12">
+  <link rel="stylesheet" href="/styles.css?v=16">
 </head>
 <body>
 
+<!-- Noise Overlay -->
+<div class="noise-overlay" aria-hidden="true"></div>
+
+<!-- ═══ TOP MARQUEE BAND ═══ -->
+<div class="marquee-band marquee-top" aria-hidden="true">
+  <div class="marquee-track">
+    <span>DEUS · PASSIVE BROWSER FINGERPRINT &amp; OSINT IDENTITY RESEARCH · DISCOVER DIGITAL FOOTPRINTS · </span>
+    <span>DEUS · PASSIVE BROWSER FINGERPRINT &amp; OSINT IDENTITY RESEARCH · DISCOVER DIGITAL FOOTPRINTS · </span>
+    <span>DEUS · PASSIVE BROWSER FINGERPRINT &amp; OSINT IDENTITY RESEARCH · DISCOVER DIGITAL FOOTPRINTS · </span>
+    <span>DEUS · PASSIVE BROWSER FINGERPRINT &amp; OSINT IDENTITY RESEARCH · DISCOVER DIGITAL FOOTPRINTS · </span>
+  </div>
+</div>
+
 <!-- ═══ STAGE 1 — COLD OPEN OVERLAY ═══ -->
 <div id="stage1-cold-open" class="cold-open-overlay" role="region" aria-label="Cold Open Introduction">
+  <!-- Decorative Starburst in background -->
+  <svg class="starburst-bg cold-starburst" viewBox="0 0 500 500" aria-hidden="true">
+    <path d="M250,0 L250,500 M0,250 L500,250 M73.2,73.2 L426.8,426.8 M73.2,426.8 L426.8,73.2 M125,0 L375,500 M0,125 L500,375 M375,0 L125,500 M0,375 L500,125 M18.4,18.4 L481.6,481.6 M18.4,481.6 L481.6,18.4" stroke="currentColor" stroke-width="0.75" fill="none" opacity="0.15"/>
+  </svg>
   <div class="cold-open-container">
     <div class="cold-open-line cold-open-line-1" id="cold-line-1" aria-hidden="true">
-      <span class="animated-text-line">You have just entered our environment, and your device signature is already captured. Scroll up to inspect your dossier.</span>
+      <span class="animated-text-line">You have <i>just entered</i> our environment, and your <b>device signature</b> is already captured. Scroll up to inspect your dossier.</span>
     </div>
     <div class="cold-open-line cold-open-line-2" id="cold-line-2" aria-hidden="true">
-      <span class="animated-text-line">You can also search any public handle, name, or email to surface connected digital footprints.</span>
+      <span class="animated-text-line">You can also search any <i>public handle</i>, name, or email to surface connected <b>digital footprints</b>.</span>
     </div>
     <div class="cold-open-prompt" id="cold-prompt">
       <span class="prompt-arrow">↑</span>
@@ -48,17 +62,29 @@
 
 <!-- ═══ TOP NAV ═══ -->
 <header class="topbar">
-  <a class="brand" href="/">
-    <span class="brand-logo">◈</span> DEUS <span class="brand-sub">Public Identity Research</span>
-  </a>
+  <div class="brand-lockup">
+    <a class="brand" href="/">
+      <span class="brand-logo">◈</span>
+      <span class="brand-text-stack">
+        <span class="brand-name">DEUS</span>
+        <span class="brand-sub">Public Identity Research</span>
+      </span>
+    </a>
+  </div>
 
-  <nav class="main-nav" aria-label="Page sections">
-    <a href="#stage2-fingerprint" class="active">Fingerprint</a>
-    <a href="#search-panel-section">Search</a>
-    <a href="#view-graph">Graph</a>
-    <a href="#view-overview">Candidates</a>
-    <a href="#view-report">Report</a>
-  </nav>
+  <div class="nav-wrapper">
+    <nav class="main-nav" aria-label="Page sections">
+      <a href="#stage2-fingerprint" class="active">Fingerprint</a>
+      <a href="#search-panel-section">Search</a>
+      <a href="#view-graph">Graph</a>
+      <a href="#view-overview">Candidates</a>
+      <a href="#view-report">Report</a>
+    </nav>
+    <a href="#stage2-fingerprint" class="archive-nav-link">
+      <span>Audit Log</span>
+      <span class="arrow-icon">↗</span>
+    </a>
+  </div>
 
   <div class="topbar-status">
     <span class="live-signals-pill" id="live-signals-toggle">
@@ -77,21 +103,22 @@
     <p class="fp-section-sub">Passive hardware and environment parameters collected without cookies or permissions.</p>
   </div>
 
-  <!-- Receipt Case-File Card -->
-  <div class="case-card receipt-card">
-    <!-- Receipt Header -->
-    <div class="receipt-header">
-      <div class="receipt-header__title">Passive Browser Audit Log</div>
-      <div class="receipt-header__meta">
-        <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
-        <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
+  <div class="fingerprint-stage-layout">
+    <!-- Receipt Case-File Card -->
+    <div class="case-card receipt-card">
+      <!-- Receipt Header -->
+      <div class="receipt-header">
+        <div class="receipt-header__title">Passive Browser Audit Log</div>
+        <div class="receipt-header__meta">
+          <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
+          <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
+        </div>
       </div>
-    </div>
 
-    <div class="receipt-divider"></div>
+      <div class="receipt-divider"></div>
 
-    <!-- Receipt Body — 2-Column Definition List -->
-    <dl class="def-list" id="fingerprint-signals">
+      <!-- Receipt Body — 2-Column Definition List -->
+      <dl class="def-list" id="fingerprint-signals">
 
       <div class="def-row reveal-fp-item" id="sig-os">
         <dt class="def-label">Operating System</dt>
@@ -153,7 +180,8 @@
         <dd class="def-value skeleton mono-data" id="val-rarity">Calculating population rarity model...</dd>
       </div>
 
-    </dl>
+      </dl>
+    </div>
   </div>
 </section>
 
@@ -161,15 +189,20 @@
 <div id="stage3-lookup-tool">
   <!-- HERO / PITCH SECTION -->
   <section class="hero" aria-label="DEUS Public Identity Research">
+    <div class="hero-decorative-starburst" aria-hidden="true">
+      <svg viewBox="0 0 500 500" class="starburst-svg">
+        <path d="M250,0 L250,500 M0,250 L500,250 M73.2,73.2 L426.8,426.8 M73.2,426.8 L426.8,73.2 M125,0 L375,500 M0,125 L500,375 M375,0 L125,500 M0,375 L500,125 M18.4,18.4 L481.6,481.6 M18.4,481.6 L481.6,18.4" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.18"/>
+      </svg>
+    </div>
+
+    <!-- Oversized Bleeding Headline -->
+    <div class="hero-oversized-headline" aria-hidden="true">
+      <span class="hero-line hero-line-1">DEUS <i>PUBLIC</i></span>
+      <span class="hero-line hero-line-2">IDENTITY <b>RESEARCH</b></span>
+    </div>
+
     <div class="hero-center">
       <div class="stepper-badge"><span class="stepper-step">Step 2 of 5</span> — Dossier Pipeline</div>
-      <h1 class="hero-headline">
-        <span class="line-wrap"><span class="line-text">Find the connections.</span></span>
-        <span class="line-wrap"><span class="line-text muted-text">Keep the uncertainty.</span></span>
-      </h1>
-
-      <!-- 3D Wireframe Globe Container -->
-      <div id="hero-coin" class="hero-globe-wrap" aria-hidden="true"></div>
 
       <p class="hero-subhead">Discover public accounts, refine your search, and inspect the evidence behind every lead.</p>
 
@@ -190,15 +223,20 @@
             <span class="mini-card-val">Public signals only</span>
           </div>
         </div>
-
-        <button class="case-card mini-card mini-card--interactive" type="button" id="hero-source-card">
-          <i data-lucide="github" class="card-icon"></i>
-          <div class="mini-card-text">
-            <span class="mini-card-title">GitHub</span>
-            <span class="status-chip status-chip--found">Found · 3 identifiers</span>
-          </div>
-        </button>
       </div>
+    </div>
+
+    <!-- Circular Rotating Badge Button Anchor -->
+    <div class="hero-badge-wrap" aria-hidden="true">
+      <svg viewBox="0 0 160 160" class="rotating-badge">
+        <path id="badge-circle-path" d="M 80, 80 m -60, 0 a 60,60 0 1,1 120,0 a 60,60 0 1,1 -120,0" fill="none" />
+        <text font-size="11.5" letter-spacing="3" fill="currentColor">
+          <textPath href="#badge-circle-path">
+            DEUS · PASSIVE AUDIT · IDENTITY RESEARCH ·
+          </textPath>
+        </text>
+      </svg>
+      <div class="badge-center-icon">◈</div>
     </div>
   </section>
 
@@ -369,14 +407,66 @@
   </section>
 </div>
 
-<footer>Public or authorized research only. A matching handle is a lead, not proof of ownership. No facial identification.</footer>
+<!-- ═══ CONTACT / CTA COLLAGE SECTION ═══ -->
+<div class="contact-cta-section" aria-label="Contact and CTA">
+  <div class="starburst-bg" aria-hidden="true">
+    <svg viewBox="0 0 500 500">
+      <path d="M250,0 L250,500 M0,250 L500,250 M73.2,73.2 L426.8,426.8 M73.2,426.8 L426.8,73.2" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.12"/>
+    </svg>
+  </div>
+  <div class="cta-sentence-collage">
+    <span class="cta-frag f1">PASSIVE <i>INTELLIGENCE</i></span>
+    <span class="cta-frag f2">ACCELERATING <b>RESEARCH</b></span>
+    <span class="cta-frag f3">UNCOVERING <i>DIGITAL</i> SIGNALS</span>
+  </div>
+  <div class="cta-three-line">
+    <div class="cta-line l1">READY TO BEGIN AN INVESTIGATION?</div>
+    <div class="cta-line l2">
+      <a href="#search-panel-section" id="hero-cta" class="cta-circle-btn">
+        <span>START</span>
+        <span class="arrow">↓</span>
+      </a>
+    </div>
+    <div class="cta-line l3">NO COOKIES · NO PERMISSIONS REQUIRED</div>
+  </div>
+</div>
+
+<!-- ═══ BOTTOM MARQUEE BAND ═══ -->
+<div class="marquee-band marquee-bottom" aria-hidden="true">
+  <div class="marquee-track">
+    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
+    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
+    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
+    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-links-list">
+      <a href="#stage2-fingerprint">FINGERPRINT AUDIT</a>
+      <a href="#search-panel-section">SEARCH ENGINE</a>
+      <a href="#view-graph">SIGNAL MAP</a>
+      <a href="#view-overview">CANDIDATES</a>
+      <a href="#view-report">IDENTITY REPORT</a>
+    </div>
+    <div class="footer-centered-talk">
+      <a href="#search-panel-section" class="lets-talk-link">start investigation ↗</a>
+    </div>
+    <div class="footer-rotated-copy">
+      <span class="rot-icon">◈</span>
+      <span class="rot-text">DEUS ENGINE © 2026</span>
+    </div>
+    <div class="footer-disclaimer">
+      Public or authorized research only. A matching handle is a lead, not proof of ownership. No facial identification.
+    </div>
+  </div>
+</footer>
 
 </main>
 
 <script src="/fingerprint.js?v=12"></script>
 <script src="/app.js?v=12" defer></script>
-<!-- Coin animation: isolated ES module -->
-<script type="module" src="/hero-coin.js?v=12"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
