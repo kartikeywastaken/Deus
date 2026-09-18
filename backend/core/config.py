@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    database_url: str = "postgresql+asyncpg://deus:pyarebache345%23%23@localhost:5433/deus"
+    database_url: str = ""
     database_echo: bool = False
 
     api_host: str = "127.0.0.1"
