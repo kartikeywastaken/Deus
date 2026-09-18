@@ -22,9 +22,9 @@ target_metadata = Base.metadata
 
 
 def database_url() -> str:
-    """Return the environment-derived URL escaped for ConfigParser."""
+    """Return the environment-derived URL for Alembic."""
 
-    return get_settings().database_url.replace
+    return get_settings().database_url
 
 
 def run_migrations_offline() -> None:
