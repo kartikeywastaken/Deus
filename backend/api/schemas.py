@@ -142,22 +142,30 @@ class ReportEnvelope(BaseModel):
     report_data: dict[str, Any] | None
 
 
-class GraphNode(BaseModel):
-    id: str
-    type: str
-    label: str
-    properties: dict[str, Any] = Field(default_factory=dict)
-
-
-class GraphEdge(BaseModel):
-    id: str
+class ObservationRead(BaseModel):
+    id: UUID
+    profile_id: UUID | None = None
     source: str
-    target: str
+    source_url: str | None = None
+    observation_type: str
+    observed_at: datetime | None = None
+    extracted_identifiers: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ObservationList(BaseModel):
+    items: list[ObservationRead]
+
+
+class IdentifierRead(BaseModel):
+    id: str
+    value: str
     type: str
-    score: float | None = None
-    classification: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    independent_source_count: int = 1
+    linked_profile_ids: list[UUID] = Field(default_factory=list)
+    observations: list[dict[str, Any]] = Field(default_factory=list)
 
 
-class GraphRead(BaseModel):
-    nodes: list[GraphNode]
-    edges: list[GraphEdge]
+class IdentifierList(BaseModel):
+    items: list[IdentifierRead]
+

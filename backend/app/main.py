@@ -6,12 +6,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import candidates, email_api, events, hypotheses, images, questions, reports, searches
+from backend.api import candidates, email_api, events, hypotheses, images, questions, reports, searches, username_api
 from backend.connectors import build_default_registry
 from backend.core.config import Settings, get_settings
 from backend.db.session import close_database
@@ -29,6 +29,21 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    del request
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error_type": exc.__class__.__name__,
+            "error": str(exc),
+        },
+    )
+
+
+app.add_exception_handler(Exception, unhandled_exception_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,6 +53,7 @@ app.add_middleware(
 
 app.include_router(searches.router)
 app.include_router(email_api.router)
+app.include_router(username_api.router)
 app.include_router(candidates.router)
 app.include_router(hypotheses.router)
 app.include_router(questions.router)

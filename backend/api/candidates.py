@@ -13,7 +13,16 @@ from backend.investigation.account_groups import account_details
 from backend.investigation.username_questions import relevance_for_profile, user_hint_usernames
 
 from .dependencies import get_repository
-from .schemas import CandidateList, CandidateRead, EvidenceList, EvidenceRead
+from .schemas import (
+    CandidateList,
+    CandidateRead,
+    EvidenceList,
+    EvidenceRead,
+    IdentifierList,
+    IdentifierRead,
+    ObservationList,
+    ObservationRead,
+)
 
 router = APIRouter(prefix="/api/searches", tags=["candidates"])
 
@@ -92,3 +101,140 @@ async def list_evidence(
             for item in items
         ]
     )
+
+
+@router.get("/{search_id}/observations", response_model=ObservationList)
+async def list_observations(
+    search_id: UUID,
+    repository: Annotated[PostgresInvestigationRepository, Depends(get_repository)],
+) -> ObservationList:
+    if await repository.get_search(search_id) is None:
+        raise HTTPException(status_code=404, detail="search not found")
+    obs_list = await repository.list_observations_for_search(search_id)
+    items = []
+    for obs in obs_list:
+        raw = obs.raw_data or {}
+        extracted = raw.get("extracted_identifiers", [])
+        items.append(
+            ObservationRead(
+                id=obs.id,
+                profile_id=obs.profile_id,
+                source=obs.source,
+                source_url=obs.source_url,
+                observation_type=obs.observation_type,
+                observed_at=obs.observed_at,
+                extracted_identifiers=extracted if isinstance(extracted, list) else [],
+            )
+        )
+    return ObservationList(items=items)
+
+
+@router.get("/{search_id}/identifiers", response_model=IdentifierList)
+async def list_identifiers(
+    search_id: UUID,
+    repository: Annotated[PostgresInvestigationRepository, Depends(get_repository)],
+) -> IdentifierList:
+    search = await repository.get_search(search_id)
+    if search is None:
+        raise HTTPException(status_code=404, detail="search not found")
+    
+    profiles = await repository.list_profiles_for_search(search_id)
+    obs_list = await repository.list_observations_for_search(search_id)
+    
+    # Structure for grouping discovered identifiers by (type, value)
+    id_map: dict[tuple[str, str], dict] = {}
+
+    # 1. Add seeds as first-class identifiers
+    for seed in search.seeds:
+        stype = str(seed.seed_type.value if hasattr(seed.seed_type, "value") else seed.seed_type).upper()
+        sval = seed.original_value.strip()
+        if sval:
+            key = (stype, sval)
+            id_map.setdefault(key, {
+                "id": f"{stype}:{sval}",
+                "value": sval,
+                "type": stype,
+                "sources": ["seed_input"],
+                "linked_profile_ids": set(),
+                "observations": [],
+            })
+
+    # 2. Add profiles and observations
+    for obs in obs_list:
+        raw = obs.raw_data or {}
+        extracted = raw.get("extracted_identifiers", [])
+        obs_item = {
+            "source": obs.source,
+            "source_url": obs.source_url,
+            "observed_at": obs.observed_at.isoformat() if obs.observed_at else None,
+            "profile_id": str(obs.profile_id) if obs.profile_id else None,
+            "type": obs.observation_type,
+        }
+        if isinstance(extracted, list):
+            for ext in extracted:
+                if isinstance(ext, dict) and ext.get("value") and ext.get("type"):
+                    itype = str(ext["type"]).upper()
+                    ival = str(ext["value"]).strip()
+                    if ival:
+                        key = (itype, ival)
+                        entry = id_map.setdefault(key, {
+                            "id": f"{itype}:{ival}",
+                            "value": ival,
+                            "type": itype,
+                            "sources": [],
+                            "linked_profile_ids": set(),
+                            "observations": [],
+                        })
+                        if obs.source and obs.source not in entry["sources"]:
+                            entry["sources"].append(obs.source)
+                        if obs.profile_id:
+                            entry["linked_profile_ids"].add(obs.profile_id)
+                        entry["observations"].append(obs_item)
+
+    # 3. Add identifiers from profile handles and emails
+    for profile in profiles:
+        if profile.username:
+            key = ("USERNAME", profile.username)
+            entry = id_map.setdefault(key, {
+                "id": f"USERNAME:{profile.username}",
+                "value": profile.username,
+                "type": "USERNAME",
+                "sources": [],
+                "linked_profile_ids": set(),
+                "observations": [],
+            })
+            if profile.platform and profile.platform not in entry["sources"]:
+                entry["sources"].append(profile.platform)
+            entry["linked_profile_ids"].add(profile.id)
+            
+        if profile.canonical_url:
+            key = ("URL", profile.canonical_url)
+            entry = id_map.setdefault(key, {
+                "id": f"URL:{profile.canonical_url}",
+                "value": profile.canonical_url,
+                "type": "URL",
+                "sources": [],
+                "linked_profile_ids": set(),
+                "observations": [],
+            })
+            if profile.platform and profile.platform not in entry["sources"]:
+                entry["sources"].append(profile.platform)
+            entry["linked_profile_ids"].add(profile.id)
+
+    # Convert to schema items
+    items = []
+    for (itype, ival), data in id_map.items():
+        sources = data["sources"] or ["observation"]
+        items.append(
+            IdentifierRead(
+                id=data["id"],
+                value=data["value"],
+                type=data["type"],
+                sources=sources,
+                independent_source_count=max(1, len(set(sources))),
+                linked_profile_ids=list(data["linked_profile_ids"]),
+                observations=data["observations"],
+            )
+        )
+    return IdentifierList(items=items)
+

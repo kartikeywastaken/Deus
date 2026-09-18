@@ -67,6 +67,7 @@ class NormalizedProfile:
     image_embedding: tuple[float, ...] | None = None
     projects: tuple[str, ...] = ()
     topics: tuple[str, ...] = ()
+    emails: tuple[str, ...] = ()
     location_claims: tuple[TemporalClaim, ...] = ()
     organization_claims: tuple[TemporalClaim, ...] = ()
     source_observation_ids: tuple[str, ...] = ()
@@ -175,6 +176,7 @@ def normalize_profile(value: Mapping[str, Any] | Any) -> NormalizedProfile:
         image_embedding=_float_tuple(data.get("image_embedding")),
         projects=_normalized_string_tuple(data.get("projects")),
         topics=_normalized_string_tuple(data.get("topics")),
+        emails=_email_tuple(data.get("emails") or data.get("email")),
         location_claims=_normalize_claims(data.get("location_claims"), normalize_name),
         organization_claims=_normalize_claims(data.get("organization_claims"), normalize_name),
         source_observation_ids=_string_tuple(data.get("source_observation_ids")),
@@ -220,6 +222,7 @@ def _merge_profiles(
         image_embedding=prefer(left.image_embedding, right.image_embedding),
         projects=tuple(dict.fromkeys(left.projects + right.projects)),
         topics=tuple(dict.fromkeys(left.topics + right.topics)),
+        emails=tuple(dict.fromkeys(left.emails + right.emails)),
         location_claims=tuple(dict.fromkeys(left.location_claims + right.location_claims)),
         organization_claims=tuple(
             dict.fromkeys(left.organization_claims + right.organization_claims)
@@ -304,6 +307,11 @@ def _float_tuple(value: Any) -> tuple[float, ...] | None:
 
 def _normalized_string_tuple(value: Any) -> tuple[str, ...]:
     return tuple(dict.fromkeys(normalize_name(item) for item in _string_tuple(value)))
+
+
+def _email_tuple(value: Any) -> tuple[str, ...]:
+    raw_items = _string_tuple(value)
+    return tuple(dict.fromkeys(item.strip().casefold() for item in raw_items if item and item.strip()))
 
 
 def _string_tuple(value: Any) -> tuple[str, ...]:

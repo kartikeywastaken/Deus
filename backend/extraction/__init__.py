@@ -8,6 +8,7 @@ from backend.normalization.profiles import NormalizedProfile
 from .bios import extract_bio_evidence
 from .contradictions import extract_contradiction_evidence
 from .domains import extract_domain_evidence
+from .identifiers import extract_identifier_evidence
 from .images import extract_image_evidence
 from .links import extract_link_evidence
 from .names import extract_name_evidence
@@ -26,6 +27,7 @@ def extract_pair_evidence(
 
     evidence: list[EvidenceSignal] = []
     extractors = (
+        extract_identifier_evidence,
         extract_username_evidence,
         extract_name_evidence,
         extract_link_evidence,
@@ -47,4 +49,4 @@ def extract_pair_evidence(
     return tuple(evidence)
 
 
-__all__ = ["extract_pair_evidence"]
+__all__ = ["extract_pair_evidence", "extract_identifier_evidence"]

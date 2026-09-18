@@ -31,7 +31,6 @@ from backend.db.models import (
 )
 
 from .types import (
-    GraphSnapshot,
     PersistedConnectorResult,
     ProfileSnapshot,
     QuestionAnswerResult,
@@ -163,5 +162,3 @@ class InvestigationRepository(Protocol):
     ) -> Report: ...
 
     async def get_latest_report(self, search_id: UUID | str) -> Report | None: ...
-
-    async def get_graph(self, search_id: UUID | str) -> GraphSnapshot: ...

@@ -785,33 +785,58 @@ def _email_identifier_candidates(source_result: Any) -> list[CandidateProfile]:
     candidates: list[CandidateProfile] = []
     seen: set[str] = set()
     for identifier in getattr(source_result, "identifiers", ()) or ():
-        if identifier.type != "profile_url" or not identifier.value.startswith("https://"):
-            continue
-        canonical = canonicalize_url(identifier.value)
-        if canonical in seen:
-            continue
-        seen.add(canonical)
-        platform = (
-            identifier.metadata.get("platform")
-            or identifier.source.rsplit(":", 1)[-1]
-            or source_result.source_name
-        )
-        candidates.append(
-            CandidateProfile(
-                platform=platform,
-                canonical_url=canonical,
-                username=getattr(source_result, "username", None),
-                display_name=getattr(source_result, "display_name", None),
-                avatar_url=getattr(source_result, "avatar_url", None),
-                discovered_by=["email_osint", source_result.source_name],
-                raw={
-                    "email_source": source_result.source_name,
-                    "identifier_source": identifier.source,
-                    "identifier_confidence": identifier.confidence,
-                    **(getattr(source_result, "evidence", {}) or {}),
-                },
+        if identifier.type == "profile_url" and identifier.value.startswith("https://"):
+            canonical = canonicalize_url(identifier.value)
+            if canonical in seen:
+                continue
+            seen.add(canonical)
+            platform = (
+                identifier.metadata.get("platform")
+                or identifier.source.rsplit(":", 1)[-1]
+                or source_result.source_name
             )
-        )
+            candidates.append(
+                CandidateProfile(
+                    platform=platform,
+                    canonical_url=canonical,
+                    username=getattr(source_result, "username", None),
+                    display_name=getattr(source_result, "display_name", None),
+                    avatar_url=getattr(source_result, "avatar_url", None),
+                    discovered_by=["email_osint", source_result.source_name],
+                    raw={
+                        "email_source": source_result.source_name,
+                        "identifier_source": identifier.source,
+                        "identifier_confidence": identifier.confidence,
+                        **(getattr(source_result, "evidence", {}) or {}),
+                    },
+                )
+            )
+        elif identifier.type == "username" and identifier.value:
+            platform = (
+                identifier.metadata.get("platform")
+                or identifier.source.rsplit(":", 1)[-1]
+                or source_result.source_name
+            )
+            canonical = f"https://{platform.casefold().replace(' ', '')}.com/{identifier.normalized_value}"
+            if canonical in seen:
+                continue
+            seen.add(canonical)
+            candidates.append(
+                CandidateProfile(
+                    platform=platform,
+                    canonical_url=canonical,
+                    username=identifier.value,
+                    display_name=getattr(source_result, "display_name", None),
+                    avatar_url=getattr(source_result, "avatar_url", None),
+                    discovered_by=["email_osint", source_result.source_name],
+                    raw={
+                        "email_source": source_result.source_name,
+                        "identifier_source": identifier.source,
+                        "identifier_confidence": identifier.confidence,
+                        **(getattr(source_result, "evidence", {}) or {}),
+                    },
+                )
+            )
     return candidates
 
 

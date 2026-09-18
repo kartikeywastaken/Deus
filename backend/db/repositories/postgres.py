@@ -72,9 +72,6 @@ from backend.normalization.urls import canonicalize_url
 from backend.normalization.usernames import normalize_username
 
 from .types import (
-    GraphEdgeData,
-    GraphNodeData,
-    GraphSnapshot,
     PersistedConnectorResult,
     ProfileSnapshot,
     QuestionAnswerResult,
@@ -705,15 +702,6 @@ class PostgresInvestigationRepository:
         )
         return await self.session.scalar(statement)
 
-    async def get_graph(self, search_id: UUID | str) -> GraphSnapshot:
-        search = await self.get_search(search_id)
-        if search is None:
-            raise RepositoryEntityNotFound("search not found")
-        profiles = await self.list_profiles_for_search(search.id)
-        evidence = await self.list_evidence(search.id)
-        hypotheses = await self.list_hypotheses(search.id)
-        return build_graph_snapshot(search, profiles, evidence, hypotheses)
-
     async def _require_search(self, search_id: UUID | str) -> SearchRun:
         search = await self.get_search(search_id)
         if search is None:
@@ -1016,175 +1004,6 @@ def evidence_key(signal: DomainEvidenceSignal) -> tuple[str, str, str, str | Non
 
     left, right = signal.pair_key
     return (left, right, signal.signal_type.value, signal.source_key)
-
-
-def build_graph_snapshot(
-    search: SearchRun,
-    profiles: Sequence[Profile],
-    evidence: Sequence[EvidenceSignal],
-    hypotheses: Sequence[IdentityHypothesis],
-) -> GraphSnapshot:
-    """Build a transport-neutral identity graph from already-loaded rows."""
-
-    search_id = str(search.id)
-    nodes: list[GraphNodeData] = [
-        GraphNodeData(
-            id=search_id,
-            type="search",
-            label="Investigation",
-            properties={"status": _enum_value(search.status), "scope": search.scope},
-        )
-    ]
-    edges: list[GraphEdgeData] = []
-    email_seed = next(
-        (s.normalized_value or s.original_value for s in search.seeds if _enum_value(s.seed_type) == "EMAIL"),
-        None,
-    )
-    email_node_id = None
-    if email_seed:
-        email_node_id = f"email:{email_seed}"
-        domain_part = email_seed.split("@")[-1] if "@" in email_seed else ""
-        nodes.append(
-            GraphNodeData(
-                id=email_node_id,
-                type="email",
-                label=f"Email: {email_seed}",
-                properties={"email": email_seed, "domain": domain_part},
-            )
-        )
-        edges.append(
-            GraphEdgeData(
-                id=f"search-email:{search_id}:{email_node_id}",
-                source=search_id,
-                target=email_node_id,
-                type="SEARCH_SEED",
-            )
-        )
-        if domain_part:
-            domain_node_id = f"domain:{domain_part}"
-            nodes.append(
-                GraphNodeData(
-                    id=domain_node_id,
-                    type="domain",
-                    label=f"Domain: {domain_part}",
-                    properties={"domain": domain_part},
-                )
-            )
-            edges.append(
-                GraphEdgeData(
-                    id=f"email-domain:{email_node_id}:{domain_node_id}",
-                    source=email_node_id,
-                    target=domain_node_id,
-                    type="USES_DOMAIN",
-                )
-            )
-
-    for profile in profiles:
-        profile_id = str(profile.id)
-        obs_raw = {}
-        if hasattr(profile, "observations") and profile.observations:
-            obs_raw = profile.observations[0].raw_data or profile.observations[0].normalized_data or {}
-
-        created_at_str = (
-            obs_raw.get("created_at")
-            or obs_raw.get("account_created")
-            or obs_raw.get("joined")
-            or obs_raw.get("date_created")
-            or (profile.first_seen_at.isoformat() if hasattr(profile, "first_seen_at") and profile.first_seen_at else None)
-        )
-        owner_str = (
-            profile.display_name
-            or profile.username
-            or obs_raw.get("owner_info")
-            or obs_raw.get("full_name")
-            or obs_raw.get("name")
-        )
-
-        nodes.append(
-            GraphNodeData(
-                id=profile_id,
-                type="profile",
-                label=f"{profile.platform}: {profile.username or profile.display_name or 'Account'}",
-                properties={
-                    "platform": profile.platform,
-                    "canonical_url": profile.canonical_url,
-                    "display_name": profile.display_name,
-                    "username": profile.username,
-                    "created_at": created_at_str,
-                    "owner": owner_str,
-                    "email": email_seed,
-                },
-            )
-        )
-        edges.append(
-            GraphEdgeData(
-                id=f"search-profile:{search_id}:{profile_id}",
-                source=search_id,
-                target=profile_id,
-                type="OBSERVED_PROFILE",
-            )
-        )
-        if email_node_id:
-            edges.append(
-                GraphEdgeData(
-                    id=f"email-profile:{email_node_id}:{profile_id}",
-                    source=email_node_id,
-                    target=profile_id,
-                    type="REGISTERED_WITH_EMAIL",
-                )
-            )
-
-    for hypothesis in sorted(hypotheses, key=lambda item: item.rank):
-        hypothesis_id = str(hypothesis.id)
-        nodes.append(
-            GraphNodeData(
-                id=hypothesis_id,
-                type="hypothesis",
-                label=hypothesis.label or f"Identity {hypothesis.rank}",
-                properties={
-                    "rank": hypothesis.rank,
-                    "score": hypothesis.overall_score,
-                    "classification": _enum_value(hypothesis.classification),
-                },
-            )
-        )
-        for membership in hypothesis.memberships:
-            edges.append(
-                GraphEdgeData(
-                    id=f"membership:{hypothesis_id}:{membership.profile_id}",
-                    source=hypothesis_id,
-                    target=str(membership.profile_id),
-                    type="HAS_CANDIDATE",
-                    score=membership.score,
-                    classification=_enum_value(membership.classification),
-                    properties={
-                        "support_count": membership.support_count,
-                        "contradiction_count": membership.contradiction_count,
-                    },
-                )
-            )
-
-    for item in evidence:
-        direction = _enum_value(item.direction)
-        score = item.model_contribution
-        if score is None:
-            score = item.normalized_score * (-1 if direction == "CONTRADICT" else 1)
-        edges.append(
-            GraphEdgeData(
-                id=f"evidence:{item.id}",
-                source=str(item.left_profile_id),
-                target=str(item.right_profile_id),
-                type=item.signal_type,
-                score=score,
-                properties={
-                    "direction": direction,
-                    "reliability": item.reliability,
-                    "evidence_family": item.evidence_family,
-                    "explanation": item.explanation,
-                },
-            )
-        )
-    return GraphSnapshot(tuple(nodes), tuple(edges))
 
 
 def _profile_values(candidate: CandidateProfile) -> dict[str, Any]:

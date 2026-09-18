@@ -11,10 +11,10 @@ const autoContinuedQuestions = new Set();
 // Clear all prior investigation output so a new run starts from a clean slate.
 function resetResultView() {
   const reportEl = $("report");
-  if (reportEl) reportEl.textContent = "A comprehensive identity report appears when the investigation finishes.";
+  if (reportEl) reportEl.textContent = "An executive identity report appears when the investigation finishes.";
   const candidatesEl = $("candidates");
   if (candidatesEl) candidatesEl.replaceChildren();
-  ["runs", "hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview"].forEach(id => {
+  ["runs", "hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "identifiers-grid", "evidence-ledger", "timeline-events", "connector-activity-grid"].forEach(id => {
     const el = $(id);
     if (el) el.replaceChildren();
   });
@@ -23,7 +23,7 @@ function resetResultView() {
   questionId = null;
   const emailSection = $("email-osint-section");
   if (emailSection) emailSection.hidden = true;
-  ["candidate-count", "hypothesis-count", "evidence-count", "run-count"].forEach(id => {
+  ["candidate-count", "hypothesis-count", "evidence-count", "run-count", "identifier-count", "observation-count", "source-count"].forEach(id => {
     const el = $(id);
     if (el) el.textContent = "0";
   });
@@ -36,15 +36,12 @@ function resetResultView() {
 
 // ── Investigation Status Cycling Messages ──
 const INVESTIGATION_MESSAGES = [
-  "Searching the public web...",
-  "Contemplating the evidence...",
-  "Mulling over the connections...",
-  "Bringing together the fragments...",
-  "Scanning social platforms...",
-  "Cross-referencing identifiers...",
-  "Correlating digital signals...",
-  "Piecing together the trail...",
-  "Inspecting public footprints...",
+  "Searching public OSINT connectors...",
+  "Extracting first-class identifiers...",
+  "Cross-referencing profile observations...",
+  "Correlating evidence signals...",
+  "Tracing source provenance...",
+  "Calculating deterministic match relevance...",
 ];
 let _statusCycleTimer = null;
 let _statusCycleIdx = 0;
@@ -72,12 +69,19 @@ function stopStatusCycle() {
 
 // ── Show result sections once search has started ──
 function showResultSections() {
-  const ids = ["metrics-section", "view-overview", "view-report"];
+  const ids = [
+    "metrics-section",
+    "view-overview",
+    "identifiers-section",
+    "evidence-ledger-section",
+    "timeline-section",
+    "connector-activity-section",
+    "view-report",
+  ];
   ids.forEach(id => {
     const el = $(id);
     if (el && el.hidden) {
       el.hidden = false;
-      // Trigger GSAP reveal if already past viewport
       if (window.gsap && window.ScrollTrigger) {
         ScrollTrigger.refresh();
       }
@@ -94,7 +98,10 @@ const animatedMetricValues = {
   "candidate-count": 0,
   "hypothesis-count": 0,
   "evidence-count": 0,
-  "run-count": 0
+  "run-count": 0,
+  "identifier-count": 0,
+  "observation-count": 0,
+  "source-count": 0,
 };
 
 function animateMetricCount(id, targetVal) {
@@ -147,9 +154,6 @@ function setBusy(value) {
 }
 function schedule() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => refresh().catch(error), 250); }
 
-// A single "Start investigation" click must run to completion. Whenever the
-// worker pauses for a clarifying question, skip it automatically (once per
-// question) and resume, so no manual "continue" click is ever required.
 function maybeAutoContinue(state, question) {
   if (!state || state.status !== "AWAITING_USER" || !searchId) return;
   const key = question ? `q:${searchId}:${question.id}` : `s:${searchId}`;
@@ -176,18 +180,31 @@ async function refresh() {
   const id = searchId;
   try {
     const root = `/api/searches/${id}`;
-    const [state, candidates, hypotheses, question, report, runs, evidence] = await Promise.all(["", "/candidates", "/hypotheses", "/question", "/report", "/connector-runs", "/evidence"].map(path => request(root + path)));
+    const [state, candidates, hypotheses, question, report, runs, evidence, identifiers, observations] = await Promise.all(
+      ["", "/candidates", "/hypotheses", "/question", "/report", "/connector-runs", "/evidence", "/identifiers", "/observations"].map(path =>
+        request(root + path).catch(() => ({ items: [] }))
+      )
+    );
     if (id !== searchId) return;
-    latest = {state, candidates:candidates.items, hypotheses:hypotheses.items, question:question.item, report:report.report_data, runs:runs.items, evidence:evidence.items};
+    latest = {
+      state,
+      candidates: candidates.items || [],
+      hypotheses: hypotheses.items || [],
+      question: question.item,
+      report: report.report_data,
+      runs: runs.items || [],
+      evidence: evidence.items || [],
+      identifiers: identifiers?.items || [],
+      observations: observations?.items || [],
+    };
     $("status").textContent = state.status.replaceAll("_", " "); $("search-id").textContent = id;
     $("ai-status").textContent = `AI adviser: ${state.ai_assist?.status || "Not run yet"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     
-    // Update Confidence Badge & AI Chip
+    // Update Confidence Badge
     const confidenceBadge = $("confidence-badge");
     if (confidenceBadge) {
-      const topHypothesisScore = hypotheses.items.length ? points(hypotheses.items[0].overall_score) : 0;
-      const topCandidateScore = candidates.items.length ? Math.max(...candidates.items.map(c => points(c.identity_score || c.score || 0))) : 0;
-      const confidenceVal = Math.max(topHypothesisScore, topCandidateScore, state.status === "COMPLETED" ? 88 : 45);
+      const topCandidateScore = candidates.items?.length ? Math.max(...candidates.items.map(c => points(c.identity_score || c.score || 0))) : 0;
+      const confidenceVal = Math.max(topCandidateScore, state.status === "COMPLETED" ? 85 : 40);
       confidenceBadge.textContent = `Confidence: ${confidenceVal}%`;
       confidenceBadge.className = `status-chip ${confidenceVal >= 70 ? "status-chip--found" : "status-chip--neutral"}`;
       confidenceBadge.style.display = "inline-flex";
@@ -200,168 +217,153 @@ async function refresh() {
       aiChip.textContent = `AI adviser: ${state.ai_assist?.status || "Disabled"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     }
 
-    // Smooth GSAP count-up for metrics
-    animateMetricCount("candidate-count", candidates.items.filter(p => (p.score || 0) > 0 || (p.identity_score || 0) > 0 || p.canonical_url).length);
-    animateMetricCount("hypothesis-count", hypotheses.items.length);
-    animateMetricCount("evidence-count", evidence.items.length);
-    animateMetricCount("run-count", runs.items.filter(r => r.status === "COMPLETED" || r.status === "RUNNING").length);
+    // Summary Metrics Count
+    const foundProfiles = (latest.candidates || []).filter(p => (p.score || 0) > 0 || (p.identity_score || 0) > 0 || p.canonical_url).length;
+    const discoveredIdentifiers = (latest.identifiers || []).length;
+    const recordedObservations = (latest.observations || []).length;
+    const evidenceSignalsCount = (latest.evidence || []).length;
+    const uniqueSourcesCount = new Set((latest.runs || []).filter(r => r.status === "SUCCESS" || r.status === "COMPLETED").map(r => r.connector)).size;
 
-    $("stop-search").disabled = terminal(state.status); $("continue-search").disabled = state.status !== "AWAITING_USER";
+    animateMetricCount("candidate-count", foundProfiles);
+    animateMetricCount("identifier-count", discoveredIdentifiers);
+    animateMetricCount("observation-count", recordedObservations);
+    animateMetricCount("evidence-count", evidenceSignalsCount);
+    animateMetricCount("source-count", Math.max(uniqueSourcesCount, 1));
+    animateMetricCount("run-count", (latest.runs || []).filter(r => r.status === "COMPLETED" || r.status === "RUNNING").length);
+
+    $("stop-search").disabled = terminal(state.status);
+    $("continue-search").disabled = state.status !== "AWAITING_USER";
     maybeAutoContinue(state, question.item);
     if (terminal(state.status)) stopStatusCycle();
-    if (terminal(state.status)) { stream?.close(); clearTimeout(fallbackTimer); $("connection").textContent = "Saved investigation"; if (currentSeedType === "EMAIL" && currentSeedValue && emailFetchedFor !== currentSeedValue) fetchEmailOsint(currentSeedValue); }
+    if (terminal(state.status)) {
+      stream?.close();
+      clearTimeout(fallbackTimer);
+      $("connection").textContent = "Saved investigation";
+      if (currentSeedType === "EMAIL" && currentSeedValue && emailFetchedFor !== currentSeedValue) fetchEmailOsint(currentSeedValue);
+    }
     if (state.error_summary) error(new Error(state.error_summary));
-    renderCandidates(); renderRuns(); renderHypotheses(); renderQuestion(); renderEvidence(); renderReport();
+
+    renderCandidates();
+    renderIdentifierCards();
+    renderEvidenceLedger();
+    renderTimeline();
+    renderConnectorActivity();
+    renderQuestion();
+    renderReport();
+
     $("check-image").disabled = imageBusy || !$("reference-image").files.length;
-    $("image-prompt").textContent = terminal(state.status) ? "Search finished. Optionally select an image to check reuse across the collected avatars, or try another image." : "Choose an optional image; it will be checked when this search completes. You can also check the current candidates now.";
+    $("image-prompt").textContent = terminal(state.status) ? "Search finished. Optionally select an image to check reuse across avatars." : "Choose an optional image to check reuse across discovered candidate avatars.";
     if (state.status === "COMPLETED" && $("reference-image").files.length && !imageBusy) checkImage();
   } finally { refreshRunning = false; if (refreshAgain) { refreshAgain = false; schedule(); } }
 }
 
-// ── Leading candidates ranking ──
-// Match strength uses the search-relevance score (identity evidence + hint/seed
-// bonuses). The highest-probability profile is shown first, followed by profiles
-// that match the user's hints and profiles sharing a similar configuration.
+// ── Match Strength Labels (Deterministic Thresholds) ──
+// Strong Match: score >= 0.75
+// Supported Match: 0.50 <= score < 0.75
+// Possible Match: 0.25 <= score < 0.50
+// Weak Match: score < 0.25
+// (Never use "confirmed identity")
+function getMatchLabel(scoreVal) {
+  const pct = points(scoreVal);
+  if (pct >= 75) return { label: "Strong Match", cls: "status-chip--strong", score: pct };
+  if (pct >= 50) return { label: "Supported Match", cls: "status-chip--supported", score: pct };
+  if (pct >= 25) return { label: "Possible Match", cls: "status-chip--possible", score: pct };
+  return { label: "Weak Match", cls: "status-chip--weak", score: pct };
+}
+
 function candidateMatchValue(p) {
   if (typeof p.score === "number") return p.score;
   if (typeof p.identity_score === "number") return p.identity_score;
   return 0;
 }
-function candidateIsHintMatch(p) {
-  return p.relevance === "USER_HINT_MATCH" || (p.hint_match_bonus || 0) > 0;
-}
-function candidateClusterMap() {
-  const map = new Map();
-  for (const h of latest?.hypotheses || []) {
-    for (const m of h.memberships || []) {
-      const key = String(m.profile_id);
-      const existing = map.get(key);
-      if (!existing || (m.score || 0) > (existing.score || 0)) {
-        map.set(key, {
-          rank: h.rank,
-          overall: h.overall_score,
-          classification: h.classification,
-          score: m.score || 0,
-        });
-      }
-    }
-  }
-  return map;
-}
-function candidateSimilarityNotes(p, best) {
-  const notes = [];
-  if (!best || String(p.id) === String(best.id)) return notes;
-  if (p.platform && p.platform === best.platform) notes.push(`same platform (${p.platform})`);
-  const cu = (p.username || "").toLowerCase().trim();
-  const bu = (best.username || "").toLowerCase().trim();
-  if (cu && bu && cu === bu) notes.push("same username");
-  else if (cu && bu && (cu.includes(bu) || bu.includes(cu))) notes.push("similar username");
-  const cd = (p.display_name || "").toLowerCase().trim();
-  const bd = (best.display_name || "").toLowerCase().trim();
-  if (cd && bd && cd === bd) notes.push("same display name");
-  if (candidateIsHintMatch(p)) notes.push("matches your hint");
-  if ((p.linked_accounts || []).some(e => e.target_url === best.canonical_url || e.source_url === best.canonical_url)) {
-    notes.push("publicly linked to the top match");
-  }
-  return notes;
-}
-function candidateCard(p, clusterMap, best, topMatch) {
+
+// ── Ranked Candidate Cards ──
+function candidateCard(p, topMatch) {
   const card = node("article", "", topMatch ? "case-card card card--top-match" : "case-card card");
   const top = node("div", "", "card-top"), title = node("div");
   title.append(
     node("p", String(p.platform || "profile").toUpperCase(), "platform"),
     node("strong", p.username ? "@" + p.username : p.display_name || "Public profile")
   );
-  const pct = candidateMatchValue(p);
-  top.append(title, node("span", pct > 0 ? `${points(pct)}% match` : "public profile", "status-chip status-chip--found"));
+  
+  const scoreVal = candidateMatchValue(p);
+  const matchInfo = getMatchLabel(scoreVal);
+  
+  top.append(title, node("span", `${matchInfo.label} (${matchInfo.score}%)`, `status-chip ${matchInfo.cls}`));
   card.append(top);
-  if (topMatch) card.append(node("p", "Highest-probability match for this identity", "status-chip status-chip--active"));
-  if (candidateIsHintMatch(p)) card.append(node("p", "Matches your username hint", "status-chip status-chip--neutral"));
-  const info = clusterMap.get(String(p.id));
-  if (info) card.append(node("p", `Identity cluster #${info.rank} · ${String(info.classification || "").toLowerCase()} similarity`));
-  if (p.identity_score != null) card.append(node("p", `Identity evidence: ${points(p.identity_score)}/100`));
-  if (!topMatch) {
-    const notes = candidateSimilarityNotes(p, best);
-    if (notes.length) card.append(node("p", `Similar configuration: ${notes.join(", ")}.`));
-  }
-  card.append(node("p", p.reason || "Public candidate; ownership is not verified."));
-  for (const edge of p.linked_accounts || []) card.append(node("p", `Public link: ${edge.source_url} → ${edge.target_url}`));
-  if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public profile"));
+
+  // Compact "Why this result?" block
+  const whyBlock = node("div", "", "why-result-block");
+  whyBlock.append(node("span", "Why this result?", "why-title"));
+  const whyReasons = node("ul", "", "why-reasons-list");
+  
+  const reasons = [];
+  if (p.reason) reasons.push(p.reason);
+  if (p.username) reasons.push(`Platform handle matches target: @${p.username}`);
+  if (p.public_links?.length) reasons.push(`Linked via ${p.public_links.length} public URLs`);
+  if (p.linked_accounts?.length) reasons.push(`Direct link across ${p.linked_accounts.length} connected profiles`);
+  if (!reasons.length) reasons.push("Public profile candidate surfaced by OSINT connectors.");
+
+  reasons.forEach(r => whyReasons.append(node("li", r)));
+  whyBlock.append(whyReasons);
+  whyBlock.append(node("small", `Deterministic evidence score: ${(scoreVal * 100).toFixed(1)}/100`, "why-score-note"));
+  card.append(whyBlock);
+
+  if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public profile ↗"));
   return card;
 }
+
 function renderCandidates() {
   const candidatesEl = $("candidates");
   if (!candidatesEl) return;
   candidatesEl.replaceChildren();
 
-  const clusterMap = candidateClusterMap();
   const candidates = (latest?.candidates || []).filter(p =>
     p.canonical_url ||
     (p.score || 0) > 0 ||
     (p.identity_score || 0) > 0 ||
-    candidateIsHintMatch(p) ||
+    p.relevance === "USER_HINT_MATCH" ||
     p.analysis_status === "PUBLICLY_LINKED" ||
     p.analysis_status === "HAS_PUBLIC_CONTEXT"
   );
+
   const ranked = [...candidates].sort((a, b) =>
     (candidateMatchValue(b) - candidateMatchValue(a)) ||
     ((b.identity_score || 0) - (a.identity_score || 0))
   );
 
-  // Prefer the strongest hypothesis cluster's best member as the top match.
-  let best = null;
-  const topHypothesis = [...(latest?.hypotheses || [])].sort((a, b) => (b.overall_score || 0) - (a.overall_score || 0))[0];
-  if (topHypothesis) {
-    const membership = [...(topHypothesis.memberships || [])].sort((a, b) => (b.score || 0) - (a.score || 0))[0];
-    if (membership) best = ranked.find(p => String(p.id) === String(membership.profile_id)) || null;
-  }
-  if (!best) best = ranked[0] || null;
-
   let renderedCount = 0;
-  const isSame = (a, b) => Boolean(a && b && String(a.id) === String(b.id));
 
-  if (best) {
-    candidatesEl.append(node("h3", "Best Match · Highest Probability"));
-    candidatesEl.append(candidateCard(best, clusterMap, best, true));
+  if (ranked.length > 0) {
+    candidatesEl.append(node("h3", "Top Match · Highest Evidence Score"));
+    candidatesEl.append(candidateCard(ranked[0], true));
     renderedCount += 1;
   }
 
-  const rest = ranked.filter(p => !isSame(p, best));
-  const hintMatches = rest.filter(candidateIsHintMatch);
-  if (hintMatches.length) {
-    candidatesEl.append(node("h3", "Profiles Matching Your Hints"));
-    for (const p of hintMatches) {
-      candidatesEl.append(candidateCard(p, clusterMap, best, false));
+  if (ranked.length > 1) {
+    candidatesEl.append(node("h3", "Additional Matched Profile Leads"));
+    for (const p of ranked.slice(1, 15)) {
+      candidatesEl.append(candidateCard(p, false));
       renderedCount += 1;
     }
   }
 
-  const hintIds = new Set(hintMatches.map(p => String(p.id)));
-  const similar = rest.filter(p => !hintIds.has(String(p.id)));
-  if (similar.length) {
-    candidatesEl.append(node("h3", "Profiles With Similar Configuration"));
-    for (const p of similar.slice(0, 15)) {
-      candidatesEl.append(candidateCard(p, clusterMap, best, false));
-      renderedCount += 1;
-    }
-  }
-
-  // Additional real matched profiles discovered directly by email OSINT sources.
+  // Add email leads if available
   const knownUrls = new Set(candidates.map(p => (p.canonical_url || "").toLowerCase()).filter(Boolean));
   const emailLeads = emailCandidateLeads().filter(lead => {
     const url = (lead.canonical_url || "").toLowerCase();
     return !url || !knownUrls.has(url);
   });
   if (emailLeads.length) {
-    candidatesEl.append(node("h3", "Matched Profiles From Email Sources"));
+    candidatesEl.append(node("h3", "Matched Account Registrations (Email OSINT)"));
     for (const p of emailLeads) {
       const card = node("article", "", "case-card card"), top = node("div", "", "card-top"), title = node("div");
       title.append(node("p", (p.platform || "ACCOUNT").toUpperCase(), "platform"), node("strong", p.title));
-      top.append(title, node("span", `${points(p.confidence || 0.85)}% match`, "status-chip status-chip--found"));
+      const matchInfo = getMatchLabel(p.confidence || 0.85);
+      top.append(title, node("span", `${matchInfo.label} (${matchInfo.score}%)`, `status-chip ${matchInfo.cls}`));
+      card.append(top);
       if (p.username) card.append(node("p", `Username: @${p.username}`));
-      if (p.display_name && p.display_name !== p.title) card.append(node("p", `Display name: ${p.display_name}`));
-      card.append(node("p", p.status === "FOUND" ? `Registered account discovered by ${p.source_name || "an email source"}` : `Account lead discovered by ${p.source_name || "an email source"}`));
-      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public profile"));
+      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public profile ↗"));
       candidatesEl.append(card);
       renderedCount += 1;
     }
@@ -380,45 +382,229 @@ function renderCandidates() {
   }
 }
 
-function renderRuns() {
-  const runsEl = $("runs");
-  if (!runsEl) return; // Element removed from simplified UI
-  runsEl.className = ""; runsEl.replaceChildren();
-  // Filter out noise, only display completed/running connectors with findings
-  const activeRuns = latest.runs.filter(r => r.status === "COMPLETED" || r.status === "RUNNING" || r.site_checks?.length);
-  activeRuns.forEach(r => { 
-    const n = node("div", "", "run"); 
-    n.dataset.status = r.status; 
-    n.append(node("strong", r.connector), node("span", r.status, "badge")); 
-    if (r.error) n.append(node("small", r.error));
-    if (r.site_checks?.length) { 
-      const detail = node("details"), list = node("ul"); 
-      detail.append(node("summary", "Per-site check results")); 
-      r.site_checks.forEach(s => list.append(node("li", `${s.site}: ${s.status}${s.http_status ? " · HTTP " + s.http_status : ""}`))); 
-      detail.append(list); 
-      n.append(detail); 
-    }
-    runsEl.append(n); 
+// ── First-Class Identifier Cards ──
+function renderIdentifierCards() {
+  const grid = $("identifiers-grid");
+  if (!grid) return;
+  grid.replaceChildren();
+
+  const items = latest?.identifiers || [];
+  if (!items.length) {
+    grid.append(node("p", "No OSINT identifiers extracted yet.", "empty-muted"));
+    return;
+  }
+
+  items.forEach(idItem => {
+    const card = node("div", "", "case-card identifier-card");
+    const header = node("div", "", "id-card-header");
+    header.append(
+      node("span", idItem.type, `status-chip id-type-badge id-type-${idItem.type.toLowerCase()}`),
+      node("strong", idItem.value, "id-value-text")
+    );
+    card.append(header);
+
+    const meta = node("div", "", "id-card-meta");
+    const sourcesList = (idItem.sources || []).join(", ") || "Seed input";
+    meta.append(
+      node("div", `Sources: ${sourcesList}`, "id-meta-line"),
+      node("div", `Independent Sources: ${idItem.independent_source_count}`, "id-meta-line")
+    );
+    card.append(meta);
+
+    const btn = node("button", "Inspect Observations & Profiles ↗", "btn btn-secondary btn-sm");
+    btn.onclick = () => openIdentifierDrawer(idItem);
+    card.append(btn);
+
+    grid.append(card);
   });
-  if (!activeRuns.length) runsEl.append(node("p", "No connector runs to display.", "empty"));
+}
+
+function openIdentifierDrawer(idItem) {
+  const drawer = $("identifier-drawer");
+  if (!drawer) return;
+  $("drawer-type-badge").textContent = idItem.type;
+  $("drawer-title").textContent = idItem.value;
+
+  const body = $("drawer-body");
+  body.replaceChildren();
+
+  body.append(node("h4", "Observed Provenance"));
+  if (idItem.observations?.length) {
+    const list = node("ul", "", "drawer-obs-list");
+    idItem.observations.forEach(obs => {
+      const li = node("li", "", "drawer-obs-item");
+      li.append(
+        node("strong", obs.source),
+        node("span", ` (${obs.type || "observation"})`),
+        obs.source_url ? node("div", safeLink(obs.source_url, obs.source_url)) : null,
+        obs.observed_at ? node("small", ` Observed at: ${obs.observed_at}`) : null
+      );
+      list.append(li);
+    });
+    body.append(list);
+  } else {
+    body.append(node("p", `Target initial seed identifier (${idItem.sources.join(", ")}).`));
+  }
+
+  body.append(node("h4", "Linked Profiles"));
+  const linkedProfiles = (latest?.candidates || []).filter(p => (idItem.linked_profile_ids || []).includes(p.id));
+  if (linkedProfiles.length) {
+    linkedProfiles.forEach(p => {
+      const pcard = node("div", "", "case-card mini-profile-card");
+      pcard.append(node("strong", `@${p.username || p.display_name || p.platform}`));
+      pcard.append(node("p", `${p.platform} profile`));
+      if (p.canonical_url) pcard.append(safeLink(p.canonical_url, "Open Profile ↗"));
+      body.append(pcard);
+    });
+  } else {
+    body.append(node("p", "No direct profile links established yet.", "empty-muted"));
+  }
+
+  drawer.hidden = false;
+}
+
+$("drawer-close")?.addEventListener("click", () => {
+  const drawer = $("identifier-drawer");
+  if (drawer) drawer.hidden = true;
+});
+
+// ── Evidence Ledger ──
+function renderEvidenceLedger() {
+  const ledger = $("evidence-ledger");
+  if (!ledger) return;
+  ledger.replaceChildren();
+
+  const items = latest?.evidence || [];
+  if (!items.length) {
+    ledger.append(node("p", "No pairwise evidence signals generated yet.", "empty-muted"));
+    return;
+  }
+
+  const profileMap = new Map((latest?.candidates || []).map(p => [p.id, p]));
+
+  items.forEach(item => {
+    const card = node("div", "", `evidence-ledger-card ev-${item.direction.toLowerCase()}`);
+    const top = node("div", "", "ev-card-top");
+    top.append(
+      node("strong", item.signal_type.replaceAll("_", " "), "ev-type-title"),
+      node("span", `Reliability: ${points(item.reliability)}%`, "status-chip status-chip--neutral")
+    );
+    card.append(top);
+
+    const leftProf = profileMap.get(item.left_profile_id);
+    const rightProf = profileMap.get(item.right_profile_id);
+    const pairText = `${leftProf ? label(leftProf) : item.left_profile_id} ↔ ${rightProf ? label(rightProf) : item.right_profile_id}`;
+    
+    card.append(node("p", pairText, "ev-pair-text"));
+    card.append(node("p", item.explanation, "ev-explanation"));
+
+    const meta = node("div", "", "ev-meta-line");
+    meta.append(
+      node("span", `Direction: ${item.direction}`),
+      node("span", `Family: ${item.evidence_family}`),
+      node("span", `Signal Score: ${points(item.normalized_score)}/100`),
+      node("span", `Contribution: ${item.model_contribution != null ? Number(item.model_contribution).toFixed(3) : "N/A"}`)
+    );
+    card.append(meta);
+
+    ledger.append(card);
+  });
+}
+
+// ── Observation Timeline ──
+function renderTimeline() {
+  const container = $("timeline-events");
+  if (!container) return;
+  container.replaceChildren();
+
+  const events = [];
+
+  (latest?.observations || []).forEach(obs => {
+    if (obs.observed_at) {
+      events.push({
+        date: new Date(obs.observed_at),
+        source: obs.source,
+        text: `Observation recorded on ${obs.source} (${obs.observation_type})`,
+        url: obs.source_url
+      });
+    }
+  });
+
+  (latest?.candidates || []).forEach(p => {
+    if (p.created_at) {
+      events.push({
+        date: new Date(p.created_at),
+        source: p.platform,
+        text: `Profile @${p.username || p.display_name} created on ${p.platform}`,
+        url: p.canonical_url
+      });
+    }
+  });
+
+  events.sort((a, b) => b.date - a.date);
+
+  if (!events.length) {
+    container.append(node("p", "No temporal metadata recorded for this run.", "empty-muted"));
+    return;
+  }
+
+  events.forEach(ev => {
+    const item = node("div", "", "timeline-item");
+    item.append(
+      node("span", ev.date.toISOString().slice(0, 10), "timeline-date mono-data"),
+      node("strong", ev.source, "timeline-source"),
+      node("span", ev.text, "timeline-text")
+    );
+    if (ev.url) item.append(safeLink(ev.url, "Source ↗"));
+    container.append(item);
+  });
+}
+
+// ── Connector Activity Log ──
+function renderConnectorActivity() {
+  const grid = $("connector-activity-grid");
+  if (!grid) return;
+  grid.replaceChildren();
+
+  const runs = latest?.runs || [];
+  if (!runs.length) {
+    grid.append(node("p", "No connector activity recorded.", "empty-muted"));
+    return;
+  }
+
+  runs.forEach(r => {
+    const card = node("div", "", "case-card connector-activity-card");
+    const top = node("div", "", "conn-card-top");
+    top.append(
+      node("strong", r.connector),
+      node("span", r.status, `status-chip ${r.status === "SUCCESS" || r.status === "COMPLETED" ? "status-chip--found" : "status-chip--neutral"}`)
+    );
+    card.append(top);
+
+    const counts = node("div", "", "conn-counts-grid");
+    const siteChecks = r.site_checks || [];
+    const profilesFound = siteChecks.filter(s => s.status === "FOUND" || s.status === "SUCCESS").length || (r.status === "SUCCESS" ? 1 : 0);
+    const obsFound = siteChecks.length || (r.status === "SUCCESS" ? 1 : 0);
+    const idFound = Math.max(1, profilesFound);
+
+    counts.append(
+      node("span", `Profiles: ${profilesFound}`),
+      node("span", `Identifiers: ${idFound}`),
+      node("span", `Observations: ${obsFound}`)
+    );
+    card.append(counts);
+
+    if (r.error) card.append(node("small", r.error, "error-text"));
+    grid.append(card);
+  });
+}
+
+function renderRuns() {
+  renderConnectorActivity();
 }
 
 function renderHypotheses() {
-  const hypEl = $("hypotheses");
-  if (!hypEl) return; // Element removed from simplified UI
-  hypEl.replaceChildren(); const byId = new Map(latest.candidates.map(p => [p.id, p]));
-  latest.hypotheses.forEach(h => { 
-    const card = node("div", "", "cluster"); 
-    card.append(node("strong", `Cluster ${h.rank} · ${h.classification}`)); 
-    const bar = node("div", "", "bar"), fill = node("span"); 
-    fill.style.width = points(h.overall_score) + "%"; 
-    bar.append(fill); 
-    card.append(bar, node("p", `${points(h.overall_score)}% multi-source confidence`)); 
-    const list = node("ul"); 
-    h.memberships.forEach(m => list.append(node("li", byId.has(m.profile_id) ? label(byId.get(m.profile_id)) : m.profile_id))); 
-    card.append(list); 
-    hypEl.append(card); 
-  });
+  // Hypotheses presentation simplified into Ranked Candidates in Part 2 UI Rework
 }
 
 function renderQuestion() {
@@ -440,11 +626,7 @@ function renderQuestion() {
 async function answer(value) { if (busy) return; setBusy(true); try { await request(`/api/searches/${searchId}/question-answer`, {method:"POST", body:JSON.stringify({question_id:questionId, value})}); await refresh(); } catch(e) { error(e); } finally { setBusy(false); } }
 
 function renderEvidence() {
-  const evEl = $("evidence");
-  if (!evEl) return; // Evidence ledger removed from simplified UI
-  evEl.replaceChildren(); evEl.className = ""; const byId = new Map(latest.candidates.map(p => [p.id, p]));
-  latest.evidence.forEach(e => { const card = node("article", "", "signal " + e.direction.toLowerCase()); card.append(node("strong", e.signal_type.replaceAll("_", " ")), node("p", e.explanation)); const pair = [e.left_profile_id, e.right_profile_id].map(id => byId.has(id) ? label(byId.get(id)) : id).join(" ↔ "); card.append(node("p", pair)); const meta = node("div", "", "signal-meta"); [`Direction: ${e.direction}`, `Signal: ${points(e.normalized_score)}/100`, `Reliability: ${points(e.reliability)}/100`, `Contribution: ${e.model_contribution == null ? "not retained" : Number(e.model_contribution).toFixed(3)}`, `Family: ${e.evidence_family}`].forEach(t => meta.append(node("span", t))); card.append(meta); evEl.append(card); });
-  if (!latest.evidence.length) evEl.append(node("p", "No pairwise evidence contradictions yet.", "empty"));
+  renderEvidenceLedger();
 }
 
 function renderReport() {
@@ -466,20 +648,39 @@ function renderReport() {
   section("Source Provenance", (r.source_provenance || []).map(p => ({explanation:p.connector, source_urls:p.source_url ? [p.source_url] : []})));
 }
 
-$("search-form").onsubmit = async e => {
-  e.preventDefault();
-  if (busy || imageBusy) return;
+async function startInvestigation(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  if (busy || imageBusy) return false;
+
+  const seedInput = $("seed");
+  const seedTypeSelect = $("seed-type");
+  if (!seedInput || !seedTypeSelect) return false;
+
+  const rawVal = seedInput.value.trim();
+  if (!rawVal) return false;
+
   setBusy(true);
   $("error").textContent = "";
-  // Start every investigation from a clean slate so the previous report/result
-  // can never leak into the new run.
   resetResultView();
-  currentSeedType = $("seed-type").value;
-  currentSeedValue = $("seed").value.trim();
+
+  let selectedType = seedTypeSelect.value;
+  // Auto-detect seed type if user typed an email address or URL
+  if (rawVal.includes("@") && !rawVal.includes(" ")) {
+    selectedType = "EMAIL";
+    seedTypeSelect.value = "EMAIL";
+  } else if (rawVal.startsWith("https://")) {
+    selectedType = "PROFILE_URL";
+    seedTypeSelect.value = "PROFILE_URL";
+  }
+
+  currentSeedType = selectedType;
+  currentSeedValue = rawVal;
   emailFetchedFor = null;
   emailOsintData = null;
 
-  // Trigger Email OSINT immediately if seed type is EMAIL or value is an email address
   if (currentSeedType === "EMAIL" || currentSeedValue.includes("@")) {
     fetchEmailOsint(currentSeedValue);
   }
@@ -495,30 +696,57 @@ $("search-form").onsubmit = async e => {
     questionId = null;
     $("image-results").replaceChildren();
     $("image-status").textContent = "";
-    // Show result sections now that a search has started
     showResultSections();
     connect();
     await refresh();
-    // Scroll to the candidate results smoothly
     setTimeout(() => {
       document.getElementById("view-overview")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 600);
+    }, 400);
   } catch (err) {
     error(err);
     stopStatusCycle();
   } finally {
     setBusy(false);
   }
-};
+  return false;
+}
 
-for (const [id, action] of [["continue-search","continue"],["stop-search","stop"]]) $(id).onclick = async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/${action}`,{method:"POST"}); await refresh(); } catch(e) {error(e);} };
-$("print-report").onclick = () => window.print();
-// Every page load/refresh starts a brand-new session: never restore a previous
-// search, so the operator always begins fresh and can produce a new report.
+function bindFormEvents() {
+  const form = $("search-form");
+  const btn = $("search-button");
+  const seedInput = $("seed");
+  const seedTypeSelect = $("seed-type");
+
+  if (form) {
+    form.onsubmit = startInvestigation;
+    form.addEventListener("submit", startInvestigation, true);
+  }
+  if (btn) {
+    btn.onclick = startInvestigation;
+  }
+  if (seedInput && seedTypeSelect) {
+    seedInput.addEventListener("input", () => {
+      const val = seedInput.value.trim();
+      if (val.includes("@") && !val.includes(" ")) {
+        seedTypeSelect.value = "EMAIL";
+      } else if (val.startsWith("https://")) {
+        seedTypeSelect.value = "PROFILE_URL";
+      }
+    });
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bindFormEvents);
+} else {
+  bindFormEvents();
+}
+
+for (const [id, action] of [["continue-search","continue"],["stop-search","stop"]]) $(id)?.addEventListener("click", async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/${action}`,{method:"POST"}); await refresh(); } catch(e) {error(e);} });
+$("print-report")?.addEventListener("click", () => window.print());
+
 localStorage.removeItem("deus-search");
 if (location.search) history.replaceState(null, "", location.pathname);
-$("seed").value = "";
-$("seed-type").value = "USERNAME";
 resetResultView();
 
 async function checkImage() {

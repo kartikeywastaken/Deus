@@ -17,4 +17,4 @@ async def test_email_engine_end_to_end_mocked():
     assert result.domain_intel.domain == "example.com"
     assert result.sources_checked >= 4
     assert isinstance(result.overall_confidence, float)
-    assert len(result.identity_graph.nodes) >= 1
+    assert isinstance(result.discovered_identifiers, list)

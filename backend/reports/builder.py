@@ -58,6 +58,24 @@ def build_report(
             "Collection is incomplete: review individual connector statuses and errors."
         )
 
+    runs = connector_runs or []
+    accounts_discovered = [r.get("connector") for r in runs if r.get("status") == "SUCCESS"]
+    no_accounts_found = [r.get("connector") for r in runs if r.get("status") == "NO_RESULTS"]
+    inconclusive_or_blocked = [r for r in runs if r.get("status") not in {"SUCCESS", "NO_RESULTS"}]
+    connector_summary = {
+        "sources_checked": len(runs),
+        "accounts_discovered": accounts_discovered,
+        "no_accounts_found": no_accounts_found,
+        "inconclusive_or_blocked": inconclusive_or_blocked,
+    }
+
+    why_this_result = {
+        "evidence_strength": primary.classification if primary else "NONE",
+        "score": primary.score if primary else 0.0,
+        "supporting_evidence": [item.model_dump() for item in strong_support + moderate_support],
+        "explanation": finding,
+    }
+
     return RankedReport(
         search_run_id=search_run_id,
         executive_finding=finding,
@@ -85,4 +103,6 @@ def build_report(
             "Review the linked public personal domains and cross-profile links.",
             "Re-run supported public connectors later to check for changed profile claims.",
         ],
+        why_this_result=why_this_result,
+        connector_summary=connector_summary,
     )

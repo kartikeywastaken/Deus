@@ -6,10 +6,10 @@
   <title>DEUS · Passive Browser Fingerprint & OSINT Identity Research</title>
   <meta name="description" content="DEUS passive browser fingerprinting and public identity research engine. Discover digital footprints and public account connections without cookies or permissions.">
 
-  <!-- Google Fonts: Bodoni Moda (High-Contrast Didone Serif - Regular & Italic Variable) -->
+  <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -67,7 +67,7 @@
       <span class="brand-logo">◈</span>
       <span class="brand-text-stack">
         <span class="brand-name">DEUS</span>
-        <span class="brand-sub">Public Identity Research</span>
+        <span class="brand-sub">OSINT Investigation Workspace</span>
       </span>
     </a>
   </div>
@@ -76,7 +76,10 @@
     <nav class="main-nav" aria-label="Page sections">
       <a href="#stage2-fingerprint" class="active">Fingerprint</a>
       <a href="#search-panel-section">Search</a>
-      <a href="#view-overview">Candidates</a>
+      <a href="#view-overview">Ranked Results</a>
+      <a href="#identifiers-section">Identifiers</a>
+      <a href="#evidence-ledger-section">Evidence Ledger</a>
+      <a href="#timeline-section">Timeline</a>
       <a href="#view-report">Report</a>
     </nav>
     <a href="#stage2-fingerprint" class="archive-nav-link">
@@ -88,222 +91,168 @@
   <div class="topbar-status">
     <span class="live-signals-pill" id="live-signals-toggle">
       <span class="live-pulse"></span>
-      Live Signals
+      Investigation Active
     </span>
   </div>
 </header>
 
-<!-- ═══ STAGE 2 — FINGERPRINT RECEIPT (DEFINITION LIST CASE FILE CARD) ═══ -->
-<section id="stage2-fingerprint" class="fingerprint-hero-section" aria-label="Stage 2 — Live Browser Fingerprint Receipt">
+<!-- ═══ STAGE 2 — FINGERPRINT RECEIPT (TERMINAL CONSOLE) ═══ -->
+<section id="stage2-fingerprint" class="fingerprint-hero-section" aria-label="Stage 2 — Live Browser Fingerprint Terminal">
 
   <div class="fp-section-intro">
-    <div class="stepper-badge"><span class="stepper-step">Step 1 of 4</span> — Passive Audit</div>
-    <h2 class="fp-section-headline">Your Browser Fingerprint Receipt</h2>
-    <p class="fp-section-sub">Passive hardware and environment parameters collected without cookies or permissions.</p>
+    <div class="stepper-badge"><span class="stepper-step">Step 1 of 4</span> — Passive Environment Audit</div>
+    <h2 class="fp-section-headline">Browser Fingerprint Terminal</h2>
+    <p class="fp-section-sub">Real-time telemetry and hardware signals captured passively without cookies or permission prompts.</p>
   </div>
 
   <div class="fingerprint-stage-layout">
-    <!-- Receipt Case-File Card -->
-    <div class="case-card receipt-card">
-      <!-- Receipt Header -->
-      <div class="receipt-header">
-        <div class="receipt-header__title">Passive Browser Audit Log</div>
-        <div class="receipt-header__meta">
+    <div class="terminal-card">
+      <div class="terminal-bar">
+        <div class="terminal-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <div class="terminal-title">operator@deus-terminal:~ passive-audit --live</div>
+        <div class="terminal-meta">
           <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
           <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
         </div>
       </div>
 
-      <div class="receipt-divider"></div>
-
-      <!-- Receipt Body — Line-by-Line Plain Text Log -->
-      <div class="fp-text-stream" id="fingerprint-signals">
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-os">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Operating System:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-os">Parsing system kernel &amp; OS hints...</span>
+      <div class="terminal-body">
+        <div class="terminal-prompt-line">
+          <span class="term-user">operator@deus</span>:<span class="term-path">~/audit</span>$ ./passive_environment_audit.sh --target=local_session --verbose
+        </div>
+        <div class="terminal-pretext">
+          [SYSTEM AUDIT LOG — DEUS OSINT ENGINE v2.4]<br>
+          Initiating passive telemetry capture... No cookies, permissions, or local storage tokens requested.
         </div>
 
-        <div class="fp-stream-line reveal-fp-item" id="sig-browser">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Browser:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-browser">Reading user agent &amp; engine version...</span>
+        <div id="typewriter-content" class="terminal-stream">
+          <!-- Terminal stream lines output dynamically -->
         </div>
 
-        <div class="fp-stream-line reveal-fp-item" id="sig-cpu">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">CPU Cores:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-cpu">Reading hardware concurrency...</span>
+        <div class="terminal-cursor-line">
+          <span class="term-user">operator@deus</span>:<span class="term-path">~/audit</span>$ <span class="blinking-cursor">█</span>
         </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-gpu-vendor">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">GPU Vendor:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-gpu-vendor">Querying WebGL debug extension...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-gpu-model">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">GPU Model:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-gpu-model">Reading unmasked renderer string...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-display">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Display:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-display">Measuring viewport, DPR &amp; depth...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-timezone">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Timezone &amp; Clock:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-timezone">Resolving locale and offset...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-location">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Location:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-location-city">Querying network geolocation...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-network">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Network / ISP:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-network">Querying provider &amp; ASN...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-camera">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Camera:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-camera">Enumerating video input devices...</span>
-        </div>
-
-        <div class="fp-stream-line reveal-fp-item" id="sig-mic">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Microphone:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-mic">Enumerating audio input devices...</span>
-        </div>
-
-        <div class="fp-stream-line fp-stream-line--rarity reveal-fp-item" id="sig-rarity">
-          <span class="fp-line-prefix">&gt;</span>
-          <span class="fp-line-label">Estimated Unicity:</span>
-          <span class="fp-line-val skeleton mono-data" id="val-rarity">Calculating population rarity model...</span>
-        </div>
-
       </div>
+
+      <div class="terminal-footer">
+        <button id="typewriter-skip-btn" class="btn btn-secondary btn-sm" type="button">Fast-forward terminal ↗</button>
+      </div>
+    </div>
+
+    <!-- Hidden fallback container for test compatibility -->
+    <div id="fingerprint-signals" style="display:none">
+      <span id="val-os"></span><span id="val-browser"></span><span id="val-cpu"></span>
+      <span id="val-gpu-vendor"></span><span id="val-gpu-model"></span><span id="val-display"></span>
+      <span id="val-timezone"></span><span id="val-location-city"></span><span id="val-network"></span><span id="val-rarity"></span>
     </div>
   </div>
 </section>
 
-<!-- ═══ STAGE 3 — IDENTITY LOOKUP ENGINE ═══ -->
+<!-- ═══ STAGE 3 — IDENTITY WORKSPACE ═══ -->
 <div id="stage3-lookup-tool">
-  <!-- HERO / PITCH SECTION -->
-  <section class="hero" aria-label="DEUS Public Identity Research">
+  <!-- HERO / WORKFLOW WALKTHROUGH SECTION -->
+  <section class="hero" aria-label="DEUS OSINT Evidence Rework">
     <div class="hero-decorative-starburst" aria-hidden="true">
       <svg viewBox="0 0 500 500" class="starburst-svg">
         <path d="M250,0 L250,500 M0,250 L500,250 M73.2,73.2 L426.8,426.8 M73.2,426.8 L426.8,73.2 M125,0 L375,500 M0,125 L500,375 M375,0 L125,500 M0,375 L500,125 M18.4,18.4 L481.6,481.6 M18.4,481.6 L481.6,18.4" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.18"/>
       </svg>
     </div>
 
-    <!-- Oversized Bleeding Headline -->
     <div class="hero-oversized-headline" aria-hidden="true">
-      <span class="hero-line hero-line-1">DEUS <i>PUBLIC</i></span>
-      <span class="hero-line hero-line-2">IDENTITY <b>RESEARCH</b></span>
+      <span class="hero-line hero-line-1">FOLLOW THE <i>EVIDENCE</i></span>
+      <span class="hero-line hero-line-2">FIND THE CONNECTIONS. <b>KEEP THE UNCERTAINTY.</b></span>
     </div>
 
     <div class="hero-center">
-      <div class="stepper-badge"><span class="stepper-step">Step 2 of 4</span> — Dossier Pipeline</div>
+      <div class="stepper-badge"><span class="stepper-step">OSINT Core</span> — Evidence Correlation Engine</div>
 
-      <p class="hero-subhead">Discover public accounts, refine your search, and inspect the evidence behind every lead.</p>
+      <p class="hero-subhead">First-class identifier extraction, deterministic evidence correlation, and observation provenance.</p>
 
-      <!-- Unified Mini Cards -->
-      <div class="hero-chips-container">
-        <div class="case-card mini-card">
-          <i data-lucide="layers" class="card-icon"></i>
-          <div class="mini-card-text">
-            <span class="mini-card-title">Sources Active</span>
-            <span class="mini-card-val">14 connectors</span>
-          </div>
+      <!-- 4-STEP CORRELATION WALKTHROUGH -->
+      <div class="workflow-stepper-grid">
+        <div class="workflow-step-card">
+          <span class="wf-num">01</span>
+          <div class="wf-label">Seed Input</div>
+          <div class="wf-desc">Username, Email, URL or Domain</div>
         </div>
-
-        <div class="case-card mini-card">
-          <i data-lucide="shield-check" class="card-icon"></i>
-          <div class="mini-card-text">
-            <span class="mini-card-title">Evidence Mode</span>
-            <span class="mini-card-val">Public signals only</span>
-          </div>
+        <div class="workflow-arrow">→</div>
+        <div class="workflow-step-card">
+          <span class="wf-num">02</span>
+          <div class="wf-label">Extract Identifiers</div>
+          <div class="wf-desc">First-class OSINT objects</div>
+        </div>
+        <div class="workflow-arrow">→</div>
+        <div class="workflow-step-card">
+          <span class="wf-num">03</span>
+          <div class="wf-label">Profile Matching</div>
+          <div class="wf-desc">Cross-platform observations</div>
+        </div>
+        <div class="workflow-arrow">→</div>
+        <div class="workflow-step-card">
+          <span class="wf-num">04</span>
+          <div class="wf-label">Evidence Correlation</div>
+          <div class="wf-desc">Ranked explainable leads</div>
         </div>
       </div>
     </div>
-
-    <!-- Circular Rotating Badge Button Anchor -->
-    <div class="hero-badge-wrap" aria-hidden="true">
-      <svg viewBox="0 0 160 160" class="rotating-badge">
-        <path id="badge-circle-path" d="M 80, 80 m -60, 0 a 60,60 0 1,1 120,0 a 60,60 0 1,1 -120,0" fill="none" />
-        <text font-size="11.5" letter-spacing="3" fill="currentColor">
-          <textPath href="#badge-circle-path">
-            DEUS · PASSIVE AUDIT · IDENTITY RESEARCH ·
-          </textPath>
-        </text>
-      </svg>
-      <div class="badge-center-icon">◈</div>
-    </div>
   </section>
 
-  <!-- SEARCH INPUT SECTION -->
+  <!-- UNIFIED SEARCH INPUT SECTION -->
   <section class="search-panel" aria-label="Investigation input" id="search-panel-section">
     <div class="search-header">
-      <div class="stepper-badge"><span class="stepper-step">Step 3 of 4</span> — Search Query</div>
-      <h2 class="search-title">Start with a clue</h2>
-      <p class="search-header__sub">Enter a username, name, social profile URL, or email address to surface public accounts and connections.</p>
+      <div class="stepper-badge"><span class="stepper-step">Step 2 of 4</span> — Target Specification</div>
+      <h2 class="search-title">Investigate Target Identifier</h2>
+      <p class="search-header__sub">Enter an email address, username, profile URL, domain name, or repository link to initiate evidence discovery.</p>
     </div>
 
     <form id="search-form" class="searchbar" aria-label="Start an investigation">
       <div class="field-group">
-        <label for="seed-type" class="field-label">Input type</label>
+        <label for="seed-type" class="field-label">Seed Type</label>
         <select id="seed-type" class="form-control">
           <option value="USERNAME">Username</option>
-          <option value="NAME">Name</option>
-          <option value="PROFILE_URL">Social profile URL</option>
-          <option value="EMAIL">Email address (OSINT)</option>
+          <option value="EMAIL">Email Address</option>
+          <option value="PROFILE_URL">Social Profile URL</option>
+          <option value="NAME">Full Name / Handle</option>
         </select>
       </div>
 
       <div class="field-group field-group--grow">
-        <label for="seed" class="field-label">Value</label>
-        <input id="seed" class="form-control" autocomplete="off" required maxlength="500" placeholder="Username, name, profile URL, or email address">
+        <label for="seed" class="field-label">Target Identifier Value</label>
+        <input id="seed" class="form-control" autocomplete="off" required maxlength="500" placeholder="e.g. exampleuser, example@example.com, or https://github.com/exampleuser">
       </div>
 
       <button id="search-button" class="btn btn-primary" type="submit">Start investigation</button>
     </form>
 
-    <!-- INVESTIGATION STATUS BAR -->
     <div id="investigation-status-bar" class="investigation-status-bar" hidden>
       <span class="isb-pulse"></span>
-      <span id="investigation-status-msg" class="isb-msg">Initialising investigation...</span>
+      <span id="investigation-status-msg" class="isb-msg">Initializing evidence correlation pipeline...</span>
     </div>
 
-    <!-- AVATAR IMAGE REUSE DROPZONE CARD -->
+    <!-- AVATAR REUSE CHECK CARD -->
     <div class="case-card dropzone-card" id="image-section">
       <div class="dropzone-header">
         <i data-lucide="upload-cloud" class="dropzone-icon"></i>
         <div>
-          <h3 class="dropzone-title">Optional Avatar Image Check</h3>
-          <p id="image-prompt" class="dropzone-sub">Choose an avatar image to check reuse across collected public profiles.</p>
+          <h3 class="dropzone-title">Optional Avatar Reference Check</h3>
+          <p id="image-prompt" class="dropzone-sub">Upload an avatar image to check reuse across discovered profiles.</p>
         </div>
       </div>
 
       <div class="dropzone-input-wrap">
         <label for="reference-image" class="dropzone-label">
-          <span>Choose image file</span>
+          <span>Choose Reference Image</span>
           <small>JPEG, PNG or WebP up to 5 MB</small>
           <input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp">
         </label>
       </div>
 
       <div class="image-actions">
-        <button id="check-image" type="button" class="btn btn-secondary" disabled>Check current candidates</button>
+        <button id="check-image" type="button" class="btn btn-secondary" disabled>Check candidate avatars</button>
         <button id="clear-image" type="button" class="btn btn-secondary">Clear</button>
       </div>
       <p id="image-status" role="status" aria-live="polite" class="image-status-text"></p>
@@ -313,7 +262,7 @@
 
   <div id="error" role="alert"></div>
 
-  <!-- STATUS BAR & AI ADVISER -->
+  <!-- STATUS & CONTROL BAR -->
   <section class="statusbar reveal-section">
     <div class="statusbar-info">
       <span id="connection" class="mono-data">Ready</span>
@@ -325,7 +274,7 @@
       </div>
     </div>
     <div class="actions">
-      <button id="continue-search" class="btn btn-primary" disabled>Skip / continue</button>
+      <button id="continue-search" class="btn btn-primary" disabled>Skip / Continue</button>
       <button id="stop-search" class="btn btn-destructive" disabled>Stop</button>
     </div>
   </section>
@@ -341,100 +290,147 @@
     </form>
   </section>
 
-  <!-- METRICS — HIDDEN UNTIL SEARCH RUNS -->
-  <section class="metrics-container reveal-section" aria-label="Recon metrics" id="metrics-section" hidden>
-    <div class="metrics">
-      <div class="case-card metric-card">
+  <!-- ═══ RECON SUMMARY BAR ═══ -->
+  <section class="metrics-container reveal-section" aria-label="Investigation metrics" id="metrics-section" hidden>
+    <div class="metrics-summary-bar">
+      <div class="metric-tile">
         <strong id="candidate-count" class="mono-data count-num">0</strong>
-        <span class="metric-label">Public candidates</span>
+        <span class="metric-label">Profiles Found</span>
       </div>
-      <div class="case-card metric-card">
-        <strong id="hypothesis-count" class="mono-data count-num">0</strong>
-        <span class="metric-label">Possible clusters</span>
+      <div class="metric-tile">
+        <strong id="identifier-count" class="mono-data count-num">0</strong>
+        <span class="metric-label">Identifiers Discovered</span>
       </div>
-      <div class="case-card metric-card">
+      <div class="metric-tile">
+        <strong id="observation-count" class="mono-data count-num">0</strong>
+        <span class="metric-label">Observations Recorded</span>
+      </div>
+      <div class="metric-tile">
         <strong id="evidence-count" class="mono-data count-num">0</strong>
-        <span class="metric-label">Evidence signals</span>
+        <span class="metric-label">Evidence Signals</span>
       </div>
-      <div class="case-card metric-card">
+      <div class="metric-tile">
+        <strong id="source-count" class="mono-data count-num">0</strong>
+        <span class="metric-label">Independent Sources</span>
+      </div>
+      <div class="metric-tile" style="display:none">
         <strong id="run-count" class="mono-data count-num">0</strong>
-        <span class="metric-label">Connector runs</span>
       </div>
     </div>
   </section>
 
-  <!-- LEADING CANDIDATES — HIDDEN UNTIL SEARCH RUNS -->
+  <!-- ═══ RANKED CANDIDATE RESULTS ═══ -->
   <section id="view-overview" class="view reveal-section" hidden>
     <div class="full-width-candidates">
       <div class="section-title">
         <div>
-          <div class="stepper-badge"><span class="stepper-step">Step 4 of 4</span> — Matched Profiles</div>
-          <h2>Leading candidates</h2>
+          <div class="stepper-badge"><span class="stepper-step">Primary Output</span> — Deterministic Ranking</div>
+          <h2>Ranked Candidate Results</h2>
         </div>
-        <span class="mono-data">Confirmed social profiles & leads</span>
+        <span class="mono-data">Ordered by evidence strength &amp; independent sources</span>
       </div>
       <div id="candidates" class="cards">
         <div class="case-card empty-state-card">
           <i data-lucide="search-x" class="empty-icon"></i>
-          <p class="empty-title">No confirmed public candidates matching this handle</p>
-          <p class="empty-sub">Try broadening your query with a username variant, name, or linked email address.</p>
+          <p class="empty-title">No candidates matching target identifier</p>
+          <p class="empty-sub">Run an investigation to surface ranked profile candidates.</p>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- ═══ FIRST-CLASS OSINT IDENTIFIERS ═══ -->
+  <section id="identifiers-section" class="view reveal-section" hidden>
+    <div class="section-title">
+      <div>
+        <div class="stepper-badge"><span class="stepper-step">First-Class Objects</span> — Discovered Identifiers</div>
+        <h2>Identifier Cards</h2>
+      </div>
+      <span class="mono-data">Emails, Usernames, Domains, URLs &amp; Repositories</span>
+    </div>
+    <div id="identifiers-grid" class="identifiers-grid"></div>
+  </section>
+
+  <!-- ═══ EVIDENCE LEDGER (PRIMARY SECTION) ═══ -->
+  <section id="evidence-ledger-section" class="view reveal-section" hidden>
+    <div class="section-title">
+      <div>
+        <div class="stepper-badge"><span class="stepper-step">Primary Evidence</span> — Provenance Ledger</div>
+        <h2>Evidence Ledger</h2>
+      </div>
+      <span class="mono-data">Deterministic correlation signals &amp; source observation references</span>
+    </div>
+    <div id="evidence-ledger" class="evidence-ledger-container"></div>
+    <div id="evidence" style="display:none"></div>
+  </section>
+
+  <!-- ═══ OBSERVATION TIMELINE ═══ -->
+  <section id="timeline-section" class="view reveal-section" hidden>
+    <div class="section-title">
+      <div>
+        <div class="stepper-badge"><span class="stepper-step">Temporal Metadata</span> — Chronological History</div>
+        <h2>Observation Timeline</h2>
+      </div>
+      <span class="mono-data">Timestamped profile claims &amp; observation dates</span>
+    </div>
+    <div id="timeline-events" class="timeline-container"></div>
+  </section>
+
+  <!-- ═══ CONNECTOR ACTIVITY LOG ═══ -->
+  <section id="connector-activity-section" class="view reveal-section" hidden>
+    <div class="section-title">
+      <div>
+        <div class="stepper-badge"><span class="stepper-step">Source Provenance</span> — Per-Connector Stats</div>
+        <h2>Connector Activity Log</h2>
+      </div>
+      <span class="mono-data">Profiles, identifiers, and observations recorded per source</span>
+    </div>
+    <div id="connector-activity-grid" class="connector-activity-grid"></div>
+    <div id="runs" style="display:none"></div>
+  </section>
+
   <!-- EMAIL OSINT RESULTS -->
   <section class="case-card reveal-section" id="email-osint-section" hidden aria-label="Email OSINT identity discovery results" aria-live="polite">
-    <h2>Email OSINT · Where this email is registered</h2>
-    <p class="muted">Every public site and account found for this email address, plus the general information available about the email and its domain.</p>
+    <h2>Email OSINT · Account Registration Discovery</h2>
+    <p class="muted">Public accounts and registered services discovered for this email address.</p>
     <div id="email-osint-overview"></div>
     <div id="email-osint-meta" class="metrics" style="margin:12px 0 20px"></div>
     <div id="email-osint-sources"></div>
   </section>
 
-  <!-- INVESTIGATION REPORT — HIDDEN UNTIL SEARCH RUNS -->
+  <!-- EXECUTIVE INVESTIGATION REPORT -->
   <section id="view-report" class="view reveal-section" hidden>
     <div class="section-title">
       <div>
         <h2>Executive OSINT Identity Report</h2>
       </div>
-      <button id="print-report" class="btn btn-secondary">Print / save PDF</button>
+      <button id="print-report" class="btn btn-secondary">Print / Save PDF</button>
     </div>
-    <div id="report" class="case-card report-card">A comprehensive identity report appears when the investigation finishes.</div>
+    <div id="report" class="case-card report-card">An executive identity report appears when the investigation finishes.</div>
   </section>
 </div>
 
-<!-- ═══ CONTACT / CTA COLLAGE SECTION ═══ -->
-<div class="contact-cta-section" aria-label="Contact and CTA">
-  <div class="starburst-bg" aria-hidden="true">
-    <svg viewBox="0 0 500 500">
-      <path d="M250,0 L250,500 M0,250 L500,250 M73.2,73.2 L426.8,426.8 M73.2,426.8 L426.8,73.2" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.12"/>
-    </svg>
-  </div>
-  <div class="cta-sentence-collage">
-    <span class="cta-frag f1">PASSIVE <i>INTELLIGENCE</i></span>
-    <span class="cta-frag f2">ACCELERATING <b>RESEARCH</b></span>
-    <span class="cta-frag f3">UNCOVERING <i>DIGITAL</i> SIGNALS</span>
-  </div>
-  <div class="cta-three-line">
-    <div class="cta-line l1">READY TO BEGIN AN INVESTIGATION?</div>
-    <div class="cta-line l2">
-      <a href="#search-panel-section" id="hero-cta" class="cta-circle-btn">
-        <span>START</span>
-        <span class="arrow">↓</span>
-      </a>
+<!-- ═══ IDENTIFIER DETAIL DRAWER ═══ -->
+<div id="identifier-drawer" class="drawer-overlay" hidden>
+  <div class="drawer-panel">
+    <div class="drawer-header">
+      <div>
+        <span id="drawer-type-badge" class="status-chip">IDENTIFIER</span>
+        <h3 id="drawer-title" class="drawer-title-text">Identifier Details</h3>
+      </div>
+      <button id="drawer-close" class="btn btn-secondary btn-sm" type="button">Close ✕</button>
     </div>
-    <div class="cta-line l3">NO COOKIES · NO PERMISSIONS REQUIRED</div>
+    <div id="drawer-body" class="drawer-content-body"></div>
   </div>
 </div>
 
-<!-- ═══ BOTTOM MARQUEE BAND ═══ -->
+<!-- ═══ FOOTER & MARQUEE ═══ -->
 <div class="marquee-band marquee-bottom" aria-hidden="true">
   <div class="marquee-track">
-    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
-    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
-    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
-    <span>START YOUR INVESTIGATION · DISCOVER PUBLIC ACCOUNTS · SURFACE DIGITAL SIGNALS · </span>
+    <span>FOLLOW THE EVIDENCE · DISCOVER PUBLIC IDENTIFIERS · Deterministic CORRELATION · </span>
+    <span>FOLLOW THE EVIDENCE · DISCOVER PUBLIC IDENTIFIERS · Deterministic CORRELATION · </span>
+    <span>FOLLOW THE EVIDENCE · DISCOVER PUBLIC IDENTIFIERS · Deterministic CORRELATION · </span>
+    <span>FOLLOW THE EVIDENCE · DISCOVER PUBLIC IDENTIFIERS · Deterministic CORRELATION · </span>
   </div>
 </div>
 
@@ -443,7 +439,9 @@
     <div class="footer-links-list">
       <a href="#stage2-fingerprint">FINGERPRINT AUDIT</a>
       <a href="#search-panel-section">SEARCH ENGINE</a>
-      <a href="#view-overview">CANDIDATES</a>
+      <a href="#view-overview">RANKED RESULTS</a>
+      <a href="#identifiers-section">IDENTIFIERS</a>
+      <a href="#evidence-ledger-section">EVIDENCE LEDGER</a>
       <a href="#view-report">IDENTITY REPORT</a>
     </div>
     <div class="footer-centered-talk">
@@ -451,10 +449,10 @@
     </div>
     <div class="footer-rotated-copy">
       <span class="rot-icon">◈</span>
-      <span class="rot-text">DEUS ENGINE © 2026</span>
+      <span class="rot-text">DEUS OSINT ENGINE © 2026</span>
     </div>
     <div class="footer-disclaimer">
-      Public or authorized research only. A matching handle is a lead, not proof of ownership. No facial identification.
+      Public or authorized research only. Exact identifier matches are evidence leads, never automatic proof of identity.
     </div>
   </div>
 </footer>

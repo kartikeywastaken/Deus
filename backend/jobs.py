@@ -129,7 +129,10 @@ async def continue_search(repository, search_id):
         return search
     pending = await repository.get_pending_question(search.id)
     if pending:
-        return await submit_answer(repository, search.id, pending.id, "skip")
+        try:
+            return await submit_answer(repository, search.id, pending.id, "skip")
+        except ValueError:
+            return await repository.get_search(search.id) or search
     await enqueue(repository.session, search.id)
     return search
 

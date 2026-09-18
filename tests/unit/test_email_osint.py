@@ -20,7 +20,6 @@ from backend.email_osint.adapters.holehe_public import (
 from backend.email_osint.adapters.domain_intel import DomainIntelAdapter
 from backend.email_osint.cache import EmailOSINTCache
 from backend.email_osint.correlation import EmailCorrelationEngine
-from backend.email_osint.graph import IdentityGraphBuilder
 from backend.email_osint.resilience import CircuitBreaker
 
 
@@ -99,27 +98,6 @@ def test_correlation_engine():
     ]
     conf = EmailCorrelationEngine.calculate_overall_confidence(source_results, deduped)
     assert conf >= 0.90
-
-
-def test_identity_graph_builder():
-    builder = IdentityGraphBuilder("target@example.com")
-    builder.add_domain_intel("example.com", "Custom Corporate", org_hint="Example")
-    builder.add_source_result(
-        EmailSourceResult(
-            source_name="github",
-            category="developer",
-            status=EmailSourceStatus.FOUND,
-            account_exists=True,
-            username="target_dev",
-            canonical_url="https://github.com/target_dev",
-            confidence=0.95,
-        )
-    )
-
-    graph = builder.build()
-    assert len(graph.nodes) >= 3
-    assert len(graph.edges) >= 2
-    assert any(n.label == "target@example.com" for n in graph.nodes)
 
 def test_service_checkers_cover_named_sites():
     names = {checker.name for checker in PUBLIC_CHECKERS}

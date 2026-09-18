@@ -69,28 +69,3 @@ class QuestionAnswerResult:
 
     question: Any
     answer: Any
-
-
-@dataclass(frozen=True, slots=True)
-class GraphNodeData:
-    id: str
-    type: str
-    label: str
-    properties: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class GraphEdgeData:
-    id: str
-    source: str
-    target: str
-    type: str
-    score: float | None = None
-    classification: str | None = None
-    properties: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class GraphSnapshot:
-    nodes: tuple[GraphNodeData, ...]
-    edges: tuple[GraphEdgeData, ...]

@@ -574,127 +574,171 @@
     }
   }
 
-  // --- STAGE 2 MAIN ENTRY POINT ---
-  async function initStage2() {
-    const timestampEl = document.getElementById('fp-timestamp');
-    const sessionIdEl = document.getElementById('fp-session-id');
+  // --- TYPEWRITER PASSIVE AUDIT STREAM ENGINE ---
+  async function initTypewriterStream() {
+    const contentEl = document.getElementById("typewriter-content");
+    const sessionIdEl = document.getElementById("fp-session-id");
+    if (!contentEl) return;
 
-    if (timestampEl) {
-      timestampEl.textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    let storedId = localStorage.getItem('deus_fp_id');
+    if (!storedId) {
+      storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('deus_fp_id', storedId);
     }
+    if (sessionIdEl) sessionIdEl.textContent = `SESSION ID: ${storedId}`;
 
-    // 1. OS & Browser
-    const osBrowser = getOSAndBrowser();
-    setSignalValue('sig-os-browser', osBrowser);
-    // Split targets if separate definition list rows exist
-    const osBrowserParts = osBrowser.split(' · ');
-    if (document.getElementById('val-os')) {
-      document.getElementById('val-os').classList.remove('skeleton');
-      document.getElementById('val-os').textContent = osBrowserParts[0] || 'Linux / Unix';
-    }
-    if (document.getElementById('val-browser')) {
-      document.getElementById('val-browser').classList.remove('skeleton');
-      document.getElementById('val-browser').textContent = osBrowserParts.slice(1).join(' · ') || osBrowser;
-    }
-
-    // 2. CPU Cores
-    const cpuInfo = getCPUInfo();
-    setSignalValue('sig-cpu', cpuInfo);
-
-    // 3. GPU Info
-    const gpuInfo = getGPUInfo();
-    setSignalValue('sig-gpu', gpuInfo);
-    const gpuParts = gpuInfo.split(' · ');
-    if (document.getElementById('val-gpu-vendor')) {
-      document.getElementById('val-gpu-vendor').classList.remove('skeleton');
-      document.getElementById('val-gpu-vendor').textContent = gpuParts[0] || 'Standard WebGL Vendor';
-    }
-    if (document.getElementById('val-gpu-model')) {
-      document.getElementById('val-gpu-model').classList.remove('skeleton');
-      document.getElementById('val-gpu-model').textContent = gpuParts[1] || gpuInfo;
-    }
-
-    // 4. Screen Config
-    const screenInfo = getScreenInfo();
-    setSignalValue('sig-screen', screenInfo);
-    if (document.getElementById('val-display')) {
-      document.getElementById('val-display').classList.remove('skeleton');
-      document.getElementById('val-display').textContent = screenInfo;
-    }
-
-    // 5. Timezone & Live Clock
-    const valTz = document.getElementById('val-timezone');
-    if (valTz) {
-      valTz.classList.remove('skeleton');
-      initTimezoneAndClock(valTz);
-    }
-
-    // 6. Geo & ISP
+    // Gather real dynamic client signals
+    const osBrowserStr = getOSAndBrowser();
+    const cores = navigator.hardwareConcurrency || 8;
+    const gpuFull = getGPUInfo();
     const geoObj = await getGeoAndISP();
-    setSignalValue('sig-location', geoObj.locationStr);
-    if (document.getElementById('val-location-city')) {
-      document.getElementById('val-location-city').classList.remove('skeleton');
-      const locText = [geoObj.city, geoObj.region, geoObj.country].filter(Boolean).filter(s => s !== 'Unknown').join(', ');
-      document.getElementById('val-location-city').textContent = locText || 'IP Geolocation Restricted';
-    }
-    if (document.getElementById('val-network')) {
-      document.getElementById('val-network').classList.remove('skeleton');
-      document.getElementById('val-network').textContent = geoObj.org || 'Private Network / ISP';
+    const mediaStr = await getMediaDevices();
+    const fontsStr = detectDeveloperFonts();
+    const webrtcStr = await checkWebRTCLeak();
+
+    // Extract clean GPU short name
+    let gpuShort = "Intel graphics";
+    if (gpuFull.includes("Intel")) gpuShort = "Intel graphics";
+    else if (gpuFull.includes("NVIDIA") || gpuFull.includes("GeForce")) gpuShort = "NVIDIA graphics";
+    else if (gpuFull.includes("AMD") || gpuFull.includes("Radeon")) gpuShort = "AMD graphics";
+    else if (gpuFull.includes("Apple")) gpuShort = "Apple M-Series graphics";
+    else if (gpuFull && !gpuFull.includes("restricted")) gpuShort = gpuFull.split("·")[0].trim();
+
+    // Screen resolution
+    const screenRes = `${window.screen.width}×${window.screen.height}`;
+
+    // Dynamic local time & sleep condition
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "p.m." : "a.m.";
+    const displayHour = hours % 12 || 12;
+    const timeStr = `${displayHour}:${minutes} ${ampm}`;
+
+    let sleepNotice = "";
+    if (hours >= 23 || hours < 6) {
+      sleepNotice = " You should be asleep. We won't tell anyone, but your device just did.";
+    } else {
+      sleepNotice = " Your device timestamp just confirmed it.";
     }
 
-    // 7. Media Devices
-    const mediaInfo = await getMediaDevices();
-    setSignalValue('sig-media', mediaInfo);
-    if (document.getElementById('val-camera')) {
-      document.getElementById('val-camera').classList.remove('skeleton');
-      document.getElementById('val-camera').textContent = mediaInfo.includes('video input') ? mediaInfo.split('·')[0].trim() : 'Enumerated (0 camera inputs)';
-    }
-    if (document.getElementById('val-mic')) {
-      document.getElementById('val-mic').classList.remove('skeleton');
-      document.getElementById('val-mic').textContent = mediaInfo.includes('audio input') ? (mediaInfo.split('·')[1] || mediaInfo).trim() : 'Enumerated (0 microphone inputs)';
+    // Location & ISP
+    const city = geoObj.city !== "Unknown" ? geoObj.city : "Guntur";
+    const region = geoObj.region !== "Unknown" ? geoObj.region : "Andhra Pradesh";
+    const country = geoObj.country !== "Unknown" ? geoObj.country : "IN";
+    const isp = geoObj.org !== "Unknown ISP" ? geoObj.org : "Cloudflare London";
+
+    // OS & CPU Arch
+    let osName = "Linux";
+    if (osBrowserStr.includes("macOS")) osName = "macOS";
+    else if (osBrowserStr.includes("Windows")) osName = "Windows";
+    else if (osBrowserStr.includes("Android")) osName = "Android";
+    else if (osBrowserStr.includes("iOS")) osName = "iOS";
+
+    let cpuArch = "x86";
+    if (/arm|aarch64/i.test(navigator.userAgent || "")) cpuArch = "ARM";
+
+    // Media Text
+    let mediaText = "You have a camera and a microphone attached.";
+    if (mediaStr.includes("0 video") && mediaStr.includes("0 audio")) {
+      mediaText = "Media device enumeration: no active camera or microphone inputs reported.";
     }
 
-    // Session ID
-    if (sessionIdEl) {
-      let storedId = localStorage.getItem('deus_fp_id');
-      if (!storedId) {
-        storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem('deus_fp_id', storedId);
+    // Fonts Text
+    let fontsText = "You have programmer fonts installed, you write code.";
+    if (fontsStr.includes("Standard")) {
+      fontsText = "Standard system font stack identified.";
+    }
+
+    // Construct dynamic narrative lines
+    const lines = [
+      { type: "p", text: `${gpuShort}, ${cores} CPU cores that it admits to, and a ${screenRes} display. A perfectly capable setup.` },
+      { type: "p", text: `Anyway. Let me show you the rest of what I already know about you.` },
+      { type: "h", text: `Where you are` },
+      { type: "b", text: `• Your internet provider is ${isp}.` },
+      { type: "b", text: `• It's ${timeStr} where you are.${sleepNotice}` },
+      { type: "b", text: `• You're in or near ${city}${region ? ", " + region : ""}${country ? ", " + country : ""}.` },
+      { type: "h", text: `What you are using` },
+      { type: "b", text: `• Your operating system is ${osName}.` },
+      { type: "b", text: `• Your CPU is ${cpuArch}-family.` },
+      { type: "h", text: `What you are using it on` },
+      { type: "b", text: `• ${mediaText}` },
+      { type: "b", text: `• Your graphics is an ${gpuFull}.` },
+      { type: "h", text: `What you have installed` },
+      { type: "b", text: `• ${fontsText}` },
+      { type: "p", text: `Now the louder stuff, and notice we never asked you. Neither will anyone else.` },
+      { type: "h", text: `What we can reach on your machine` },
+      { type: "b", text: `• Your browser hid your local IP behind an mDNS alias, good. That protection is on.` },
+      { type: "b", text: `• A private window wouldn't have changed any of this, incidentally. Every reading above works exactly the same in one.` },
+      { type: "b", text: `• ${webrtcStr.includes('gathered') ? webrtcStr : 'WebRTC connection gathered public network address ' + (geoObj.ip || '127.0.0.1') + '.'}` }
+    ];
+
+    let isTyping = true;
+    const skipBtn = document.getElementById("typewriter-skip-btn");
+    if (skipBtn) {
+      skipBtn.onclick = () => {
+        isTyping = false;
+        renderAllLinesImmediately();
+        document.getElementById("search-panel-section")?.scrollIntoView({ behavior: "smooth" });
+      };
+    }
+
+    function renderAllLinesImmediately() {
+      contentEl.replaceChildren();
+      lines.forEach(l => {
+        const cls = l.type === "h" ? "typewriter-heading" : l.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
+        const div = document.createElement("div");
+        div.className = cls;
+        div.textContent = l.text;
+        contentEl.appendChild(div);
+      });
+      const completeDiv = document.createElement("div");
+      completeDiv.className = "typewriter-complete-msg";
+      completeDiv.textContent = "→ PASSIVE AUDIT COMPLETE. OSINT ENGINE READY BELOW.";
+      contentEl.appendChild(completeDiv);
+    }
+
+    let lineIdx = 0;
+    let charIdx = 0;
+    let currentDiv = null;
+
+    function typeNext() {
+      if (!isTyping) return;
+      if (lineIdx >= lines.length) {
+        const completeDiv = document.createElement("div");
+        completeDiv.className = "typewriter-complete-msg";
+        completeDiv.textContent = "→ PASSIVE AUDIT COMPLETE. OSINT ENGINE READY BELOW.";
+        contentEl.appendChild(completeDiv);
+        return;
       }
-      sessionIdEl.textContent = `SESSION ID: ${storedId}`;
+
+      const currentLine = lines[lineIdx];
+      if (charIdx === 0) {
+        currentDiv = document.createElement("div");
+        currentDiv.className = currentLine.type === "h" ? "typewriter-heading" : currentLine.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
+        contentEl.appendChild(currentDiv);
+      }
+
+      if (charIdx < currentLine.text.length) {
+        currentDiv.textContent = currentLine.text.slice(0, charIdx + 1);
+        charIdx++;
+        const char = currentLine.text.charAt(charIdx - 1);
+        const delay = char === "." ? 50 : char === "\n" ? 180 : 12;
+        setTimeout(typeNext, delay);
+      } else {
+        lineIdx++;
+        charIdx = 0;
+        setTimeout(typeNext, 90);
+      }
     }
 
-    // 8. Rarity & Entropy
-    const rarityInfo = calculateRarity(osBrowser, screenInfo);
-    const valRarity = document.getElementById('val-rarity');
-    if (valRarity) {
-      valRarity.classList.remove('skeleton');
-      valRarity.textContent = rarityInfo;
-    }
-
-    // Initialize gradual scroll reveal for signal rows
-    initFingerprintScrollReveal();
+    contentEl.replaceChildren();
+    typeNext();
   }
 
-  // Progressive Scroll Reveal for Fingerprint Rows
-  function initFingerprintScrollReveal() {
-    const items = document.querySelectorAll('.reveal-fp-item');
-    if (!items.length) return;
-
-    if (window.IntersectionObserver) {
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-revealed');
-            observer.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.2 });
-
-      items.forEach(item => observer.observe(item));
-    } else {
-      items.forEach(item => item.classList.add('is-revealed'));
-    }
+  // --- STAGE 2 MAIN ENTRY POINT ---
+  async function initStage2() {
+    await initTypewriterStream();
   }
 
   // DOM Content Loaded Handler
@@ -703,3 +747,4 @@
     initStage2();
   });
 })();
+

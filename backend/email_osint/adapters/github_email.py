@@ -38,6 +38,11 @@ class GitHubEmailAdapter(BaseEmailSource):
             res = await client.get(url, headers=headers)
             duration = (time.monotonic() - start) * 1000
 
+            if res.status_code == 429:
+                return self._result(EmailSourceStatus.RATE_LIMITED, message="GitHub API rate limit exceeded.", response_time_ms=duration)
+            elif res.status_code in {403, 500}:
+                return self._result(EmailSourceStatus.ERROR, message=f"GitHub API HTTP {res.status_code}", response_time_ms=duration)
+
             if res.status_code == 200:
                 data = res.json()
                 items = data.get("items", [])
@@ -111,6 +116,8 @@ class GitHubEmailAdapter(BaseEmailSource):
             commit_url = f"https://api.github.com/search/commits?q=author-email:{email}"
             commit_headers = {**headers, "Accept": "application/vnd.github.cloak-preview+json"}
             commit_res = await client.get(commit_url, headers=commit_headers)
+            if commit_res.status_code == 429:
+                return self._result(EmailSourceStatus.RATE_LIMITED, message="GitHub API rate limit exceeded.", response_time_ms=duration)
             if commit_res.status_code == 200:
                 c_data = commit_res.json()
                 c_items = c_data.get("items", [])

@@ -52,3 +52,5 @@ class RankedReport(BaseModel):
     repository_references: list[dict[str, Any]] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     suggested_next_public_sources: list[str] = Field(default_factory=list)
+    why_this_result: dict[str, Any] = Field(default_factory=dict)
+    connector_summary: dict[str, Any] = Field(default_factory=dict)

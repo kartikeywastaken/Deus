@@ -16,6 +16,7 @@ class Direction(StrEnum):
 
 
 class EvidenceFamily(StrEnum):
+    IDENTIFIER_IDENTITY = "IDENTIFIER_IDENTITY"
     WEB_IDENTITY = "WEB_IDENTITY"
     USERNAME_IDENTITY = "USERNAME_IDENTITY"
     NAME_IDENTITY = "NAME_IDENTITY"
@@ -32,6 +33,12 @@ class SignalType(StrEnum):
     SHARED_EXTERNAL_URL = "SHARED_EXTERNAL_URL"
     PERSONAL_DOMAIN_CONFLICT = "PERSONAL_DOMAIN_CONFLICT"
     EXPLICIT_IDENTITY_CONFLICT = "EXPLICIT_IDENTITY_CONFLICT"
+
+    EMAIL_EXACT = "EMAIL_EXACT"
+    DOMAIN_EXACT = "DOMAIN_EXACT"
+    URL_EXACT = "URL_EXACT"
+    REPOSITORY_RELATIONSHIP = "REPOSITORY_RELATIONSHIP"
+    SHARED_IDENTIFIER = "SHARED_IDENTIFIER"
 
     USERNAME_EXACT = "USERNAME_EXACT"
     USERNAME_SIMILARITY = "USERNAME_SIMILARITY"
@@ -142,6 +149,8 @@ class PairAssessment:
     support_family_count: int
     contradiction_family_count: int
     model_version: str
+    independent_source_count: int = 1
+    matching_identifiers: tuple[str, ...] = ()
 
     @property
     def pair_key(self) -> tuple[str, str]:

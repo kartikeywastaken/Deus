@@ -16,10 +16,14 @@ from .features import (
 )
 
 DEFAULT_WEIGHTS: Mapping[SignalType, float] = {
+    SignalType.EMAIL_EXACT: 45.0,
     SignalType.DIRECT_PROFILE_LINK: 40.0,
     SignalType.SHARED_PERSONAL_DOMAIN: 30.0,
-    SignalType.SHARED_EXTERNAL_URL: 24.0,
+    SignalType.DOMAIN_EXACT: 30.0,
+    SignalType.URL_EXACT: 25.0,
+    SignalType.SHARED_IDENTIFIER: 25.0,
     SignalType.USERNAME_EXACT: 20.0,
+    SignalType.REPOSITORY_RELATIONSHIP: 20.0,
     SignalType.USERNAME_SIMILARITY: 12.0,
     SignalType.DISPLAY_NAME_SIMILARITY: 10.0,
     SignalType.PROJECT_OVERLAP: 15.0,
@@ -39,8 +43,10 @@ DEFAULT_WEIGHTS: Mapping[SignalType, float] = {
 }
 
 _ANCHOR_SIGNALS = {
+    SignalType.EMAIL_EXACT,
     SignalType.DIRECT_PROFILE_LINK,
     SignalType.SHARED_PERSONAL_DOMAIN,
+    SignalType.DOMAIN_EXACT,
     SignalType.EXACT_AVATAR,
     SignalType.PROJECT_OVERLAP,
 }
@@ -99,6 +105,19 @@ class CorrelationScorer:
             len(support_families),
         )
 
+        # Track independent sources contributing to correlation
+        independent_sources = set()
+        matching_idents = []
+        for item in selected:
+            if item.direction is Direction.SUPPORT:
+                src = item.source_key or item.metadata.get("source") or item.evidence_family.value
+                independent_sources.add(src)
+                ident_val = item.metadata.get("identifier_value") or item.metadata.get("unusualness")
+                if ident_val:
+                    matching_idents.append(str(ident_val))
+
+        independent_source_count = max(1, len(independent_sources)) if support_families else 0
+
         ordered_left, ordered_right = sorted((left_profile_id, right_profile_id))
         return PairAssessment(
             left_profile_id=ordered_left,
@@ -112,6 +131,8 @@ class CorrelationScorer:
             support_family_count=len(support_families),
             contradiction_family_count=len(contradiction_families),
             model_version=self.model_version,
+            independent_source_count=independent_source_count,
+            matching_identifiers=tuple(dict.fromkeys(matching_idents)),
         )
 
     def contribution(self, item: EvidenceSignal) -> float:

@@ -7,7 +7,6 @@ from typing import Any, Callable
 
 from .correlation import EmailCorrelationEngine
 from .executor import EmailTaskExecutor
-from .graph import IdentityGraphBuilder
 from .registry import EmailSourceRegistry, build_default_email_registry
 from .schemas import (
     DiscoveredIdentifier,
@@ -18,7 +17,7 @@ from .schemas import (
 
 
 class EmailOSINTEngine:
-    """Orchestrates parallel discovery, identifier extraction, domain intel, and identity graph building."""
+    """Orchestrates parallel discovery, identifier extraction, and domain intel."""
 
     def __init__(
         self,
@@ -66,20 +65,7 @@ class EmailOSINTEngine:
         # 3. Calculate calibrated confidence score
         confidence = EmailCorrelationEngine.calculate_overall_confidence(results, deduped_identifiers)
 
-        # 4. Construct Identity Graph
-        graph_builder = IdentityGraphBuilder(normalized_email)
-        graph_builder.add_domain_intel(
-            domain=domain_intel.domain,
-            provider_name=domain_intel.provider_name,
-            org_hint=domain_intel.organization_hint,
-        )
-
-        for res in results:
-            graph_builder.add_source_result(res)
-
-        identity_graph = graph_builder.build()
         duration_ms = (time.monotonic() - start_time) * 1000
-
         accounts_found = sum(1 for r in results if r.account_exists)
 
         return EmailOSINTResult(
@@ -91,7 +77,6 @@ class EmailOSINTEngine:
             source_results=results,
             discovered_identifiers=deduped_identifiers,
             pivoted_profiles=[],
-            identity_graph=identity_graph,
             overall_confidence=confidence,
             scan_duration_ms=duration_ms,
         )

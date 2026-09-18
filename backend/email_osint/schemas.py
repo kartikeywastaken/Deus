@@ -78,28 +78,6 @@ class EmailSourceResult(BaseModel):
     message: str | None = None
 
 
-class GraphNode(BaseModel):
-    id: str
-    label: str
-    type: str  # email, username, account, domain, organization
-    platform: str | None = None
-    confidence: float = 1.0
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class GraphEdge(BaseModel):
-    source: str
-    target: str
-    relationship: str
-    confidence: float = 1.0
-    source_name: str | None = None
-
-
-class IdentityGraphData(BaseModel):
-    nodes: list[GraphNode] = Field(default_factory=list)
-    edges: list[GraphEdge] = Field(default_factory=list)
-
-
 class EmailOSINTResult(BaseModel):
     """Complete aggregated Email OSINT discovery result."""
 
@@ -113,6 +91,5 @@ class EmailOSINTResult(BaseModel):
     source_results: list[EmailSourceResult] = Field(default_factory=list)
     discovered_identifiers: list[DiscoveredIdentifier] = Field(default_factory=list)
     pivoted_profiles: list[dict[str, Any]] = Field(default_factory=list)
-    identity_graph: IdentityGraphData = Field(default_factory=IdentityGraphData)
     overall_confidence: float = 0.0
     scan_duration_ms: float = 0.0

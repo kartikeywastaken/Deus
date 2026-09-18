@@ -34,6 +34,11 @@ class GoogleGaiaAdapter(BaseEmailSource):
             res = await client.get(url, headers=headers)
             duration = (time.monotonic() - start) * 1000
 
+            if res.status_code == 429:
+                return self._result(EmailSourceStatus.RATE_LIMITED, message="Google API rate limited", response_time_ms=duration)
+            if res.status_code >= 500 or res.status_code in {400, 403}:
+                return self._result(EmailSourceStatus.ERROR, message=f"Google API error HTTP {res.status_code}", response_time_ms=duration)
+
             # If response contains 'COMPASS' cookie or specific headers, Google account exists
             if res.status_code == 200:
                 cookies = res.headers.get("Set-Cookie", "")
