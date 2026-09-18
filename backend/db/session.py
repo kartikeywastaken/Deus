@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 
+from click import echo
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -16,14 +17,21 @@ def create_engine(database_url: str | None = None, *, echo: bool | None = None) 
     """Construct an async engine without opening a connection eagerly."""
 
     settings = get_settings()
+
+    url = database_url or settings.database_url
+
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
     return create_async_engine(
-        database_url or settings.database_url,
+        url,
         echo=settings.database_echo if echo is None else echo,
         pool_pre_ping=True,
     )
 
-
 engine = create_engine()
+
+
 AsyncSessionFactory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 # Conventional aliases used by application services and test overrides.

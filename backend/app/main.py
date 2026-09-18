@@ -72,13 +72,9 @@ async def health() -> dict[str, object]:
 
 
 @app.get("/api/config.js", tags=["config"], response_class=Response)
-async def config_js(
-    settings: Annotated[Settings, Depends(get_settings)],
-) -> Response:
-    """Serve runtime config as a JS snippet so the frontend discovers the real port."""
-    host = settings.api_host if settings.api_host != "0.0.0.0" else "127.0.0.1"
-    base = f"http://{host}:{settings.api_port}"
-    script = f"window.OSINT_API_BASE = {base!r};\n"
+async def config_js() -> Response:
+    """Serve same-origin runtime config for the frontend."""
+    script = "window.OSINT_API_BASE = window.location.origin;\n"
     return Response(content=script, media_type="application/javascript")
 
 
