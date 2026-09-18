@@ -22,9 +22,14 @@ target_metadata = Base.metadata
 
 
 def database_url() -> str:
-    """Return the environment-derived URL for Alembic."""
+    """Return the environment-derived async PostgreSQL URL for Alembic."""
 
-    return get_settings().database_url
+    url = get_settings().database_url
+
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    return url
 
 
 def run_migrations_offline() -> None:
