@@ -21,7 +21,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=17">
+  <link rel="stylesheet" href="/styles.css?v=18">
 </head>
 <body>
 
@@ -76,7 +76,7 @@
     <nav class="main-nav" aria-label="Page sections">
       <a href="#stage2-fingerprint" class="active">Fingerprint</a>
       <a href="#search-panel-section">Search</a>
-      <a href="#identifiers-section">Identifiers</a>
+      <a href="#view-overview">Ranked Results</a>
       <a href="#evidence-ledger-section">Evidence Ledger</a>
       <a href="#view-report">Report</a>
     </nav>
@@ -317,16 +317,16 @@
     </div>
   </section>
 
-  <!-- ═══ FIRST-CLASS OSINT IDENTIFIERS ═══ -->
-  <section id="identifiers-section" class="view reveal-section" hidden>
+  <!-- ═══ RANKED CANDIDATE RESULTS ═══ -->
+  <section id="view-overview" class="view reveal-section" hidden>
     <div class="section-title">
       <div>
-        <div class="stepper-badge"><span class="stepper-step">First-Class Objects</span> — Discovered Identifiers</div>
-        <h2>Identifier Cards</h2>
+        <div class="stepper-badge"><span class="stepper-step">Primary Output</span> — Deterministic Ranking</div>
+        <h2>Ranked Candidate Results</h2>
       </div>
-      <span class="mono-data">Emails, Usernames, Domains, URLs &amp; Repositories</span>
+      <span class="mono-data">Every observed public profile · match confidence &amp; seed relevance per card</span>
     </div>
-    <div id="identifiers-grid" class="identifiers-grid"></div>
+    <div id="candidates" class="candidates-grid"></div>
   </section>
 
   <!-- ═══ EVIDENCE LEDGER (PRIMARY SECTION) ═══ -->
@@ -363,20 +363,6 @@
   </section>
 </div>
 
-<!-- ═══ IDENTIFIER DETAIL DRAWER ═══ -->
-<div id="identifier-drawer" class="drawer-overlay" hidden>
-  <div class="drawer-panel">
-    <div class="drawer-header">
-      <div>
-        <span id="drawer-type-badge" class="status-chip">IDENTIFIER</span>
-        <h3 id="drawer-title" class="drawer-title-text">Identifier Details</h3>
-      </div>
-      <button id="drawer-close" class="btn btn-secondary btn-sm" type="button">Close ✕</button>
-    </div>
-    <div id="drawer-body" class="drawer-content-body"></div>
-  </div>
-</div>
-
 <!-- ═══ FOOTER & MARQUEE ═══ -->
 <div class="marquee-band marquee-bottom" aria-hidden="true">
   <div class="marquee-track">
@@ -392,7 +378,7 @@
     <div class="footer-links-list">
       <a href="#stage2-fingerprint">FINGERPRINT AUDIT</a>
       <a href="#search-panel-section">SEARCH ENGINE</a>
-      <a href="#identifiers-section">IDENTIFIERS</a>
+      <a href="#view-overview">RANKED RESULTS</a>
       <a href="#evidence-ledger-section">EVIDENCE LEDGER</a>
       <a href="#view-report">IDENTITY REPORT</a>
     </div>
@@ -412,7 +398,7 @@
 </main>
 
 <script src="/fingerprint.js?v=12"></script>
-<script src="/app.js?v=13" defer></script>
+<script src="/app.js?v=14" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();

@@ -50,8 +50,13 @@ async def list_candidates(
             current = membership_by_profile.get(membership.profile_id)
             if current is None or membership.score > current.score:
                 membership_by_profile[membership.profile_id] = membership
-    return CandidateList(
-        items=[
+    # Every observed profile is returned. A publicly found account must never be
+    # dropped just because correlation did not cluster it with another profile:
+    # profiles outside a hypothesis keep their seed relevance and score 0.0.
+    items: list[CandidateRead] = []
+    for profile in profiles:
+        membership = membership_by_profile.get(profile.id)
+        items.append(
             CandidateRead(
                 id=profile.id,
                 platform=profile.platform,
@@ -70,10 +75,8 @@ async def list_candidates(
                 relevance=relevance[profile.id]["relevance"],
                 reason=relevance[profile.id]["reason"],
             )
-            for profile in profiles
-            if (membership := membership_by_profile.get(profile.id)) is not None or not hypotheses
-        ]
-    )
+        )
+    return CandidateList(items=items)
 
 
 @router.get("/{search_id}/evidence", response_model=EvidenceList)

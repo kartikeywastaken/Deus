@@ -1709,52 +1709,144 @@ footer {
   border: 1px solid rgba(156, 163, 175, 0.3);
 }
 
-/* Identifier Cards Grid */
-.identifiers-grid {
+/* ── RANKED CANDIDATE CARDS ── */
+.candidates-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 20px;
 }
 
-.identifier-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.candidates-grid > h3 {
+  grid-column: 1 / -1;
+  font-family: var(--font-display);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 8px 0 0;
 }
 
-.id-card-header {
+.candidate-card {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+}
+
+.candidate-card--top {
+  border-color: var(--color-accent);
+}
+
+.candidate-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.id-type-badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-}
-
-.id-type-email { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
-.id-type-username { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.3); }
-.id-type-domain { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; border: 1px solid rgba(45, 212, 191, 0.3); }
-.id-type-url { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.3); }
-
-.id-value-text {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  word-break: break-all;
-  color: var(--text-ink);
-}
-
-.id-card-meta {
-  font-size: 12px;
-  color: var(--text-muted);
+.candidate-identity {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
+
+.candidate-handle {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--text-ink);
+  word-break: break-all;
+}
+
+.candidate-display {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.candidate-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.candidate-chips .status-chip {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.candidate-why {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+
+.candidate-why-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.candidate-relevance-line {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-accent);
+  margin: 0 0 4px;
+}
+
+.candidate-reason {
+  font-size: 13px;
+  color: var(--text-ink);
+  margin: 0 0 6px;
+}
+
+.candidate-score-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.candidate-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.candidate-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.candidates-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 32px;
+}
+
+.candidates-empty-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-ink);
+  margin: 0 0 8px;
+}
+
+.candidates-empty-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 /* Evidence Ledger */
@@ -1815,72 +1907,6 @@ footer {
   color: var(--text-muted);
   font-family: var(--font-mono);
   margin-top: 4px;
-}
-
-/* Identifier Detail Drawer Overlay */
-.drawer-overlay {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 999;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.drawer-panel {
-  width: 100%;
-  max-width: 520px;
-  background: #11141d;
-  border-left: 1px solid var(--border-brown);
-  padding: 28px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 1px solid var(--border-brown);
-  padding-bottom: 16px;
-}
-
-.drawer-title-text {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  color: var(--text-ink);
-  margin-top: 6px;
-  word-break: break-all;
-}
-
-.drawer-content-body h4 {
-  font-family: var(--font-display);
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-accent);
-  margin: 16px 0 10px;
-}
-
-.drawer-obs-list {
-  padding-left: 18px;
-  font-size: 13px;
-  color: var(--text-ink);
-}
-
-.drawer-obs-item {
-  margin-bottom: 10px;
-}
-
-.mini-profile-card {
-  padding: 12px;
-  margin-bottom: 8px;
 }
 
 /* ═══ TERMINAL FINGERPRINT RECEIPT STYLES ═══ */

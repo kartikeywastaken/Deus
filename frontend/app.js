@@ -12,7 +12,7 @@ const autoContinuedQuestions = new Set();
 function resetResultView() {
   const reportEl = $("report");
   if (reportEl) reportEl.textContent = "An executive identity report appears when the investigation finishes.";
-  ["hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "identifiers-grid", "evidence-ledger"].forEach(id => {
+  ["hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "candidates", "evidence-ledger"].forEach(id => {
     const el = $(id);
     if (el) el.replaceChildren();
   });
@@ -69,7 +69,7 @@ function stopStatusCycle() {
 function showResultSections() {
   const ids = [
     "metrics-section",
-    "identifiers-section",
+    "view-overview",
     "evidence-ledger-section",
     "view-report",
   ];
@@ -238,7 +238,7 @@ async function refresh() {
     }
     if (state.error_summary) error(new Error(state.error_summary));
 
-    renderIdentifierCards();
+    renderCandidates();
     renderEvidenceLedger();
     renderQuestion();
     renderReport();
@@ -269,91 +269,143 @@ function candidateMatchValue(p) {
   return 0;
 }
 
-// ── First-Class Identifier Cards ──
-function renderIdentifierCards() {
-  const grid = $("identifiers-grid");
+// ── Ranked Candidate Results ──
+// Seed relevance is produced by the backend (backend/investigation/username_questions.py);
+// the labels below never claim verified account ownership.
+const RELEVANCE_LABELS = {
+  USER_HINT_MATCH: { label: "Confirmed Variant Match", cls: "status-chip--supported", rank: 0 },
+  EXACT_SEED: { label: "Exact Seed Match", cls: "status-chip--found", rank: 1 },
+  POSSIBLE_VARIANT: { label: "Possible Variant", cls: "status-chip--possible", rank: 2 },
+};
+
+// Preserve the backend priority order: user-confirmed variants first, then the
+// exact seed, then everything else the connectors actually observed.
+const relevanceRank = p => RELEVANCE_LABELS[p.relevance]?.rank ?? 3;
+
+function candidateCard(p, topMatch) {
+  const card = node("article", "", topMatch ? "case-card candidate-card candidate-card--top" : "case-card candidate-card");
+
+  const top = node("div", "", "candidate-top");
+  const identity = node("div", "", "candidate-identity");
+  identity.append(
+    node("p", String(p.platform || "PROFILE").toUpperCase(), "platform"),
+    node("strong", p.username ? "@" + p.username : p.display_name || "Public profile", "candidate-handle")
+  );
+  if (p.username && p.display_name) identity.append(node("span", p.display_name, "candidate-display"));
+
+  // Match confidence is shown on every card, not only the leading one.
+  const chips = node("div", "", "candidate-chips");
+  const matchInfo = getMatchLabel(candidateMatchValue(p));
+  chips.append(node("span", `${matchInfo.label} · ${matchInfo.score}%`, `status-chip ${matchInfo.cls}`));
+  const rel = RELEVANCE_LABELS[p.relevance];
+  if (rel) {
+    const relChip = node("span", rel.label, `status-chip ${rel.cls}`);
+    relChip.title = `Seed relevance: ${p.relevance}`;
+    relChip.dataset.relevance = p.relevance;
+    chips.append(relChip);
+  }
+  if (p.classification) {
+    chips.append(node("span", String(p.classification).replaceAll("_", " "), "status-chip status-chip--neutral"));
+  }
+  top.append(identity, chips);
+  card.append(top);
+
+  const why = node("div", "", "candidate-why");
+  why.append(node("span", "Why this result?", "candidate-why-title"));
+  if (p.relevance) why.append(node("p", `Seed relevance: ${p.relevance}`, "candidate-relevance-line"));
+  why.append(node("p", p.reason || "Public profile surfaced by OSINT connectors; identity is unconfirmed.", "candidate-reason"));
+  why.append(node("small", `Deterministic search-relevance score: ${(candidateMatchValue(p) * 100).toFixed(1)}/100 · ${p.score_kind || "SEARCH_RELEVANCE"}`, "candidate-score-note"));
+  card.append(why);
+
+  const actions = node("div", "", "candidate-actions");
+  if (p.canonical_url) actions.append(safeLink(p.canonical_url, "Open public profile ↗"));
+  const publicLinks = (p.public_links || []).length;
+  const linked = (p.linked_accounts || []).length;
+  if (publicLinks || linked) {
+    actions.append(
+      node(
+        "span",
+        [
+          publicLinks ? `${publicLinks} public link${publicLinks === 1 ? "" : "s"} on this profile` : "",
+          linked ? `direct link to ${linked} other profile${linked === 1 ? "" : "s"}` : "",
+        ].filter(Boolean).join(" · "),
+        "candidate-meta"
+      )
+    );
+  }
+  card.append(actions);
+  return card;
+}
+
+function renderCandidates() {
+  const grid = $("candidates");
   if (!grid) return;
   grid.replaceChildren();
 
-  const items = latest?.identifiers || [];
-  if (!items.length) {
-    grid.append(node("p", "No OSINT identifiers extracted yet.", "empty-muted"));
-    return;
+  // Every profile the backend observed is rendered, closest match first, and
+  // nothing is capped: confirmed variants, the exact seed and lower-confidence
+  // possibilities all reach the reader.
+  const candidates = [...(latest?.candidates || [])].sort((a, b) =>
+    (relevanceRank(a) - relevanceRank(b)) ||
+    (candidateMatchValue(b) - candidateMatchValue(a)) ||
+    String(a.platform || "").localeCompare(String(b.platform || ""))
+  );
+
+  let rendered = 0;
+
+  if (candidates.length) {
+    grid.append(node("h3", `Top Match · ${candidates.length} public profile${candidates.length === 1 ? "" : "s"} found · closest match first`));
+    grid.append(candidateCard(candidates[0], true));
+    rendered += 1;
   }
 
-  items.forEach(idItem => {
-    const card = node("div", "", "case-card identifier-card");
-    const header = node("div", "", "id-card-header");
-    header.append(
-      node("span", idItem.type, `status-chip id-type-badge id-type-${idItem.type.toLowerCase()}`),
-      node("strong", idItem.value, "id-value-text")
-    );
-    card.append(header);
+  if (candidates.length > 1) {
+    grid.append(node("h3", "Additional Matched Profile Leads"));
+    for (const p of candidates.slice(1)) {
+      grid.append(candidateCard(p, false));
+      rendered += 1;
+    }
+  }
 
-    const meta = node("div", "", "id-card-meta");
-    const sourcesList = (idItem.sources || []).join(", ") || "Seed input";
-    meta.append(
-      node("div", `Sources: ${sourcesList}`, "id-meta-line"),
-      node("div", `Independent Sources: ${idItem.independent_source_count}`, "id-meta-line")
-    );
-    card.append(meta);
-
-    const btn = node("button", "Inspect Observations & Profiles ↗", "btn btn-secondary btn-sm");
-    btn.onclick = () => openIdentifierDrawer(idItem);
-    card.append(btn);
-
-    grid.append(card);
+  // Real email OSINT registrations, kept separate from profile candidates.
+  const knownUrls = new Set(candidates.map(p => (p.canonical_url || "").toLowerCase()).filter(Boolean));
+  const emailLeads = emailCandidateLeads().filter(lead => {
+    const url = (lead.canonical_url || "").toLowerCase();
+    return !url || !knownUrls.has(url);
   });
-}
-
-function openIdentifierDrawer(idItem) {
-  const drawer = $("identifier-drawer");
-  if (!drawer) return;
-  $("drawer-type-badge").textContent = idItem.type;
-  $("drawer-title").textContent = idItem.value;
-
-  const body = $("drawer-body");
-  body.replaceChildren();
-
-  body.append(node("h4", "Observed Provenance"));
-  if (idItem.observations?.length) {
-    const list = node("ul", "", "drawer-obs-list");
-    idItem.observations.forEach(obs => {
-      const li = node("li", "", "drawer-obs-item");
-      li.append(
-        node("strong", obs.source),
-        node("span", ` (${obs.type || "observation"})`),
-        obs.source_url ? node("div", safeLink(obs.source_url, obs.source_url)) : null,
-        obs.observed_at ? node("small", ` Observed at: ${obs.observed_at}`) : null
+  if (emailLeads.length) {
+    grid.append(node("h3", "Matched Account Registrations (Email OSINT)"));
+    for (const p of emailLeads) {
+      const card = node("article", "", "case-card candidate-card");
+      const top = node("div", "", "candidate-top");
+      const identity = node("div", "", "candidate-identity");
+      identity.append(
+        node("p", String(p.platform || "ACCOUNT").toUpperCase(), "platform"),
+        node("strong", p.title, "candidate-handle")
       );
-      list.append(li);
-    });
-    body.append(list);
-  } else {
-    body.append(node("p", `Target initial seed identifier (${idItem.sources.join(", ")}).`));
+      const matchInfo = getMatchLabel(p.confidence || 0.85);
+      const chips = node("div", "", "candidate-chips");
+      chips.append(node("span", `${matchInfo.label} · ${matchInfo.score}%`, `status-chip ${matchInfo.cls}`));
+      top.append(identity, chips);
+      card.append(top);
+      if (p.username) card.append(node("p", `Username: @${p.username}`, "candidate-display"));
+      const actions = node("div", "", "candidate-actions");
+      if (p.canonical_url) actions.append(safeLink(p.canonical_url, "Open public profile ↗"));
+      card.append(actions);
+      grid.append(card);
+      rendered += 1;
+    }
   }
 
-  body.append(node("h4", "Linked Profiles"));
-  const linkedProfiles = (latest?.candidates || []).filter(p => (idItem.linked_profile_ids || []).includes(p.id));
-  if (linkedProfiles.length) {
-    linkedProfiles.forEach(p => {
-      const pcard = node("div", "", "case-card mini-profile-card");
-      pcard.append(node("strong", `@${p.username || p.display_name || p.platform}`));
-      pcard.append(node("p", `${p.platform} profile`));
-      if (p.canonical_url) pcard.append(safeLink(p.canonical_url, "Open Profile ↗"));
-      body.append(pcard);
-    });
-  } else {
-    body.append(node("p", "No direct profile links established yet.", "empty-muted"));
+  if (!rendered) {
+    const empty = node("div", "", "case-card candidates-empty");
+    empty.append(
+      node("p", "No public profiles were found for this target yet.", "candidates-empty-title"),
+      node("p", "Every card here comes from a live public observation. Run an investigation, or answer the follow-up question to search a username variant you confirm yourself.", "candidates-empty-sub")
+    );
+    grid.append(empty);
   }
-
-  drawer.hidden = false;
 }
-
-$("drawer-close")?.addEventListener("click", () => {
-  const drawer = $("identifier-drawer");
-  if (drawer) drawer.hidden = true;
-});
 
 // ── Evidence Ledger ──
 function renderEvidenceLedger() {
