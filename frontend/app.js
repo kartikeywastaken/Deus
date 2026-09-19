@@ -390,7 +390,8 @@ function renderCandidates() {
       card.append(top);
       if (p.username) card.append(node("p", `Username: @${p.username}`, "candidate-display"));
       const actions = node("div", "", "candidate-actions");
-      if (p.canonical_url) actions.append(safeLink(p.canonical_url, "Open public profile ↗"));
+      const leadLink = profileLinkUrl(p.canonical_url);
+      if (leadLink) actions.append(safeLink(leadLink, "Open public profile ↗"));
       card.append(actions);
       grid.append(card);
       rendered += 1;
@@ -644,6 +645,22 @@ let _emailOsintController = null;
 // where the address holds an account.
 const EMAIL_SITE_SKIP = new Set(["domain_intel", "hibp"]);
 
+// Passive single-site probes (Spotify, Microsoft / Outlook, X, and the other
+// RequestChecker sites) return a bare site homepage as their canonical URL.
+// Anchors built from those only redirect to the website, so they are not
+// rendered at all; real profile/deep links are kept untouched.
+function profileLinkUrl(url) {
+  if (!url) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:") return null;
+  return parsed.pathname.replace(/\/+$/, "") ? parsed.href : null;
+}
+
 // Expand compound sources like holehe_public into individual registered accounts.
 function expandEmailAccounts(data) {
   const expanded = [];
@@ -661,7 +678,7 @@ function expandEmailAccounts(data) {
           confidence: sDetail.confidence ?? src.confidence ?? data?.overall_confidence,
           display_name: sDetail.display_name || sDetail.username || `${serviceName} Registered Account`,
           username: sDetail.username || null,
-          canonical_url: sDetail.canonical_url || `https://${serviceName}.com`,
+          canonical_url: sDetail.canonical_url || null,
         });
       });
     } else if (src.account_exists || src.canonical_url) {
@@ -881,7 +898,8 @@ function renderEmailOverview(data) {
       if (acc.display_name && acc.display_name !== acc.username) bits.push(acc.display_name);
       if (acc.confidence != null) bits.push(`${Math.round((acc.confidence || 0) * 100)}% confidence`);
       if (bits.length) li.append(document.createTextNode(` — ${bits.join(" · ")}`));
-      if (acc.canonical_url) li.append(document.createTextNode(" "), safeLink(acc.canonical_url, "Open site ↗"));
+      const accountLink = profileLinkUrl(acc.canonical_url);
+      if (accountLink) li.append(document.createTextNode(" "), safeLink(accountLink, "Open site ↗"));
       list.append(li);
     }
     registeredBox.append(list);
@@ -892,29 +910,31 @@ function renderEmailOverview(data) {
 
   const sites = collectSiteStatuses(data);
   if (sites.length) {
-    const registeredCount = sites.filter(site => site.exists === true).length;
-    const absentCount = sites.filter(site => site.exists === false).length;
-    const unknownCount = sites.filter(site => site.exists == null).length;
+    // Only registered sites are listed. "Not registered" and "could not verify"
+    // rows are hidden from the UI; the checked total keeps the coverage visible.
+    const registeredSites = sites.filter(site => site.exists === true);
     const sitesBox = node("div", "", "email-overview-sites");
-    sitesBox.append(node("h3", `All sites checked (${sites.length})`));
+    sitesBox.append(node("h3", `Registered sites (${registeredSites.length} of ${sites.length} checked)`));
     sitesBox.append(
-      node("p", `${registeredCount} registered · ${absentCount} not registered · ${unknownCount} could not be verified.`, "email-sites-summary")
+      node("p", `${registeredSites.length} registered · not-registered and unverifiable sites are hidden.`, "email-sites-summary")
     );
-    const list = node("ul", "", "email-site-list");
-    for (const site of sites) {
-      const li = node("li");
-      li.append(node("strong", site.label));
-      if (site.exists === true) li.append(node("span", "Registered", "status-chip status-chip--found"));
-      else if (site.exists === false) li.append(node("span", "Not registered", "status-chip status-chip--disabled"));
-      else li.append(node("span", "Could not verify", "status-chip status-chip--neutral"));
-      const bits = [];
-      if (site.username) bits.push(`@${site.username}`);
-      if (site.display_name && site.display_name !== site.username) bits.push(site.display_name);
-      if (bits.length) li.append(document.createTextNode(` ${bits.join(" · ")}`));
-      if (site.exists === true && site.canonical_url) li.append(document.createTextNode(" "), safeLink(site.canonical_url, "Open ↗"));
-      list.append(li);
+    if (registeredSites.length) {
+      const list = node("ul", "", "email-site-list");
+      for (const site of registeredSites) {
+        const li = node("li");
+        li.append(node("strong", site.label), node("span", "Registered", "status-chip status-chip--found"));
+        const bits = [];
+        if (site.username) bits.push(`@${site.username}`);
+        if (site.display_name && site.display_name !== site.username) bits.push(site.display_name);
+        if (bits.length) li.append(document.createTextNode(` ${bits.join(" · ")}`));
+        const siteLink = profileLinkUrl(site.canonical_url);
+        if (siteLink) li.append(document.createTextNode(" "), safeLink(siteLink, "Open ↗"));
+        list.append(li);
+      }
+      sitesBox.append(list);
+    } else {
+      sitesBox.append(node("p", "No registered account was found on the sites that could be checked.", "empty"));
     }
-    sitesBox.append(list);
     overviewEl.append(sitesBox);
   }
 }
@@ -971,7 +991,8 @@ function renderEmailOsint(data, metaEl, sourcesEl) {
       const card = node("article", "", "card email-account-card");
       card.append(node("p", id.source.toUpperCase(), "platform"), node("strong", `${id.type}: ${id.value}`));
       card.append(node("p", `Confidence ${Math.round(id.confidence * 100)}%`));
-      if (id.type.includes("url")) card.append(safeLink(id.value, "Open source ↗"));
+      const identifierLink = profileLinkUrl(id.value);
+      if (id.type.includes("url") && identifierLink) card.append(safeLink(identifierLink, "Open source ↗"));
       sourcesEl.append(card);
     }
     if (!identifiers.length) sourcesEl.append(node("p", "No reusable identifiers extracted yet.", "empty"));
@@ -1012,7 +1033,8 @@ function emailSourceCard(src, accountOnly) {
     if (found) card.append(node("small", `This email is registered on ${site}.`));
     if (src.confidence != null) card.append(node("small", `Match confidence: ${Math.round((src.confidence || 0) * 100)}%`));
     if (src.message && !accountOnly) card.append(node("small", src.message));
-    if (src.canonical_url) card.append(safeLink(src.canonical_url, `Open ${site} ↗`));
+    const sourceLink = profileLinkUrl(src.canonical_url);
+    if (sourceLink) card.append(safeLink(sourceLink, `Open ${site} ↗`));
     if (src.response_time_ms) card.append(node("small", `${Math.round(src.response_time_ms)} ms response`));
     return card;
 }
