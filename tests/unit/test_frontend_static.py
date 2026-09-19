@@ -37,8 +37,8 @@ def test_task3_ui_elements_exist():
     assert 'id="run-count"' in html
 
     # 4. Account Discovery
-    assert 'id="view-overview"' in html
-    assert 'id="candidates"' in html
+    assert 'id="identifiers-section"' in html
+    assert 'id="evidence-ledger-section"' in html
 
     # 5. OSINT Identity Sections
     assert 'id="email-osint-section"' in html
@@ -51,4 +51,11 @@ def test_task3_ui_elements_exist():
     assert 'id="view-graph-section"' not in html
     assert 'id="view-contradictions-section"' not in html
     assert 'id="view-hypotheses-section"' not in html
+    # Removed in the Part 2 UI rework: ranked candidates, timeline and connector log.
+    assert 'id="view-overview"' not in html
+    assert 'id="candidates"' not in html
+    assert 'id="timeline-section"' not in html
+    assert 'id="connector-activity-section"' not in html
+    assert 'id="connector-activity-grid"' not in html
+    assert 'id="timeline-events"' not in html
 

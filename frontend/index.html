@@ -21,7 +21,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=16">
+  <link rel="stylesheet" href="/styles.css?v=17">
 </head>
 <body>
 
@@ -76,10 +76,8 @@
     <nav class="main-nav" aria-label="Page sections">
       <a href="#stage2-fingerprint" class="active">Fingerprint</a>
       <a href="#search-panel-section">Search</a>
-      <a href="#view-overview">Ranked Results</a>
       <a href="#identifiers-section">Identifiers</a>
       <a href="#evidence-ledger-section">Evidence Ledger</a>
-      <a href="#timeline-section">Timeline</a>
       <a href="#view-report">Report</a>
     </nav>
     <a href="#stage2-fingerprint" class="archive-nav-link">
@@ -319,26 +317,6 @@
     </div>
   </section>
 
-  <!-- ═══ RANKED CANDIDATE RESULTS ═══ -->
-  <section id="view-overview" class="view reveal-section" hidden>
-    <div class="full-width-candidates">
-      <div class="section-title">
-        <div>
-          <div class="stepper-badge"><span class="stepper-step">Primary Output</span> — Deterministic Ranking</div>
-          <h2>Ranked Candidate Results</h2>
-        </div>
-        <span class="mono-data">Ordered by evidence strength &amp; independent sources</span>
-      </div>
-      <div id="candidates" class="cards">
-        <div class="case-card empty-state-card">
-          <i data-lucide="search-x" class="empty-icon"></i>
-          <p class="empty-title">No candidates matching target identifier</p>
-          <p class="empty-sub">Run an investigation to surface ranked profile candidates.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- ═══ FIRST-CLASS OSINT IDENTIFIERS ═══ -->
   <section id="identifiers-section" class="view reveal-section" hidden>
     <div class="section-title">
@@ -362,31 +340,6 @@
     </div>
     <div id="evidence-ledger" class="evidence-ledger-container"></div>
     <div id="evidence" style="display:none"></div>
-  </section>
-
-  <!-- ═══ OBSERVATION TIMELINE ═══ -->
-  <section id="timeline-section" class="view reveal-section" hidden>
-    <div class="section-title">
-      <div>
-        <div class="stepper-badge"><span class="stepper-step">Temporal Metadata</span> — Chronological History</div>
-        <h2>Observation Timeline</h2>
-      </div>
-      <span class="mono-data">Timestamped profile claims &amp; observation dates</span>
-    </div>
-    <div id="timeline-events" class="timeline-container"></div>
-  </section>
-
-  <!-- ═══ CONNECTOR ACTIVITY LOG ═══ -->
-  <section id="connector-activity-section" class="view reveal-section" hidden>
-    <div class="section-title">
-      <div>
-        <div class="stepper-badge"><span class="stepper-step">Source Provenance</span> — Per-Connector Stats</div>
-        <h2>Connector Activity Log</h2>
-      </div>
-      <span class="mono-data">Profiles, identifiers, and observations recorded per source</span>
-    </div>
-    <div id="connector-activity-grid" class="connector-activity-grid"></div>
-    <div id="runs" style="display:none"></div>
   </section>
 
   <!-- EMAIL OSINT RESULTS -->
@@ -439,7 +392,6 @@
     <div class="footer-links-list">
       <a href="#stage2-fingerprint">FINGERPRINT AUDIT</a>
       <a href="#search-panel-section">SEARCH ENGINE</a>
-      <a href="#view-overview">RANKED RESULTS</a>
       <a href="#identifiers-section">IDENTIFIERS</a>
       <a href="#evidence-ledger-section">EVIDENCE LEDGER</a>
       <a href="#view-report">IDENTITY REPORT</a>
@@ -460,7 +412,7 @@
 </main>
 
 <script src="/fingerprint.js?v=12"></script>
-<script src="/app.js?v=12" defer></script>
+<script src="/app.js?v=13" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();

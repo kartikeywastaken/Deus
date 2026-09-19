@@ -12,9 +12,7 @@ const autoContinuedQuestions = new Set();
 function resetResultView() {
   const reportEl = $("report");
   if (reportEl) reportEl.textContent = "An executive identity report appears when the investigation finishes.";
-  const candidatesEl = $("candidates");
-  if (candidatesEl) candidatesEl.replaceChildren();
-  ["runs", "hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "identifiers-grid", "evidence-ledger", "timeline-events", "connector-activity-grid"].forEach(id => {
+  ["hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "identifiers-grid", "evidence-ledger"].forEach(id => {
     const el = $(id);
     if (el) el.replaceChildren();
   });
@@ -71,11 +69,8 @@ function stopStatusCycle() {
 function showResultSections() {
   const ids = [
     "metrics-section",
-    "view-overview",
     "identifiers-section",
     "evidence-ledger-section",
-    "timeline-section",
-    "connector-activity-section",
     "view-report",
   ];
   ids.forEach(id => {
@@ -243,11 +238,8 @@ async function refresh() {
     }
     if (state.error_summary) error(new Error(state.error_summary));
 
-    renderCandidates();
     renderIdentifierCards();
     renderEvidenceLedger();
-    renderTimeline();
-    renderConnectorActivity();
     renderQuestion();
     renderReport();
 
@@ -275,111 +267,6 @@ function candidateMatchValue(p) {
   if (typeof p.score === "number") return p.score;
   if (typeof p.identity_score === "number") return p.identity_score;
   return 0;
-}
-
-// ── Ranked Candidate Cards ──
-function candidateCard(p, topMatch) {
-  const card = node("article", "", topMatch ? "case-card card card--top-match" : "case-card card");
-  const top = node("div", "", "card-top"), title = node("div");
-  title.append(
-    node("p", String(p.platform || "profile").toUpperCase(), "platform"),
-    node("strong", p.username ? "@" + p.username : p.display_name || "Public profile")
-  );
-  
-  const scoreVal = candidateMatchValue(p);
-  const matchInfo = getMatchLabel(scoreVal);
-  
-  top.append(title, node("span", `${matchInfo.label} (${matchInfo.score}%)`, `status-chip ${matchInfo.cls}`));
-  card.append(top);
-
-  // Compact "Why this result?" block
-  const whyBlock = node("div", "", "why-result-block");
-  whyBlock.append(node("span", "Why this result?", "why-title"));
-  const whyReasons = node("ul", "", "why-reasons-list");
-  
-  const reasons = [];
-  if (p.reason) reasons.push(p.reason);
-  if (p.username) reasons.push(`Platform handle matches target: @${p.username}`);
-  if (p.public_links?.length) reasons.push(`Linked via ${p.public_links.length} public URLs`);
-  if (p.linked_accounts?.length) reasons.push(`Direct link across ${p.linked_accounts.length} connected profiles`);
-  if (!reasons.length) reasons.push("Public profile candidate surfaced by OSINT connectors.");
-
-  reasons.forEach(r => whyReasons.append(node("li", r)));
-  whyBlock.append(whyReasons);
-  whyBlock.append(node("small", `Deterministic evidence score: ${(scoreVal * 100).toFixed(1)}/100`, "why-score-note"));
-  card.append(whyBlock);
-
-  if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public profile ↗"));
-  return card;
-}
-
-function renderCandidates() {
-  const candidatesEl = $("candidates");
-  if (!candidatesEl) return;
-  candidatesEl.replaceChildren();
-
-  const candidates = (latest?.candidates || []).filter(p =>
-    p.canonical_url ||
-    (p.score || 0) > 0 ||
-    (p.identity_score || 0) > 0 ||
-    p.relevance === "USER_HINT_MATCH" ||
-    p.analysis_status === "PUBLICLY_LINKED" ||
-    p.analysis_status === "HAS_PUBLIC_CONTEXT"
-  );
-
-  const ranked = [...candidates].sort((a, b) =>
-    (candidateMatchValue(b) - candidateMatchValue(a)) ||
-    ((b.identity_score || 0) - (a.identity_score || 0))
-  );
-
-  let renderedCount = 0;
-
-  if (ranked.length > 0) {
-    candidatesEl.append(node("h3", "Top Match · Highest Evidence Score"));
-    candidatesEl.append(candidateCard(ranked[0], true));
-    renderedCount += 1;
-  }
-
-  if (ranked.length > 1) {
-    candidatesEl.append(node("h3", "Additional Matched Profile Leads"));
-    for (const p of ranked.slice(1, 15)) {
-      candidatesEl.append(candidateCard(p, false));
-      renderedCount += 1;
-    }
-  }
-
-  // Add email leads if available
-  const knownUrls = new Set(candidates.map(p => (p.canonical_url || "").toLowerCase()).filter(Boolean));
-  const emailLeads = emailCandidateLeads().filter(lead => {
-    const url = (lead.canonical_url || "").toLowerCase();
-    return !url || !knownUrls.has(url);
-  });
-  if (emailLeads.length) {
-    candidatesEl.append(node("h3", "Matched Account Registrations (Email OSINT)"));
-    for (const p of emailLeads) {
-      const card = node("article", "", "case-card card"), top = node("div", "", "card-top"), title = node("div");
-      title.append(node("p", (p.platform || "ACCOUNT").toUpperCase(), "platform"), node("strong", p.title));
-      const matchInfo = getMatchLabel(p.confidence || 0.85);
-      top.append(title, node("span", `${matchInfo.label} (${matchInfo.score}%)`, `status-chip ${matchInfo.cls}`));
-      card.append(top);
-      if (p.username) card.append(node("p", `Username: @${p.username}`));
-      if (p.canonical_url) card.append(safeLink(p.canonical_url, "Open public profile ↗"));
-      candidatesEl.append(card);
-      renderedCount += 1;
-    }
-  }
-
-  if (!renderedCount) {
-    const emptyBox = node("div", "", "case-card empty-state-card");
-    const icon = document.createElement("i");
-    icon.setAttribute("data-lucide", "search-x");
-    icon.className = "empty-icon";
-    const title = node("p", "No confirmed public candidates matching this handle", "empty-title");
-    const sub = node("p", "Try broadening your query with a username variant, name, or linked email address.", "empty-sub");
-    emptyBox.append(icon, title, sub);
-    candidatesEl.append(emptyBox);
-    if (window.lucide) window.lucide.createIcons();
-  }
 }
 
 // ── First-Class Identifier Cards ──
@@ -511,101 +398,9 @@ function renderEvidenceLedger() {
   });
 }
 
-// ── Observation Timeline ──
-function renderTimeline() {
-  const container = $("timeline-events");
-  if (!container) return;
-  container.replaceChildren();
-
-  const events = [];
-
-  (latest?.observations || []).forEach(obs => {
-    if (obs.observed_at) {
-      events.push({
-        date: new Date(obs.observed_at),
-        source: obs.source,
-        text: `Observation recorded on ${obs.source} (${obs.observation_type})`,
-        url: obs.source_url
-      });
-    }
-  });
-
-  (latest?.candidates || []).forEach(p => {
-    if (p.created_at) {
-      events.push({
-        date: new Date(p.created_at),
-        source: p.platform,
-        text: `Profile @${p.username || p.display_name} created on ${p.platform}`,
-        url: p.canonical_url
-      });
-    }
-  });
-
-  events.sort((a, b) => b.date - a.date);
-
-  if (!events.length) {
-    container.append(node("p", "No temporal metadata recorded for this run.", "empty-muted"));
-    return;
-  }
-
-  events.forEach(ev => {
-    const item = node("div", "", "timeline-item");
-    item.append(
-      node("span", ev.date.toISOString().slice(0, 10), "timeline-date mono-data"),
-      node("strong", ev.source, "timeline-source"),
-      node("span", ev.text, "timeline-text")
-    );
-    if (ev.url) item.append(safeLink(ev.url, "Source ↗"));
-    container.append(item);
-  });
-}
-
-// ── Connector Activity Log ──
-function renderConnectorActivity() {
-  const grid = $("connector-activity-grid");
-  if (!grid) return;
-  grid.replaceChildren();
-
-  const runs = latest?.runs || [];
-  if (!runs.length) {
-    grid.append(node("p", "No connector activity recorded.", "empty-muted"));
-    return;
-  }
-
-  runs.forEach(r => {
-    const card = node("div", "", "case-card connector-activity-card");
-    const top = node("div", "", "conn-card-top");
-    top.append(
-      node("strong", r.connector),
-      node("span", r.status, `status-chip ${r.status === "SUCCESS" || r.status === "COMPLETED" ? "status-chip--found" : "status-chip--neutral"}`)
-    );
-    card.append(top);
-
-    const counts = node("div", "", "conn-counts-grid");
-    const siteChecks = r.site_checks || [];
-    const profilesFound = siteChecks.filter(s => s.status === "FOUND" || s.status === "SUCCESS").length || (r.status === "SUCCESS" ? 1 : 0);
-    const obsFound = siteChecks.length || (r.status === "SUCCESS" ? 1 : 0);
-    const idFound = Math.max(1, profilesFound);
-
-    counts.append(
-      node("span", `Profiles: ${profilesFound}`),
-      node("span", `Identifiers: ${idFound}`),
-      node("span", `Observations: ${obsFound}`)
-    );
-    card.append(counts);
-
-    if (r.error) card.append(node("small", r.error, "error-text"));
-    grid.append(card);
-  });
-}
-
-function renderRuns() {
-  renderConnectorActivity();
-}
-
-function renderHypotheses() {
-  // Hypotheses presentation simplified into Ranked Candidates in Part 2 UI Rework
-}
+// ── Shared helpers ──
+// `label`/`points` and the match helpers below are pure data helpers (no DOM
+// access) still used by the identifier drawer, evidence ledger and report.
 
 function renderQuestion() {
   const q = latest.question; $("question-section").hidden = !q;
@@ -624,10 +419,6 @@ function renderQuestion() {
 }
 
 async function answer(value) { if (busy) return; setBusy(true); try { await request(`/api/searches/${searchId}/question-answer`, {method:"POST", body:JSON.stringify({question_id:questionId, value})}); await refresh(); } catch(e) { error(e); } finally { setBusy(false); } }
-
-function renderEvidence() {
-  renderEvidenceLedger();
-}
 
 function renderReport() {
   const r = latest?.report; if (!r) { $("report").textContent = "The investigation report will be generated when the search completes."; return; }
@@ -700,7 +491,7 @@ async function startInvestigation(e) {
     connect();
     await refresh();
     setTimeout(() => {
-      document.getElementById("view-overview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("metrics-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 400);
   } catch (err) {
     error(err);
@@ -828,8 +619,8 @@ function expandEmailAccounts(data) {
   return expanded;
 }
 
-// Normalize real email-discovered accounts and profile URLs into candidate leads,
-// so the leading-candidates list shows every matched profile with its public link.
+// Normalize real email-discovered accounts and profile URLs into lead objects,
+// used by the remaining sections (identifiers, evidence ledger, report).
 function emailCandidateLeads() {
   if (!emailOsintData) return [];
   const leads = [], seen = new Set();
@@ -895,9 +686,6 @@ async function fetchEmailOsint(email) {
     if (!res.ok) throw new Error(data.detail || `Email OSINT error ${res.status}`);
     emailOsintData = data;
     renderEmailOsint(data, metaEl, sourcesEl);
-    // Real data is available immediately: refresh the leading candidates so they
-    // reflect the discovered accounts in real time.
-    renderCandidates();
   } catch (e) {
     if (e.name !== "AbortError") {
       metaEl.className = "";
