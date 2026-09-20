@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 620" width="100%" height="100%">
+  <defs>
+    <linearGradient id="loki-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFA826" />
+      <stop offset="100%" stop-color="#FF6B00" />
+    </linearGradient>
+  </defs>
+  <g fill="url(#loki-glow)">
+    <!-- Main Loki Helmet & Horns Outline Path -->
+    <path d="
+      M 250,225 
+      C 275,175 330,100 425,35 
+      C 460,95 440,210 370,300 
+      C 335,140 335,130 335,130 
+      C 365,185 350,265 332,342 
+      C 370,410 405,480 345,550 
+      C 310,510 290,470 250,395 
+      C 210,470 190,510 155,550 
+      C 95,480 130,410 168,342 
+      C 150,265 135,185 165,130 
+      C 165,130 165,140 130,300 
+      C 60,210 40,95 75,35 
+      C 170,100 225,175 250,225 
+      Z
+      M 250,335 
+      C 295,335 320,380 295,415 
+      C 270,432 230,432 205,415 
+      C 180,380 205,335 250,335 
+      Z
+    " fill-rule="evenodd" />
+    
+    <!-- Cheeks & Eye Outlines -->
+    <path d="M 125,345 L 175,362 L 138,368 Z" />
+    <path d="M 375,345 L 325,362 L 362,368 Z" />
+  </g>
+</svg>

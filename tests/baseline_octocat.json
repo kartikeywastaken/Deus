@@ -1,0 +1,726 @@
+[
+  {
+    "platform": "1337x",
+    "url": "https://www.1337x.to/user/octocat/"
+  },
+  {
+    "platform": "Audiojungle",
+    "url": "https://audiojungle.net/user/octocat"
+  },
+  {
+    "platform": "Cfx.re Forum",
+    "url": "https://forum.cfx.re/u/octocat/summary"
+  },
+  {
+    "platform": "CodeSandbox",
+    "url": "https://codesandbox.io/u/octocat"
+  },
+  {
+    "platform": "Bluesky",
+    "url": "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=octocat.bsky.social"
+  },
+  {
+    "platform": "Chess",
+    "url": "https://www.chess.com/callback/user/valid?username=octocat"
+  },
+  {
+    "platform": "Codeforces",
+    "url": "https://codeforces.com/api/user.info?handles=octocat"
+  },
+  {
+    "platform": "Blogger",
+    "url": "https://octocat.blogspot.com/"
+  },
+  {
+    "platform": "Clubhouse",
+    "url": "https://www.clubhouse.com/@octocat"
+  },
+  {
+    "platform": "Codecademy",
+    "url": "https://www.codecademy.com/login?redirect=%2Fprofiles%2Foctocat&error=You+must+be+logged+in+to+access+this+page.+Please+log+in+to+continue."
+  },
+  {
+    "platform": "Exposure",
+    "url": "https://octocat.exposure.co/"
+  },
+  {
+    "platform": "ChaturBate",
+    "url": "https://chaturbate.com/octocat/"
+  },
+  {
+    "platform": "DEV Community",
+    "url": "https://dev.to/octocat"
+  },
+  {
+    "platform": "Discord",
+    "url": "https://discord.com/api/v9/unique-username/username-attempt-unauthed"
+  },
+  {
+    "platform": "Dealabs",
+    "url": "https://www.dealabs.com/profile/octocat"
+  },
+  {
+    "platform": "Codewars",
+    "url": "https://www.codewars.com/users/octocat"
+  },
+  {
+    "platform": "Disqus",
+    "url": "https://disqus.com/by/octocat/"
+  },
+  {
+    "platform": "Duolingo",
+    "url": "https://www.duolingo.com/2017-06-30/users?username=octocat"
+  },
+  {
+    "platform": "Crowdin",
+    "url": "https://crowdin.com/profile/octocat"
+  },
+  {
+    "platform": "GitHub",
+    "url": "https://github.com/octocat"
+  },
+  {
+    "platform": "Giphy",
+    "url": "https://giphy.com/explore/octocat"
+  },
+  {
+    "platform": "Freesound",
+    "url": "https://freesound.org/people/octocat/"
+  },
+  {
+    "platform": "Instagram",
+    "url": "https://instagram.com/octocat"
+  },
+  {
+    "platform": "HudsonRock",
+    "url": "https://cavalier.hudsonrock.com/api/json/v2/osint-tools/search-by-username?username=octocat"
+  },
+  {
+    "platform": "Flipboard",
+    "url": "https://flipboard.com/@octocat"
+  },
+  {
+    "platform": "Instructables",
+    "url": "https://www.instructables.com/json-api/showAuthorExists?screenName=octocat"
+  },
+  {
+    "platform": "HackerNews",
+    "url": "https://news.ycombinator.com/user?id=octocat"
+  },
+  {
+    "platform": "GaiaOnline",
+    "url": "https://www.gaiaonline.com/profiles/octocat/13256241/"
+  },
+  {
+    "platform": "Itch.io",
+    "url": "https://itch.io/profile/octocat"
+  },
+  {
+    "platform": "Flickr",
+    "url": "https://www.flickr.com/people/octocat"
+  },
+  {
+    "platform": "Imgur",
+    "url": "https://api.imgur.com/account/v1/accounts/octocat?client_id=546c25a59c58ad7"
+  },
+  {
+    "platform": "LOR",
+    "url": "https://www.linux.org.ru/people/octocat/profile"
+  },
+  {
+    "platform": "Letterboxd",
+    "url": "https://letterboxd.com/octocat"
+  },
+  {
+    "platform": "LinkedIn",
+    "url": "https://linkedin.com/in/octocat"
+  },
+  {
+    "platform": "IFTTT",
+    "url": "https://ifttt.com/p/octocat"
+  },
+  {
+    "platform": "Keybase",
+    "url": "https://keybase.io/octocat"
+  },
+  {
+    "platform": "Monkeytype",
+    "url": "https://api.monkeytype.com/users/octocat/profile"
+  },
+  {
+    "platform": "Launchpad",
+    "url": "https://launchpad.net/~octocat"
+  },
+  {
+    "platform": "Medium",
+    "url": "https://medium.com/feed/@octocat"
+  },
+  {
+    "platform": "MixCloud",
+    "url": "https://api.mixcloud.com/octocat/"
+  },
+  {
+    "platform": "GoodReads",
+    "url": "https://www.goodreads.com/user/show/16206961-phuoc"
+  },
+  {
+    "platform": "Lichess",
+    "url": "https://lichess.org/@/octocat"
+  },
+  {
+    "platform": "Minecraft",
+    "url": "https://api.mojang.com/users/profiles/minecraft/octocat"
+  },
+  {
+    "platform": "NitroType",
+    "url": "https://www.nitrotype.com/racer/octocat"
+  },
+  {
+    "platform": "MyAnimeList",
+    "url": "https://myanimelist.net/profile/octocat"
+  },
+  {
+    "platform": "Naver",
+    "url": "https://blog.naver.com/octocat"
+  },
+  {
+    "platform": "Pastebin",
+    "url": "https://pastebin.com/u/octocat"
+  },
+  {
+    "platform": "Gitee",
+    "url": "https://gitee.com/octocat"
+  },
+  {
+    "platform": "Pokemon Showdown",
+    "url": "https://pokemonshowdown.com/users/octocat"
+  },
+  {
+    "platform": "Pronouns.page",
+    "url": "https://pronouns.page/@octocat"
+  },
+  {
+    "platform": "Pinterest",
+    "url": "https://www.pinterest.com/oembed.json?url=https://www.pinterest.com/octocat/"
+  },
+  {
+    "platform": "Open Collective",
+    "url": "https://opencollective.com/octocat"
+  },
+  {
+    "platform": "SpeakerDeck",
+    "url": "https://speakerdeck.com/octocat"
+  },
+  {
+    "platform": "Patreon",
+    "url": "https://www.patreon.com/profile/creators?u=34860390"
+  },
+  {
+    "platform": "SoundCloud",
+    "url": "https://soundcloud.com/octocat"
+  },
+  {
+    "platform": "Nextcloud Forum",
+    "url": "https://help.nextcloud.com/u/octocat/summary"
+  },
+  {
+    "platform": "Steam Community (Group)",
+    "url": "https://steamcommunity.com/groups/octocat"
+  },
+  {
+    "platform": "Reddit",
+    "url": "https://www.reddit.com/user/octocat/?rdt=39571"
+  },
+  {
+    "platform": "Periscope",
+    "url": "https://www.periscope.tv/octocat/"
+  },
+  {
+    "platform": "Tenor",
+    "url": "https://tenor.com/users/octocat"
+  },
+  {
+    "platform": "Twitch",
+    "url": "https://www.twitch.tv/octocat"
+  },
+  {
+    "platform": "ThemeForest",
+    "url": "https://themeforest.net/user/octocat"
+  },
+  {
+    "platform": "TETR.IO",
+    "url": "https://ch.tetr.io/api/users/octocat"
+  },
+  {
+    "platform": "Scratch",
+    "url": "https://scratch.mit.edu/users/octocat/"
+  },
+  {
+    "platform": "Rumble",
+    "url": "https://rumble.com/user/octocat"
+  },
+  {
+    "platform": "Terraria Forums",
+    "url": "https://forums.terraria.org/index.php?search/55675396/&c[users]=octocat&o=relevance"
+  },
+  {
+    "platform": "Telegram",
+    "url": "https://t.me/octocat"
+  },
+  {
+    "platform": "TheMovieDB",
+    "url": "https://www.themoviedb.org/u/octocat"
+  },
+  {
+    "platform": "Roblox",
+    "url": "https://www.roblox.com/users/1904961/profile"
+  },
+  {
+    "platform": "Weebly",
+    "url": "https://octocat.weebly.com/"
+  },
+  {
+    "platform": "Xbox Gamertag",
+    "url": "https://xboxgamertag.com/search/octocat"
+  },
+  {
+    "platform": "Ultimate-Guitar",
+    "url": "https://www.ultimate-guitar.com/u/octocat"
+  },
+  {
+    "platform": "Wattpad",
+    "url": "https://www.wattpad.com/api/v3/users/octocat/"
+  },
+  {
+    "platform": "TradingView",
+    "url": "https://www.tradingview.com/u/Octocat/"
+  },
+  {
+    "platform": "Vero",
+    "url": "https://vero.co/octocat"
+  },
+  {
+    "platform": "exophase",
+    "url": "https://www.exophase.com/user/octocat/"
+  },
+  {
+    "platform": "Wikidot",
+    "url": "http://www.wikidot.com/user:info/octocat"
+  },
+  {
+    "platform": "Wikipedia",
+    "url": "https://en.wikipedia.org/wiki/Special:CentralAuth/octocat?uselang=qqx"
+  },
+  {
+    "platform": "VK",
+    "url": "https://vk.com/octocat"
+  },
+  {
+    "platform": "Venmo",
+    "url": "https://test1.venmo.com/u/octocat"
+  },
+  {
+    "platform": "YouTube",
+    "url": "https://www.youtube.com/@octocat"
+  },
+  {
+    "platform": "jeuxvideo",
+    "url": "https://www.jeuxvideo.com/profil/octocat"
+  },
+  {
+    "platform": "Snapchat",
+    "url": "https://www.snapchat.com/@octocat"
+  },
+  {
+    "platform": "YouNow",
+    "url": "https://api.younow.com/php/api/broadcast/info/user=octocat/"
+  },
+  {
+    "platform": "kaskus",
+    "url": "https://www.kaskus.co.id/api/users?username=octocat"
+  },
+  {
+    "platform": "Wordnik",
+    "url": "https://www.wordnik.com/users/octocat"
+  },
+  {
+    "platform": "mastodon.social",
+    "url": "https://mastodon.social/@octocat"
+  },
+  {
+    "platform": "minds",
+    "url": "https://www.minds.com/api/v3/register/validate?username=octocat"
+  },
+  {
+    "platform": "kwork",
+    "url": "https://kwork.ru/user/octocat"
+  },
+  {
+    "platform": "Xvideos",
+    "url": "https://www.xvideos.com/profiles/octocat"
+  },
+  {
+    "platform": "datingRU",
+    "url": "https://dating.ru/octocat/"
+  },
+  {
+    "platform": "threads",
+    "url": "https://www.threads.net/@octocat"
+  },
+  {
+    "platform": "xHamster",
+    "url": "https://xhamster.com/users/octocat"
+  },
+  {
+    "platform": "habr",
+    "url": "https://habr.com/ru/users/octocat/"
+  },
+  {
+    "platform": "couchsurfing",
+    "url": "https://www.couchsurfing.com/c/users/OCTOCAT"
+  },
+  {
+    "platform": "pikabu",
+    "url": "https://pikabu.ru/@octocat"
+  },
+  {
+    "platform": "nnRU",
+    "url": "https://octocat.www.nn.ru/"
+  },
+  {
+    "platform": "tistory",
+    "url": "https://octocat.tistory.com/"
+  },
+  {
+    "platform": "Audiojungle",
+    "url": "https://audiojungle.net/user/octocat"
+  },
+  {
+    "platform": "Ameblo",
+    "url": "https://ameblo.jp/octocat/"
+  },
+  {
+    "platform": "Bandlab",
+    "url": "https://www.bandlab.com/api/v1.3/users/octocat"
+  },
+  {
+    "platform": "Bunpro",
+    "url": "https://community.bunpro.jp/u/octocat.json"
+  },
+  {
+    "platform": "Bluesky 2",
+    "url": "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=octocat.bsky.social"
+  },
+  {
+    "platform": "CodeSandbox",
+    "url": "https://codesandbox.io/api/v1/users/octocat"
+  },
+  {
+    "platform": "Codeforces",
+    "url": "https://codeforces.com/api/user.info?handles=octocat"
+  },
+  {
+    "platform": "Chess.com",
+    "url": "https://api.chess.com/pub/player/octocat"
+  },
+  {
+    "platform": "chaturbate",
+    "url": "https://chaturbate.com/octocat/"
+  },
+  {
+    "platform": "Clubhouse",
+    "url": "https://www.clubhouse.com/@octocat"
+  },
+  {
+    "platform": "Calendy",
+    "url": "https://calendly.com/octocat"
+  },
+  {
+    "platform": "Disqus",
+    "url": "https://disqus.com/api/3.0/users/details?user=username:octocat&api_key=E8Uh5l5fHZ6gD8U3KycjAIAk46f68Zw7C6eW8WSjZvCLXebZ7p0r1yrYDrLilk2F"
+  },
+  {
+    "platform": "CastingCallClub",
+    "url": "https://www.castingcall.club/m/octocat"
+  },
+  {
+    "platform": "Dating.ru",
+    "url": "https://dating.ru/octocat/"
+  },
+  {
+    "platform": "Discogs",
+    "url": "https://api.discogs.com/users/octocat"
+  },
+  {
+    "platform": "dev.to",
+    "url": "https://dev.to/api/users/by_username?url=octocat"
+  },
+  {
+    "platform": "Etoro",
+    "url": "https://www.etoro.com/api/logininfo/v1.1/users/octocat"
+  },
+  {
+    "platform": "Blogspot",
+    "url": "http://octocat.blogspot.com/"
+  },
+  {
+    "platform": "FACEIT",
+    "url": "https://www.faceit.com/api/users/v1/nicknames/octocat"
+  },
+  {
+    "platform": "Cytoid",
+    "url": "https://cytoid.io/profile/octocat"
+  },
+  {
+    "platform": "Codewars",
+    "url": "https://www.codewars.com/api/v1/users/octocat"
+  },
+  {
+    "platform": "GitHub (User)",
+    "url": "https://api.github.com/users/octocat"
+  },
+  {
+    "platform": "GitHub (Gists)",
+    "url": "https://api.github.com/users/octocat/gists"
+  },
+  {
+    "platform": "Donation Alerts",
+    "url": "https://www.donationalerts.com/api/v1/user/octocat/donationpagesettings"
+  },
+  {
+    "platform": "Giphy (Channel)",
+    "url": "https://giphy.com/channel/octocat"
+  },
+  {
+    "platform": "GOG",
+    "url": "https://www.gog.com/u/octocat"
+  },
+  {
+    "platform": "freesound",
+    "url": "https://freesound.org/people/octocat/section/stats/?ajax=1"
+  },
+  {
+    "platform": "Flipboard",
+    "url": "https://flipboard.com/@octocat"
+  },
+  {
+    "platform": "gpodder.net",
+    "url": "https://gpodder.net/user/octocat/"
+  },
+  {
+    "platform": "HackerRank",
+    "url": "https://www.hackerrank.com/rest/contests/master/hackers/octocat/profile"
+  },
+  {
+    "platform": "Gettr",
+    "url": "https://gettr.com/api/s/uinf/octocat"
+  },
+  {
+    "platform": "Instagram (Imginn)",
+    "url": "https://imginn.com/octocat/"
+  },
+  {
+    "platform": "Habr (User)",
+    "url": "https://habr.com/ru/users/octocat/"
+  },
+  {
+    "platform": "Habbo.com.br",
+    "url": "https://www.habbo.com.br/api/public/users?name=octocat"
+  },
+  {
+    "platform": "Habbo.com",
+    "url": "https://www.habbo.com/api/public/users?name=octocat"
+  },
+  {
+    "platform": "Habbo.nl",
+    "url": "https://www.habbo.nl/api/public/users?name=octocat"
+  },
+  {
+    "platform": "IFTTT",
+    "url": "https://ifttt.com/p/octocat"
+  },
+  {
+    "platform": "Instructables",
+    "url": "https://www.instructables.com/json-api/showAuthorExists?screenName=octocat"
+  },
+  {
+    "platform": "Jeuxvideo",
+    "url": "https://www.jeuxvideo.com/profil/octocat?mode=infos"
+  },
+  {
+    "platform": "Habbo.fr",
+    "url": "https://www.habbo.fr/api/public/users?name=octocat"
+  },
+  {
+    "platform": "Instagram",
+    "url": "https://www.instagram.com/octocat/"
+  },
+  {
+    "platform": "Imgur",
+    "url": "https://api.imgur.com/account/v1/accounts/octocat?client_id=546c25a59c58ad7"
+  },
+  {
+    "platform": "Letterboxd",
+    "url": "https://letterboxd.com/octocat/"
+  },
+  {
+    "platform": "itch.io",
+    "url": "https://itch.io/profile/octocat"
+  },
+  {
+    "platform": "inaturalist",
+    "url": "https://api.inaturalist.org/v1/users/octocat"
+  },
+  {
+    "platform": "linux.org.ru",
+    "url": "https://www.linux.org.ru/people/octocat/profile"
+  },
+  {
+    "platform": "KnowYourMeme",
+    "url": "https://knowyourmeme.com/users/octocat"
+  },
+  {
+    "platform": "Mastodon API",
+    "url": "https://mastodon.social/api/v2/search?q=octocat&limit=1&type=accounts"
+  },
+  {
+    "platform": "Moxfield",
+    "url": "https://api2.moxfield.com/v1/users/octocat"
+  },
+  {
+    "platform": "Mastodon-mastodon",
+    "url": "https://mastodon.social/@octocat"
+  },
+  {
+    "platform": "Monkeytype",
+    "url": "https://api.monkeytype.com/users/octocat/profile"
+  },
+  {
+    "platform": "Mixlr",
+    "url": "https://api.mixlr.com/users/octocat"
+  },
+  {
+    "platform": "Mixcloud",
+    "url": "https://api.mixcloud.com/octocat/"
+  },
+  {
+    "platform": "MyAnimeList",
+    "url": "https://myanimelist.net/profile/octocat"
+  },
+  {
+    "platform": "Naver",
+    "url": "https://blog.naver.com/octocat"
+  },
+  {
+    "platform": "Pewex",
+    "url": "https://retro.pewex.pl/user/octocat"
+  },
+  {
+    "platform": "Pastebin",
+    "url": "https://pastebin.com/u/octocat"
+  },
+  {
+    "platform": "nnru",
+    "url": "https://octocat.www.nn.ru/"
+  },
+  {
+    "platform": "Reddit",
+    "url": "https://www.reddit.com/user/octocat/about.json"
+  },
+  {
+    "platform": "Patreon",
+    "url": "https://www.patreon.com/profile/creators?u=34860390"
+  },
+  {
+    "platform": "Pinterest",
+    "url": "https://www.pinterest.com/octocat/"
+  },
+  {
+    "platform": "shopify",
+    "url": "https://octocat.myshopify.com/"
+  },
+  {
+    "platform": "Periscope",
+    "url": "https://www.periscope.tv/octocat"
+  },
+  {
+    "platform": "MySpace",
+    "url": "https://myspace.com/octocat"
+  },
+  {
+    "platform": "Statuspage",
+    "url": "https://octocat.statuspage.io/api/v2/status.json"
+  },
+  {
+    "platform": "Speaker Deck",
+    "url": "https://speakerdeck.com/octocat/"
+  },
+  {
+    "platform": "StreamLabs",
+    "url": "https://streamlabs.com/api/v6/user/octocat"
+  },
+  {
+    "platform": "TETR.IO",
+    "url": "https://ch.tetr.io/api/users/octocat"
+  },
+  {
+    "platform": "SoundCloud",
+    "url": "https://soundcloud.com/octocat"
+  },
+  {
+    "platform": "themeforest",
+    "url": "https://themeforest.net/user/octocat"
+  },
+  {
+    "platform": "RumbleUser",
+    "url": "https://rumble.com/user/octocat"
+  },
+  {
+    "platform": "Tenor",
+    "url": "https://tenor.com/users/octocat"
+  },
+  {
+    "platform": "Ultimate Guitar",
+    "url": "https://www.ultimate-guitar.com/u/octocat"
+  },
+  {
+    "platform": "Twitch",
+    "url": "https://twitchtracker.com/octocat"
+  },
+  {
+    "platform": "Wattpad",
+    "url": "https://www.wattpad.com/api/v3/users/octocat"
+  },
+  {
+    "platform": "Xbox Gamertag",
+    "url": "https://www.xboxgamertag.com/search/octocat"
+  },
+  {
+    "platform": "WordPress.com (Public)",
+    "url": "https://public-api.wordpress.com/rest/v1.1/sites/octocat.wordpress.com"
+  },
+  {
+    "platform": "xHamster",
+    "url": "https://xhamster.com/users/octocat"
+  },
+  {
+    "platform": "Venmo",
+    "url": "https://account.venmo.com/u/octocat"
+  },
+  {
+    "platform": "XVideos",
+    "url": "https://www.xvideos.com/profiles/octocat/feed/"
+  },
+  {
+    "platform": "YouTube User2",
+    "url": "https://www.youtube.com/@octocat"
+  },
+  {
+    "platform": "zhihu",
+    "url": "https://api.zhihu.com/books/people/octocat/publications?offset=0&limit=5"
+  },
+  {
+    "platform": "wordnik",
+    "url": "https://www.wordnik.com/users/octocat"
+  }
+]

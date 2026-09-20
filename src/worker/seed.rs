@@ -1,234 +1,221 @@
 use std::collections::HashSet;
 
 pub const RESERVED_PATHS: &[&str] = &[
-    "about", "api", "blog", "contact", "explore", "features", "feed", "help",
-    "home", "login", "notifications", "orgs", "pricing", "privacy", "search",
-    "settings", "signup", "terms", "topics", "trending", "user", "users",
+    "about", "account", "accounts", "api", "blog", "c", "channel", "company", "contact",
+    "direct", "explore", "features", "feed", "groups", "help", "home", "i", "in", "intent",
+    "login", "messages", "notifications", "orgs", "p", "podcasts", "posts", "pricing",
+    "privacy", "r", "reel", "reels", "search", "settings", "share", "signup", "status",
+    "stories", "tags", "terms", "topics", "trending", "u", "user", "users", "videos", "watch",
 ];
 
-pub fn extract_handle(raw_url: &str) -> Option<(String, String)> {
-    let url_str = raw_url.trim();
-    if url_str.is_empty() {
+pub fn extract_handle(raw_input: &str) -> Option<(String, String)> {
+    let input = percent_decode(raw_input.trim());
+    if input.is_empty() {
         return None;
     }
 
-    if !url_str.contains("://") && !url_str.contains('.') {
-        let clean = clean_handle(url_str);
+    if !input.contains('/') && !input.contains('.') && !input.contains(':') {
+        let clean = clean_handle(&input);
         if clean.is_empty() || is_reserved(&clean) {
             return None;
         }
         return Some(("username".to_string(), clean));
     }
 
-    let parsed = url::Url::parse(url_str).ok()?;
-    let host = parsed.host_str()?.to_lowercase();
+    let full_url = if !input.starts_with("http://") && !input.starts_with("https://") {
+        format!("https://{}", input)
+    } else {
+        input.clone()
+    };
+
+    let parsed = url::Url::parse(&full_url).ok()?;
+    let raw_host = parsed.host_str()?.to_lowercase();
+
+    let host = raw_host
+        .trim_start_matches("www.")
+        .trim_start_matches("m.")
+        .trim_start_matches("mobile.");
+
     let path = parsed.path().trim_matches('/');
+    let segments: Vec<&str> = if path.is_empty() {
+        Vec::new()
+    } else {
+        path.split('/').map(clean_handle_ref).collect()
+    };
 
     let reserved: HashSet<&str> = RESERVED_PATHS.iter().copied().collect();
 
-    if host.contains("github.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("github".to_string(), h));
-            }
-        }
+    // 1. GitHub
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "github.com", "github") {
+        return Some(res);
     }
 
-    if host.contains("x.com") || host.contains("twitter.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("twitter".to_string(), h));
-            }
-        }
+    // 2. Twitter / X
+    if (host == "x.com" || host == "twitter.com" || host.ends_with(".twitter.com") || host.ends_with(".x.com"))
+        && !segments.is_empty()
+        && !segments[0].is_empty()
+        && !reserved.contains(segments[0].to_lowercase().as_str())
+    {
+        return Some(("twitter".to_string(), segments[0].to_string()));
     }
 
-    if host.contains("instagram.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("instagram".to_string(), h));
-            }
-        }
+    // 3. Instagram
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "instagram.com", "instagram") {
+        return Some(res);
     }
 
-    if host.contains("tiktok.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        for seg in segments {
+    // 4. TikTok: tiktok.com/@{u}
+    if host == "tiktok.com" || host.ends_with(".tiktok.com") {
+        for seg in &segments {
             if let Some(h) = seg.strip_prefix('@') {
-                let clean = clean_handle(h);
+                let clean = clean_handle_ref(h);
                 if !clean.is_empty() && !reserved.contains(clean.to_lowercase().as_str()) {
-                    return Some(("tiktok".to_string(), clean));
+                    return Some(("tiktok".to_string(), clean.to_string()));
                 }
             }
         }
     }
 
-    if host.contains("youtube.com") || host.contains("youtu.be") {
-        let segments: Vec<&str> = path.split('/').collect();
+    // 5. YouTube: youtube.com/@{u}|/c/{u}|/user/{u}
+    if host == "youtube.com" || host.ends_with(".youtube.com") || host == "youtu.be" {
         if !segments.is_empty() {
-            if let Some(h) = segments[0].strip_prefix('@') {
-                let clean = clean_handle(h);
-                if !clean.is_empty() { return Some(("youtube".to_string(), clean)); }
-            }
             if (segments[0] == "c" || segments[0] == "user") && segments.len() > 1 {
-                let clean = clean_handle(segments[1]);
-                if !clean.is_empty() { return Some(("youtube".to_string(), clean)); }
+                let clean = segments[1];
+                if !clean.is_empty() && !reserved.contains(clean.to_lowercase().as_str()) {
+                    return Some(("youtube".to_string(), clean.to_string()));
+                }
+            } else if !segments[0].is_empty() && !reserved.contains(segments[0].to_lowercase().as_str()) {
+                return Some(("youtube".to_string(), segments[0].to_string()));
             }
         }
+        return None;
     }
 
-    if host.contains("reddit.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if segments.len() >= 2 && (segments[0] == "user" || segments[0] == "u") {
-            let clean = clean_handle(segments[1]);
-            if !clean.is_empty() { return Some(("reddit".to_string(), clean)); }
+    // 6. Reddit: reddit.com/user/{u} or reddit.com/u/{u}
+    if (host == "reddit.com" || host.ends_with(".reddit.com")) && segments.len() >= 2 && (segments[0] == "user" || segments[0] == "u") {
+        let clean = segments[1];
+        if !clean.is_empty() {
+            return Some(("reddit".to_string(), clean.to_string()));
         }
+        return None;
     }
 
-    if host.contains("linkedin.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if segments.len() >= 2 && segments[0] == "in" {
-            let clean = clean_handle(segments[1]);
-            if !clean.is_empty() { return Some(("linkedin".to_string(), clean)); }
+    // 7. LinkedIn: linkedin.com/in/{u}
+    if (host == "linkedin.com" || host.ends_with(".linkedin.com")) && segments.len() >= 2 && segments[0] == "in" {
+        let clean = segments[1];
+        if !clean.is_empty() {
+            return Some(("linkedin".to_string(), clean.to_string()));
         }
+        return None;
     }
 
-    if host.contains("medium.com") {
-        if let Some(subdomain) = host.strip_suffix(".medium.com") {
-            let clean = clean_handle(subdomain);
-            if !clean.is_empty() && clean != "www" {
-                return Some(("medium".to_string(), clean));
+    // 8. Medium: medium.com/@{u} and {u}.medium.com
+    if host == "medium.com" || host.ends_with(".medium.com") {
+        if let Some(subdomain) = raw_host.strip_suffix(".medium.com") {
+            let clean = clean_handle_ref(subdomain.trim_start_matches("www.").trim_start_matches("m."));
+            if !clean.is_empty() && clean != "www" && clean != "m" {
+                return Some(("medium".to_string(), clean.to_string()));
             }
         }
-        let segments: Vec<&str> = path.split('/').collect();
         if !segments.is_empty() {
             if let Some(h) = segments[0].strip_prefix('@') {
-                let clean = clean_handle(h);
-                if !clean.is_empty() { return Some(("medium".to_string(), clean)); }
+                let clean = clean_handle_ref(h);
+                if !clean.is_empty() {
+                    return Some(("medium".to_string(), clean.to_string()));
+                }
             }
         }
     }
 
-    if host.contains("dev.to") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("devto".to_string(), h));
+    // 9. Dev.to
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "dev.to", "devto") {
+        return Some(res);
+    }
+
+    // 10. GitLab
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "gitlab.com", "gitlab") {
+        return Some(res);
+    }
+
+    // 11. Twitch
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "twitch.tv", "twitch") {
+        return Some(res);
+    }
+
+    // 12. Telegram: t.me/{u} or telegram.me/{u}
+    if (host == "t.me" || host == "telegram.me" || host.ends_with(".t.me") || host.ends_with(".telegram.me"))
+        && !segments.is_empty() && !segments[0].is_empty() && !reserved.contains(segments[0].to_lowercase().as_str()) {
+        return Some(("telegram".to_string(), segments[0].to_string()));
+    }
+
+    // 13. Keybase
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "keybase.io", "keybase") {
+        return Some(res);
+    }
+
+    // 14. Pinterest
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "pinterest.com", "pinterest") {
+        return Some(res);
+    }
+
+    // 15. CodePen
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "codepen.io", "codepen") {
+        return Some(res);
+    }
+
+    // 16. SoundCloud
+    if let Some(res) = extract_single_segment_host(host, &segments, &reserved, "soundcloud.com", "soundcloud") {
+        return Some(res);
+    }
+
+    // 17. Tumblr: {u}.tumblr.com
+    if host == "tumblr.com" || host.ends_with(".tumblr.com") {
+        if let Some(subdomain) = raw_host.strip_suffix(".tumblr.com") {
+            let clean = clean_handle_ref(subdomain.trim_start_matches("www.").trim_start_matches("m."));
+            if !clean.is_empty() && clean != "www" && clean != "m" {
+                return Some(("tumblr".to_string(), clean.to_string()));
             }
+        }
+        if !segments.is_empty() && !segments[0].is_empty() && !reserved.contains(segments[0].to_lowercase().as_str()) {
+            return Some(("tumblr".to_string(), segments[0].to_string()));
         }
     }
 
-    if host.contains("gitlab.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("gitlab".to_string(), h));
-            }
+    // 18. StackOverflow: stackoverflow.com/users/{id}/{name}
+    if (host == "stackoverflow.com" || host.ends_with(".stackoverflow.com")) && segments.len() >= 3 && segments[0] == "users" {
+        let name = segments[2];
+        if !name.is_empty() {
+            return Some(("stackoverflow".to_string(), name.to_string()));
         }
     }
 
-    if host.contains("twitch.tv") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("twitch".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("t.me") || host.contains("telegram.me") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("telegram".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("keybase.io") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("keybase".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("pinterest.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("pinterest".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("codepen.io") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("codepen".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("soundcloud.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("soundcloud".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("tumblr.com") {
-        if let Some(subdomain) = host.strip_suffix(".tumblr.com") {
-            let clean = clean_handle(subdomain);
-            if !clean.is_empty() && clean != "www" {
-                return Some(("tumblr".to_string(), clean));
-            }
-        }
-        let segments: Vec<&str> = path.split('/').collect();
-        if !segments.is_empty() && !segments[0].is_empty() {
-            let h = clean_handle(segments[0]);
-            if !reserved.contains(h.to_lowercase().as_str()) {
-                return Some(("tumblr".to_string(), h));
-            }
-        }
-    }
-
-    if host.contains("stackoverflow.com") {
-        let segments: Vec<&str> = path.split('/').collect();
-        if segments.len() >= 3 && segments[0] == "users" {
-            let name = clean_handle(segments[2]);
-            if !name.is_empty() {
-                return Some(("stackoverflow".to_string(), name));
-            }
-        }
-    }
-
-    let segments: Vec<&str> = path.split('/').collect();
     if !segments.is_empty() && !segments[0].is_empty() {
-        let h = clean_handle(segments[0]);
-        if !reserved.contains(h.to_lowercase().as_str()) {
+        let h = segments[0];
+        if !reserved.contains(h.to_lowercase().as_str()) && !h.starts_with("profile.php") {
             let platform = host.split('.').next().unwrap_or("website").to_string();
-            return Some((platform, h));
+            return Some((platform, h.to_string()));
         }
     }
 
+    None
+}
+
+fn extract_single_segment_host(
+    host: &str,
+    segments: &[&str],
+    reserved: &HashSet<&str>,
+    domain: &str,
+    platform: &str,
+) -> Option<(String, String)> {
+    if (host == domain || host.ends_with(&format!(".{}", domain)))
+        && !segments.is_empty()
+        && !segments[0].is_empty()
+    {
+        let h = segments[0];
+        if !reserved.contains(h.to_lowercase().as_str()) {
+            return Some((platform.to_string(), h.to_string()));
+        }
+    }
     None
 }
 
@@ -236,12 +223,38 @@ fn is_reserved(h: &str) -> bool {
     RESERVED_PATHS.contains(&h.to_lowercase().as_str())
 }
 
+fn percent_decode(s: &str) -> String {
+    let mut bytes = Vec::new();
+    let s_bytes = s.as_bytes();
+    let mut i = 0;
+    while i < s_bytes.len() {
+        if s_bytes[i] == b'%' && i + 2 < s_bytes.len() {
+            if let Ok(h) = u8::from_str_radix(std::str::from_utf8(&s_bytes[i + 1..i + 3]).unwrap_or(""), 16) {
+                bytes.push(h);
+                i += 3;
+                continue;
+            }
+        }
+        bytes.push(s_bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
 fn clean_handle(s: &str) -> String {
+    clean_handle_ref(s).to_string()
+}
+
+fn clean_handle_ref(s: &str) -> &str {
     let s = s.trim();
     let s = s.split('?').next().unwrap_or(s);
     let s = s.split('#').next().unwrap_or(s);
     let s = s.trim_matches('/');
-    s.to_string()
+    if let Some(stripped) = s.strip_prefix('@') {
+        stripped
+    } else {
+        s
+    }
 }
 
 #[cfg(test)]
@@ -249,37 +262,42 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_extract_handle_patterns() {
+    fn test_extract_handle_all_patterns() {
         assert_eq!(extract_handle("https://github.com/octocat"), Some(("github".to_string(), "octocat".to_string())));
-        assert_eq!(extract_handle("https://github.com/octocat?tab=repositories"), Some(("github".to_string(), "octocat".to_string())));
-        assert_eq!(extract_handle("https://x.com/elonmusk"), Some(("twitter".to_string(), "elonmusk".to_string())));
-        assert_eq!(extract_handle("https://twitter.com/jack"), Some(("twitter".to_string(), "jack".to_string())));
-        assert_eq!(extract_handle("https://instagram.com/zuck"), Some(("instagram".to_string(), "zuck".to_string())));
-        assert_eq!(extract_handle("https://tiktok.com/@khaby.lame"), Some(("tiktok".to_string(), "khaby.lame".to_string())));
-        assert_eq!(extract_handle("https://youtube.com/@mkbhd"), Some(("youtube".to_string(), "mkbhd".to_string())));
-        assert_eq!(extract_handle("https://youtube.com/c/LinusTechTips"), Some(("youtube".to_string(), "LinusTechTips".to_string())));
-        assert_eq!(extract_handle("https://youtube.com/user/google"), Some(("youtube".to_string(), "google".to_string())));
-        assert_eq!(extract_handle("https://reddit.com/user/spez"), Some(("reddit".to_string(), "spez".to_string())));
-        assert_eq!(extract_handle("https://reddit.com/u/spez"), Some(("reddit".to_string(), "spez".to_string())));
-        assert_eq!(extract_handle("https://linkedin.com/in/satyanadella"), Some(("linkedin".to_string(), "satyanadella".to_string())));
-        assert_eq!(extract_handle("https://medium.com/@ev"), Some(("medium".to_string(), "ev".to_string())));
-        assert_eq!(extract_handle("https://alex.medium.com"), Some(("medium".to_string(), "alex".to_string())));
-        assert_eq!(extract_handle("https://dev.to/ben"), Some(("devto".to_string(), "ben".to_string())));
-        assert_eq!(extract_handle("https://gitlab.com/torvalds"), Some(("gitlab".to_string(), "torvalds".to_string())));
-        assert_eq!(extract_handle("https://twitch.tv/shroud"), Some(("twitch".to_string(), "shroud".to_string())));
-        assert_eq!(extract_handle("https://t.me/durov"), Some(("telegram".to_string(), "durov".to_string())));
-        assert_eq!(extract_handle("https://keybase.io/max"), Some(("keybase".to_string(), "max".to_string())));
-        assert_eq!(extract_handle("https://pinterest.com/design"), Some(("pinterest".to_string(), "design".to_string())));
-        assert_eq!(extract_handle("https://codepen.io/chriscoyier"), Some(("codepen".to_string(), "chriscoyier".to_string())));
-        assert_eq!(extract_handle("https://soundcloud.com/skrillex"), Some(("soundcloud".to_string(), "skrillex".to_string())));
-        assert_eq!(extract_handle("https://staff.tumblr.com"), Some(("tumblr".to_string(), "staff".to_string())));
-        assert_eq!(extract_handle("https://stackoverflow.com/users/22656/jon-skeet"), Some(("stackoverflow".to_string(), "jon-skeet".to_string())));
+        assert_eq!(extract_handle("github.com/octocat"), Some(("github".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://github.com/octocat/my-repo"), Some(("github".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://www.tiktok.com/@octocat"), Some(("tiktok".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("www.tiktok.com/@octocat"), Some(("tiktok".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://tiktok.com/%40octocat"), Some(("tiktok".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://medium.com/@octocat"), Some(("medium".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://octocat.medium.com"), Some(("medium".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://youtube.com/@octocat"), Some(("youtube".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://youtube.com/c/octocat"), Some(("youtube".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://youtube.com/user/octocat"), Some(("youtube".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://linkedin.com/in/octocat/"), Some(("linkedin".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://x.com/octocat/status/123?s=20"), Some(("twitter".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://twitter.com/octocat"), Some(("twitter".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://reddit.com/user/octocat"), Some(("reddit".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://reddit.com/u/octocat"), Some(("reddit".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://dev.to/octocat"), Some(("devto".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://gitlab.com/octocat"), Some(("gitlab".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://twitch.tv/octocat"), Some(("twitch".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://t.me/octocat"), Some(("telegram".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://keybase.io/octocat"), Some(("keybase".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://pinterest.com/octocat"), Some(("pinterest".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://codepen.io/octocat"), Some(("codepen".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://soundcloud.com/octocat"), Some(("soundcloud".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://octocat.tumblr.com"), Some(("tumblr".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("https://stackoverflow.com/users/12345/octocat"), Some(("stackoverflow".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("@octocat"), Some(("username".to_string(), "octocat".to_string())));
+        assert_eq!(extract_handle("octocat"), Some(("username".to_string(), "octocat".to_string())));
     }
 
     #[test]
-    fn test_extract_handle_reserved_and_junk() {
+    fn test_extract_handle_unsupported_and_reserved() {
+        assert_eq!(extract_handle("https://facebook.com/profile.php?id=1000123"), None);
+        assert_eq!(extract_handle("https://youtube.com/channel/UC123456"), None);
         assert_eq!(extract_handle("https://github.com/orgs"), None);
-        assert_eq!(extract_handle("https://github.com/explore"), None);
         assert_eq!(extract_handle("https://github.com/settings"), None);
         assert_eq!(extract_handle("https://x.com/privacy"), None);
         assert_eq!(extract_handle("https://"), None);

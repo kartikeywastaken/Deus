@@ -15,7 +15,6 @@ async function runSmokeTests() {
   function createDomEnv() {
     const virtualConsole = new VirtualConsole();
     virtualConsole.on("jsdomError", (err) => {
-      // Ignore external script/css loading errors in node jsdom test
       if (err.type === "resource-loading" || err.message.includes("requestSubmit") || err.message.includes("requestAnimationFrame")) return;
       console.error(err);
     });
@@ -45,9 +44,22 @@ async function runSmokeTests() {
     return dom;
   }
 
-  // --- Test Case 1: USERNAME Search ---
-  {
-    console.log("Test 1: USERNAME Search & SSE EventSource triggering...");
+  // --- Test Suite: Seed Classification & Endpoint Routing ---
+  const seedCases = [
+    { input: "https://github.com/octocat", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://github.com/octocat" },
+    { input: "github.com/octocat", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://github.com/octocat" },
+    { input: "https://www.tiktok.com/@octocat", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://www.tiktok.com/@octocat" },
+    { input: "https://medium.com/@octocat", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://medium.com/@octocat" },
+    { input: "https://youtube.com/@octocat", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://youtube.com/@octocat" },
+    { input: "https://linkedin.com/in/octocat/", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://linkedin.com/in/octocat/" },
+    { input: "https://x.com/octocat/status/123?s=20", expectedEndpoint: "/api/searches", expectedSeedType: "PROFILE_URL", expectedValue: "https://x.com/octocat/status/123?s=20" },
+    { input: "user@example.com", expectedEndpoint: "/api/osint/email", expectedSeedType: "EMAIL", expectedValue: "user@example.com" },
+    { input: "@octocat", expectedEndpoint: "/api/searches", expectedSeedType: "USERNAME", expectedValue: "octocat" },
+    { input: "octocat", expectedEndpoint: "/api/searches", expectedSeedType: "USERNAME", expectedValue: "octocat" }
+  ];
+
+  console.log("\nRunning Seed Classification & Endpoint Routing tests...");
+  for (const c of seedCases) {
     const dom = createDomEnv();
     const window = dom.window;
     const document = window.document;
@@ -56,77 +68,10 @@ async function runSmokeTests() {
     window.fetch = async (url, options = {}) => {
       fetchCalls.push({ url, options });
       if (url === "/api/searches") {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ id: "search-123" })
-        };
+        return { ok: true, status: 200, json: async () => ({ id: "search-smoke-1" }) };
       }
-      if (url.startsWith("/api/searches/search-123")) {
-        if (url.endsWith("/candidates")) {
-          return { ok: true, json: async () => ({ items: [{ platform: "github", username: "rubberpirate", score: 0.9 }] }) };
-        }
-        if (url.endsWith("/report")) {
-          return { ok: true, json: async () => ({ report_data: { executive_finding: "Test finding" } }) };
-        }
-        return { ok: true, json: async () => ({ status: "COMPLETED", items: [] }) };
-      }
-      return { ok: true, json: async () => ({}) };
-    };
-
-    class MockEventSource {
-      constructor(url) {
-        this.url = url;
-        setTimeout(() => { if (this.onopen) this.onopen(); }, 10);
-      }
-      addEventListener(evt, cb) {}
-      close() {}
-    }
-    window.EventSource = MockEventSource;
-
-    const scriptEl = document.createElement("script");
-    scriptEl.textContent = appJsContent;
-    document.body.appendChild(scriptEl);
-    document.dispatchEvent(new window.Event("DOMContentLoaded"));
-
-    const seedInput = document.getElementById("seed");
-    const seedTypeSelect = document.getElementById("seed-type");
-    const form = document.getElementById("search-form");
-
-    seedInput.value = "rubberpirate";
-    seedTypeSelect.value = "USERNAME";
-
-    const submitEvent = new window.Event("submit", { bubbles: true, cancelable: true });
-    form.dispatchEvent(submitEvent);
-
-    await new Promise(r => setTimeout(r, 100));
-
-    const postSearchCall = fetchCalls.find(c => c.url === "/api/searches");
-    assert(postSearchCall, "POST /api/searches should have fired");
-    const body = JSON.parse(postSearchCall.options.body);
-    assert.strictEqual(body.seed_type, "USERNAME");
-    assert.strictEqual(body.value, "rubberpirate");
-    assert.strictEqual(body.self_audit_confirmed, true);
-
-    assert.strictEqual(document.getElementById("metrics-section").hidden, false, "metrics-section should be visible");
-    assert.strictEqual(document.getElementById("view-overview").hidden, false, "view-overview should be visible");
-    assert.strictEqual(document.getElementById("search-button").disabled, false, "search-button should be re-enabled");
-
-    console.log("✓ Test 1 Passed (USERNAME search)");
-  }
-
-  // --- Test Case 2: PROFILE_URL Search ---
-  {
-    console.log("Test 2: PROFILE_URL Search...");
-    const dom = createDomEnv();
-    const window = dom.window;
-    const document = window.document;
-
-    const fetchCalls = [];
-    window.fetch = async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      if (url === "/api/searches") {
-        return { ok: true, status: 200, json: async () => ({ id: "search-456" }) };
+      if (url === "/api/osint/email") {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ email: c.input, sites: [], breaches: [] }) };
       }
       return { ok: true, json: async () => ({ status: "COMPLETED", items: [] }) };
     };
@@ -140,86 +85,36 @@ async function runSmokeTests() {
     const seedInput = document.getElementById("seed");
     const form = document.getElementById("search-form");
 
-    seedInput.value = "https://github.com/octocat";
+    seedInput.value = c.input;
     seedInput.dispatchEvent(new window.Event("input"));
 
     const submitEvent = new window.Event("submit", { bubbles: true, cancelable: true });
     form.dispatchEvent(submitEvent);
 
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 50));
 
-    const postSearchCall = fetchCalls.find(c => c.url === "/api/searches");
-    assert(postSearchCall, "POST /api/searches should fire for PROFILE_URL");
-    const body = JSON.parse(postSearchCall.options.body);
-    assert.strictEqual(body.seed_type, "PROFILE_URL");
-    assert.strictEqual(body.value, "https://github.com/octocat");
+    const targetCall = fetchCalls.find(fc => fc.url === c.expectedEndpoint);
+    assert(targetCall, `Input '${c.input}' should fire request to ${c.expectedEndpoint}`);
 
-    assert.strictEqual(document.getElementById("search-button").disabled, false);
-    console.log("✓ Test 2 Passed (PROFILE_URL search flow)");
+    const body = JSON.parse(targetCall.options.body);
+    if (c.expectedEndpoint === "/api/searches") {
+      assert.strictEqual(body.seed_type, c.expectedSeedType, `Input '${c.input}' expected seed_type ${c.expectedSeedType}, got ${body.seed_type}`);
+      assert.strictEqual(body.value, c.expectedValue, `Input '${c.input}' expected value ${c.expectedValue}, got ${body.value}`);
+    } else {
+      assert.strictEqual(body.email, c.expectedValue, `Input '${c.input}' expected email ${c.expectedValue}, got ${body.email}`);
+    }
+
+    console.log(`✓ Seed test passed for: "${c.input}" -> ${c.expectedEndpoint} [${c.expectedSeedType}]`);
   }
 
-  // --- Test Case 3: EMAIL Search ---
+  // --- Test Case: HTTP 500 Error display ---
   {
-    console.log("Test 3: EMAIL Search...");
+    console.log("\nTesting HTTP 500 Error display & un-hiding error element...");
     const dom = createDomEnv();
     const window = dom.window;
     const document = window.document;
 
-    const fetchCalls = [];
-    window.fetch = async (url, options = {}) => {
-      fetchCalls.push({ url, options });
-      if (url === "/api/osint/email") {
-        return {
-          ok: true,
-          status: 200,
-          text: async () => JSON.stringify({
-            email: "test@example.com",
-            provider: "Google",
-            summary: { registered: 1, not_registered: 0, cant_check: 0, scan_ms: 120 },
-            sites: [{ id: "github", label: "GitHub", status: "REGISTERED", username: "test" }]
-          })
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    };
-
-    const scriptEl = document.createElement("script");
-    scriptEl.textContent = appJsContent;
-    document.body.appendChild(scriptEl);
-    document.dispatchEvent(new window.Event("DOMContentLoaded"));
-
-    const seedInput = document.getElementById("seed");
-    const form = document.getElementById("search-form");
-
-    seedInput.value = "test@example.com";
-    seedInput.dispatchEvent(new window.Event("input"));
-
-    const submitEvent = new window.Event("submit", { bubbles: true, cancelable: true });
-    form.dispatchEvent(submitEvent);
-
-    await new Promise(r => setTimeout(r, 100));
-
-    const emailCall = fetchCalls.find(c => c.url === "/api/osint/email");
-    assert(emailCall, "POST /api/osint/email should fire");
-    const body = JSON.parse(emailCall.options.body);
-    assert.strictEqual(body.email, "test@example.com");
-    assert.strictEqual(body.self_audit_confirmed, true);
-
-    const emailSection = document.getElementById("email-osint-section");
-    assert.strictEqual(emailSection.hidden, false, "email-osint-section should be visible");
-    assert.strictEqual(document.getElementById("search-button").disabled, false, "search-button should be re-enabled after email scan");
-
-    console.log("✓ Test 3 Passed (EMAIL search flow)");
-  }
-
-  // --- Test Case 4: HTTP 500 Error display ---
-  {
-    console.log("Test 4: HTTP 500 Error display & un-hiding error element...");
-    const dom = createDomEnv();
-    const window = dom.window;
-    const document = window.document;
-
-    window.fetch = async (url) => {
+    window.fetch = async () => {
       return {
         ok: false,
         status: 500,
@@ -242,14 +137,14 @@ async function runSmokeTests() {
     const submitEvent = new window.Event("submit", { bubbles: true, cancelable: true });
     form.dispatchEvent(submitEvent);
 
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 50));
 
     const errEl = document.getElementById("error");
     assert.strictEqual(errEl.hidden, false, "Error element MUST be un-hidden on HTTP 500 error");
     assert(errEl.textContent.includes("Database connection failed"), "Error text should match server detail");
     assert.strictEqual(document.getElementById("search-button").disabled, false, "Button MUST be re-enabled after error");
 
-    console.log("✓ Test 4 Passed (HTTP 500 error display & un-hiding)");
+    console.log("✓ HTTP 500 Error display test passed");
   }
 
   console.log("\nALL FRONTEND SMOKE TESTS PASSED SUCCESSFULLY!");

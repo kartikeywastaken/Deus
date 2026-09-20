@@ -470,20 +470,24 @@ function renderEmailResult(data) {
 
   // Header Card
   const headBox = node("div", "", "case-card email-header-box");
+  headBox.style.cssText = "padding:20px; margin-bottom:20px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px;";
 
   const titleRow = node("div", "", "email-title-row");
+  titleRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;";
   titleRow.append(
     node("h2", data.email || "Email Account Discovery", "email-heading"),
-    node("span", data.provider || "Provider", "status-chip status-chip--neutral")
+    node("span", data.provider || "Provider", "badge badge-source")
   );
 
   const subLineText = `Verified on ${summary.registered} service${summary.registered === 1 ? '' : 's'} · ${summary.scan_ms} ms`;
   const subLine = node("p", subLineText, "email-subline");
+  subLine.style.cssText = "margin:0; font-size:14px; color:#94a3b8;";
 
   headBox.append(titleRow, subLine);
 
   if (sites.length > 0 && summary.cant_check > sites.length / 2) {
     const incompleteNote = node("p", "Some checks couldn't complete, results may be incomplete.", "email-incomplete-note");
+    incompleteNote.style.cssText = "margin:8px 0 0 0; font-size:13px; color:#64748b; font-style:italic;";
     headBox.append(incompleteNote);
   }
 
@@ -492,31 +496,37 @@ function renderEmailResult(data) {
   // Table showing ONLY verified/registered sites
   if (registeredSites.length > 0) {
     const table = node("table", "", "email-sites-table");
+    table.style.cssText = "width:100%; border-collapse:collapse; margin-bottom:24px; font-size:14px;";
 
     const thead = node("thead");
-    thead.innerHTML = `<tr>
-      <th>Service</th>
-      <th>Status</th>
-      <th>Details / Reason</th>
-      <th>Link</th>
+    thead.innerHTML = `<tr style="border-bottom:1px solid rgba(255,255,255,0.1); text-align:left; color:#94a3b8;">
+      <th style="padding:10px 14px;">Service</th>
+      <th style="padding:10px 14px;">Status</th>
+      <th style="padding:10px 14px;">Details / Reason</th>
+      <th style="padding:10px 14px;">Link</th>
     </tr>`;
     table.append(thead);
 
     const tbody = node("tbody");
     registeredSites.forEach(site => {
       const tr = node("tr");
+      tr.style.cssText = "border-bottom:1px solid rgba(255,255,255,0.04);";
 
       const tdName = node("td", site.label || site.id, "site-name-cell");
+      tdName.style.cssText = "padding:10px 14px; font-weight:600; color:#f4f4f5;";
 
       const tdStatus = node("td");
+      tdStatus.style.padding = "10px 14px";
       tdStatus.append(node("span", "Registered", "status-chip status-chip--found"));
 
       const tdDetail = node("td");
+      tdDetail.style.cssText = "padding:10px 14px; color:#a1a1aa; font-size:13px;";
       let detailText = site.detail || site.reason || "—";
       if (site.username) detailText = `@${site.username}` + (site.detail ? ` (${site.detail})` : "");
       tdDetail.textContent = detailText;
 
       const tdLink = node("td");
+      tdLink.style.padding = "10px 14px";
       if (site.profile_url) {
         tdLink.append(safeLink(site.profile_url, "Open ↗"));
       } else {
@@ -531,15 +541,21 @@ function renderEmailResult(data) {
     container.append(table);
   } else {
     const emptyBox = node("div", "No verified accounts found.", "email-empty-box");
+    emptyBox.style.cssText = "padding:24px; text-align:center; color:#94a3b8; font-size:15px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; margin-bottom:24px;";
     container.append(emptyBox);
   }
 
   // Data breaches summary box if present
   if (breaches && breaches.length > 0) {
     const breachBox = node("div", "", "case-card breach-box");
+    breachBox.style.cssText = "padding:16px; background:rgba(239, 68, 68, 0.08); border:1px solid rgba(239, 68, 68, 0.2); border-radius:8px; margin-top:16px;";
+    
     const breachTitle = node("h3", `Data Breach Exposures (${breaches.length})`);
+    breachTitle.style.cssText = "margin:0 0 8px; color:#f87171; font-size:15px;";
+    
     const names = breaches.map(b => b.name).join(", ");
     const breachText = node("p", `Exposed in public data breaches: ${names}`, "breach-text");
+    breachText.style.cssText = "margin:0; font-size:13px; color:#e2e8f0;";
 
     breachBox.append(breachTitle, breachText);
     container.append(breachBox);
@@ -756,10 +772,10 @@ function initEncryptedText() {
         const span = spanElements[i];
         if (i < step) {
           span.textContent = targetText[i];
-          span.style.color = "#ec1c24";
+          span.style.color = "#ffffff";
         } else {
           span.textContent = chars[Math.floor(Math.random() * chars.length)];
-          span.style.color = "#656565";
+          span.style.color = "#737373";
         }
       }
       step++;
@@ -767,7 +783,7 @@ function initEncryptedText() {
         clearInterval(animationTimer);
         for (let i = 0; i < totalSteps; i++) {
           spanElements[i].textContent = targetText[i];
-          spanElements[i].style.color = "#ec1c24";
+          spanElements[i].style.color = "#ffffff";
         }
         isAnimating = false;
       }
