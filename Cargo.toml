@@ -1,0 +1,52 @@
+[package]
+name = "deus"
+version = "0.1.0"
+edition = "2021"
+description = "Deus: High-performance Akinator-inspired OSINT identity-correlation engine in Rust"
+
+[dependencies]
+# Async Runtime & HTTP Server
+tokio = { version = "1.40", features = ["full"] }
+axum = { version = "0.7", features = ["macros", "ws", "multipart"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "trace", "catch-panic"] }
+futures = "0.3"
+tokio-stream = "0.1"
+async-trait = "0.1"
+
+# Database & Serialization
+sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# OSINT Crates
+scraper = "0.20"
+regex = "1.10"
+rand = "0.8"
+
+# String Similarity & Graph Correlation
+strsim = "0.11"
+petgraph = "0.6"
+
+# Image Hashing & Cryptography
+img_hash = "3.2"
+image = "0.23"
+sha2 = "0.10"
+hex = "0.4"
+
+# Networking & Utilities
+reqwest = { version = "0.12", features = ["json"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+url = "2.5"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

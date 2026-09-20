@@ -38,42 +38,20 @@ Scores are not probabilities until calibrated.
 # 1. PostgreSQL + pgvector
 docker compose up -d
 
-# 2. Python environment
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[live]"
-
-# 3. Copy config
-cp .env.example .env   # edit DATABASE_URL if needed
-
-# 4. Database migrations
+# 2. Database migrations (requires Python + alembic)
 alembic upgrade head
 
-# 5. Start worker (separate terminal)
-python -m backend.worker
-
-# 6. Start API
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765
-
-# 7. Open UI
-open http://127.0.0.1:8765/
+# 3. Start Deus Rust server (API + Worker + UI)
+cargo run
 ```
 
 ---
 
-## System health
+## System health & testing
 
 ```bash
-# JSON report: connectors, DB, migrations, job queue
-python -m backend.doctor
-
-# Human-readable dependency check
-python scripts/check_dependencies.py
-
-# Live integration tests (uses real internet)
-DEUS_TEST_USERNAME=<your-github-handle> pytest -m live
-
-# All deterministic unit tests
-pytest
+# Run deterministic Rust unit tests
+cargo test
 ```
 
 ---

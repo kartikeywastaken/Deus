@@ -12,7 +12,7 @@ const autoContinuedQuestions = new Set();
 function resetResultView() {
   const reportEl = $("report");
   if (reportEl) reportEl.textContent = "An executive identity report appears when the investigation finishes.";
-  ["hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "candidates", "evidence-ledger"].forEach(id => {
+  ["hypotheses", "evidence", "question-options", "email-osint-sources", "email-osint-overview", "candidates", "close-matches"].forEach(id => {
     const el = $(id);
     if (el) el.replaceChildren();
   });
@@ -70,7 +70,7 @@ function showResultSections() {
   const ids = [
     "metrics-section",
     "view-overview",
-    "evidence-ledger-section",
+    "close-matches-section",
     "view-report",
   ];
   ids.forEach(id => {
@@ -140,10 +140,16 @@ function setBusy(value) {
   $("search-button").disabled = value;
   $("seed").disabled = value;
   $("seed-type").disabled = value;
-  $("question-form").querySelectorAll("input,button").forEach(n => n.disabled = value);
+  $("question-form")?.querySelectorAll("input,button").forEach(n => n.disabled = value);
+  
+  const statusPanel = $("status-control-panel");
+  if (statusPanel && value) statusPanel.hidden = false;
+
   if (value) {
     startStatusCycle();
-  } else {
+    const beam = $("radar-beam");
+    if (beam) beam.classList.add("spinning");
+  } else if (!searchId) {
     stopStatusCycle();
   }
 }
@@ -192,7 +198,39 @@ async function refresh() {
       identifiers: identifiers?.items || [],
       observations: observations?.items || [],
     };
-    $("status").textContent = state.status.replaceAll("_", " "); $("search-id").textContent = id;
+
+    const statusPanel = $("status-control-panel");
+    if (statusPanel) statusPanel.hidden = false;
+
+    const isDone = terminal(state.status);
+    const isAwaiting = state.status === "AWAITING_USER";
+    const statusBadgeTag = $("status-badge-tag");
+    const radarBeam = $("radar-beam");
+    const progContainer = $("progress-container");
+    const statusMsg = $("investigation-status-msg");
+
+    if (isDone || isAwaiting) {
+      stopStatusCycle();
+      if (radarBeam) radarBeam.classList.remove("spinning");
+      if (isAwaiting) {
+        if (statusBadgeTag) statusBadgeTag.textContent = `[ AWAITING USER ]`;
+        if (statusMsg) statusMsg.textContent = "Disambiguation required. Please review the question below to refine analysis.";
+        if (progContainer) progContainer.classList.remove("completed");
+        $("status").textContent = "DISAMBIGUATION QUESTION PENDING";
+      } else {
+        if (statusBadgeTag) statusBadgeTag.textContent = `[ ${state.status} ]`;
+        if (statusMsg) statusMsg.textContent = state.status === "COMPLETED" ? "Search finished. Live OSINT sources checked." : "Investigation stopped.";
+        if (progContainer) progContainer.classList.add("completed");
+        $("status").textContent = state.status === "COMPLETED" ? "INVESTIGATION COMPLETED" : state.status.replaceAll("_", " ");
+      }
+    } else {
+      if (statusBadgeTag) statusBadgeTag.textContent = `[ SEARCHING ]`;
+      if (radarBeam) radarBeam.classList.add("spinning");
+      if (progContainer) progContainer.classList.remove("completed");
+      $("status").textContent = "SEARCHING PUBLIC OSINT DATA...";
+    }
+
+    $("search-id").textContent = id;
     $("ai-status").textContent = `AI adviser: ${state.ai_assist?.status || "Not run yet"}${state.ai_assist?.reason ? " · " + state.ai_assist.reason : ""}`;
     
     // Update Confidence Badge
@@ -213,38 +251,39 @@ async function refresh() {
     }
 
     // Summary Metrics Count
-    const foundProfiles = (latest.candidates || []).filter(p => (p.score || 0) > 0 || (p.identity_score || 0) > 0 || p.canonical_url).length;
+    const totalFoundProfiles = (latest.candidates || []).length;
     const discoveredIdentifiers = (latest.identifiers || []).length;
     const recordedObservations = (latest.observations || []).length;
     const evidenceSignalsCount = (latest.evidence || []).length;
-    const uniqueSourcesCount = new Set((latest.runs || []).filter(r => r.status === "SUCCESS" || r.status === "COMPLETED").map(r => r.connector)).size;
+    const uniqueSourcesCount = new Set((latest.runs || []).filter(r => r.status === "SUCCESS" || r.status === "COMPLETED" || r.status === "NO_RESULTS" || r.status === "RUNNING").map(r => r.connector)).size;
 
-    animateMetricCount("candidate-count", foundProfiles);
+    animateMetricCount("candidate-count", totalFoundProfiles);
     animateMetricCount("identifier-count", discoveredIdentifiers);
     animateMetricCount("observation-count", recordedObservations);
     animateMetricCount("evidence-count", evidenceSignalsCount);
-    animateMetricCount("source-count", Math.max(uniqueSourcesCount, 1));
-    animateMetricCount("run-count", (latest.runs || []).filter(r => r.status === "COMPLETED" || r.status === "RUNNING").length);
+    animateMetricCount("source-count", uniqueSourcesCount);
+    animateMetricCount("run-count", (latest.runs || []).filter(r => r.status === "COMPLETED" || r.status === "RUNNING" || r.status === "SUCCESS").length);
 
-    $("stop-search").disabled = terminal(state.status);
+    $("stop-search").disabled = isDone;
     $("continue-search").disabled = state.status !== "AWAITING_USER";
     maybeAutoContinue(state, question.item);
-    if (terminal(state.status)) stopStatusCycle();
-    if (terminal(state.status)) {
+
+    if (isDone) {
       stream?.close();
       clearTimeout(fallbackTimer);
       $("connection").textContent = "Saved investigation";
       if (currentSeedType === "EMAIL" && currentSeedValue && emailFetchedFor !== currentSeedValue) fetchEmailOsint(currentSeedValue);
     }
+
     if (state.error_summary) error(new Error(state.error_summary));
 
     renderCandidates();
-    renderEvidenceLedger();
+    renderCloseMatches();
     renderQuestion();
     renderReport();
 
     $("check-image").disabled = imageBusy || !$("reference-image").files.length;
-    $("image-prompt").textContent = terminal(state.status) ? "Search finished. Optionally select an image to check reuse across avatars." : "Choose an optional image to check reuse across discovered candidate avatars.";
+    $("image-prompt").textContent = isDone ? "Search finished. Optionally select an image to check reuse across avatars." : "Choose an optional image to check reuse across discovered candidate avatars.";
     if (state.status === "COMPLETED" && $("reference-image").files.length && !imageBusy) checkImage();
   } finally { refreshRunning = false; if (refreshAgain) { refreshAgain = false; schedule(); } }
 }
@@ -282,57 +321,153 @@ const RELEVANCE_LABELS = {
 // exact seed, then everything else the connectors actually observed.
 const relevanceRank = p => RELEVANCE_LABELS[p.relevance]?.rank ?? 3;
 
-function candidateCard(p, topMatch) {
-  const card = node("article", "", topMatch ? "case-card candidate-card candidate-card--top" : "case-card candidate-card");
+// ── Platform Icons, Avatars & Direct Links ──
+function getPlatformSvgLogo(platform, size = 26) {
+  const p = String(platform || "").toLowerCase().trim();
+  
+  if (p.includes("github")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>`;
+  }
+  if (p.includes("twitter") || p.includes("x")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`;
+  }
+  if (p.includes("instagram")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="social-logo-svg"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`;
+  }
+  if (p.includes("linkedin")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>`;
+  }
+  if (p.includes("reddit")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.562-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.688-.562-1.249-1.25-1.249zm-4.566 3.967c-.07.067-.07.176 0 .243.68.68 1.83.68 2.51 0a.17.17 0 0 0 0-.243l-.116-.118a.17.17 0 0 0-.243 0c-.43.43-1.16.43-1.59 0a.17.17 0 0 0-.243 0z"/></svg>`;
+  }
+  if (p.includes("medium")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M13.54 12a6.8 6.8 0 0 1-6.77 6.82A6.8 6.8 0 0 1 0 12a6.8 6.8 0 0 1 6.77-6.82A6.8 6.8 0 0 1 13.54 12zM20.96 12c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42c1.87 0 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/></svg>`;
+  }
+  if (p.includes("spotify")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.341c-.22.359-.68.474-1.039.254-2.848-1.741-6.433-2.135-10.655-1.171-.403.093-.811-.161-.904-.564-.092-.403.161-.811.564-.904 4.622-1.056 8.583-.604 11.78 1.35.358.22.474.68.254 1.035zm1.47-3.262c-.277.45-.867.591-1.317.314-3.259-2.003-8.228-2.583-12.083-1.413-.507.153-1.042-.136-1.195-.643-.153-.507.136-1.042.643-1.195 4.412-1.339 9.897-.695 13.638 1.603.45.277.591.867.314 1.334zm.127-3.411c-3.908-2.321-10.363-2.536-14.12-1.396-.6.183-1.237-.162-1.42-.762-.183-.6.162-1.237.762-1.42 4.316-1.31 11.437-1.053 15.932 1.615.54.321.718 1.026.398 1.565-.32.539-1.025.718-1.552.398z"/></svg>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="social-logo-svg"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+}
 
-  const top = node("div", "", "candidate-top");
+function candidateAvatarElement(p) {
+  const avatarUrl = p.avatar_url || p.raw?.avatar_url || p.raw?.profile_pic_url || (p.raw?.owner_info && p.raw?.owner_info.avatar_url);
+  const wrapper = node("div", "", "candidate-avatar-wrap");
+  if (avatarUrl && typeof avatarUrl === "string" && /^https?:\/\//i.test(avatarUrl)) {
+    const img = node("img", "", "candidate-avatar-img");
+    img.src = avatarUrl;
+    img.alt = p.username || p.display_name || "Profile avatar";
+    img.onerror = () => {
+      wrapper.replaceChildren(fallbackAvatar(p));
+    };
+    wrapper.append(img);
+  } else {
+    wrapper.append(fallbackAvatar(p));
+  }
+  return wrapper;
+}
+
+function fallbackAvatar(p) {
+  const fallback = node("div", "", "candidate-avatar-fallback");
+  const platformStr = String(p.platform || "").toLowerCase();
+  
+  if (platformStr.includes("github")) fallback.classList.add("avatar-bg-github");
+  else if (platformStr.includes("twitter") || platformStr.includes("x")) fallback.classList.add("avatar-bg-twitter");
+  else if (platformStr.includes("instagram")) fallback.classList.add("avatar-bg-instagram");
+  else if (platformStr.includes("linkedin")) fallback.classList.add("avatar-bg-linkedin");
+  else if (platformStr.includes("reddit")) fallback.classList.add("avatar-bg-reddit");
+  else if (platformStr.includes("medium")) fallback.classList.add("avatar-bg-medium");
+  else if (platformStr.includes("spotify")) fallback.classList.add("avatar-bg-spotify");
+  else fallback.classList.add("avatar-bg-default");
+
+  fallback.innerHTML = getPlatformSvgLogo(p.platform, 24);
+  return fallback;
+}
+
+function resolveCandidateLink(p) {
+  if (p.canonical_url) {
+    const valid = profileLinkUrl(p.canonical_url);
+    if (valid) return valid;
+  }
+  if (p.url) {
+    const valid = profileLinkUrl(p.url);
+    if (valid) return valid;
+  }
+  if (p.profile_url) {
+    const valid = profileLinkUrl(p.profile_url);
+    if (valid) return valid;
+  }
+  const username = p.username || p.display_name || p.title;
+  if (!username) return null;
+  const cleanUser = String(username).replace(/^@/, "").trim();
+  if (!cleanUser) return null;
+
+  const platform = String(p.platform || p.source_name || "").toLowerCase();
+  if (platform.includes("github")) return `https://github.com/${cleanUser}`;
+  if (platform.includes("twitter") || platform.includes("x")) return `https://x.com/${cleanUser}`;
+  if (platform.includes("instagram")) return `https://instagram.com/${cleanUser}`;
+  if (platform.includes("linkedin")) return `https://linkedin.com/in/${cleanUser}`;
+  if (platform.includes("reddit")) return `https://reddit.com/user/${cleanUser}`;
+  if (platform.includes("medium")) return `https://medium.com/@${cleanUser}`;
+  if (platform.includes("spotify")) return `https://open.spotify.com/user/${cleanUser}`;
+  if (platform.includes("youtube")) return `https://youtube.com/@${cleanUser}`;
+  if (platform.includes("pinterest")) return `https://pinterest.com/${cleanUser}`;
+  if (platform.includes("website") || cleanUser.includes(".")) {
+    return profileLinkUrl(cleanUser) || `https://google.com/search?q=${encodeURIComponent(cleanUser)}`;
+  }
+  return `https://google.com/search?q=${encodeURIComponent((p.platform || '') + ' ' + cleanUser)}`;
+}
+
+let candidatePageSize = 36;
+let candidateSearchQuery = "";
+
+function candidateCard(p) {
+  const card = node("article", "", "case-card candidate-card");
+
+  const header = node("div", "", "candidate-header-row");
+  const avatarWrap = candidateAvatarElement(p);
+
   const identity = node("div", "", "candidate-identity");
-  identity.append(
-    node("p", String(p.platform || "PROFILE").toUpperCase(), "platform"),
-    node("strong", p.username ? "@" + p.username : p.display_name || "Public profile", "candidate-handle")
-  );
-  if (p.username && p.display_name) identity.append(node("span", p.display_name, "candidate-display"));
+  const platformLine = node("div", "", "platform-badge-line");
+  
+  const sourceName = p.raw_json?.source || p.raw?.source || p.source_name || "connector";
+  const verified = p.raw_json?.verified ?? true;
+  const category = p.raw_json?.category || "social";
 
-  // Match confidence is shown on every card, not only the leading one.
+  platformLine.innerHTML = `${getPlatformSvgLogo(p.platform, 14)} <span>${String(p.platform || "PROFILE").toUpperCase()}</span> <span class="badge badge-source" style="font-size:10px;padding:2px 6px;margin-left:6px;border-radius:4px;background:rgba(255,255,255,0.1);color:#a1a1aa">${sourceName}</span>`;
+  
+  const handle = node("strong", p.username ? "@" + p.username : p.display_name || "Public profile", "candidate-handle");
+  identity.append(platformLine, handle);
+  if (p.username && p.display_name && p.display_name !== p.username) identity.append(node("span", p.display_name, "candidate-display"));
+  if (p.bio) identity.append(node("p", p.bio, "candidate-bio-sub"));
+
+  header.append(avatarWrap, identity);
+  card.append(header);
+
+  // Chips: Match Label + Verified Badge + Category
   const chips = node("div", "", "candidate-chips");
   const matchInfo = getMatchLabel(candidateMatchValue(p));
-  chips.append(node("span", `${matchInfo.label} · ${matchInfo.score}%`, `status-chip ${matchInfo.cls}`));
   const rel = RELEVANCE_LABELS[p.relevance];
-  if (rel) {
-    const relChip = node("span", rel.label, `status-chip ${rel.cls}`);
-    relChip.title = `Seed relevance: ${p.relevance}`;
-    relChip.dataset.relevance = p.relevance;
-    chips.append(relChip);
-  }
-  if (p.classification) {
-    chips.append(node("span", String(p.classification).replaceAll("_", " "), "status-chip status-chip--neutral"));
-  }
-  top.append(identity, chips);
-  card.append(top);
+  const badgeText = rel ? `${rel.label} · ${matchInfo.score}%` : `${matchInfo.label} · ${matchInfo.score}%`;
+  const badgeCls = rel ? rel.cls : matchInfo.cls;
+  chips.append(node("span", badgeText, `status-chip ${badgeCls}`));
+  if (verified) chips.append(node("span", "✓ Verified", "status-chip status-chip--found"));
+  chips.append(node("span", category, "status-chip status-chip--neutral"));
+  card.append(chips);
 
   const why = node("div", "", "candidate-why");
   why.append(node("span", "Why this result?", "candidate-why-title"));
   if (p.relevance) why.append(node("p", `Seed relevance: ${p.relevance}`, "candidate-relevance-line"));
-  why.append(node("p", p.reason || "Public profile surfaced by OSINT connectors; identity is unconfirmed.", "candidate-reason"));
-  why.append(node("small", `Deterministic search-relevance score: ${(candidateMatchValue(p) * 100).toFixed(1)}/100 · ${p.score_kind || "SEARCH_RELEVANCE"}`, "candidate-score-note"));
+  why.append(node("p", p.reason || `Public profile on ${p.platform} surfaced by ${sourceName}.`, "candidate-reason"));
   card.append(why);
 
   const actions = node("div", "", "candidate-actions");
-  if (p.canonical_url) actions.append(safeLink(p.canonical_url, "Open public profile ↗"));
-  const publicLinks = (p.public_links || []).length;
-  const linked = (p.linked_accounts || []).length;
-  if (publicLinks || linked) {
-    actions.append(
-      node(
-        "span",
-        [
-          publicLinks ? `${publicLinks} public link${publicLinks === 1 ? "" : "s"} on this profile` : "",
-          linked ? `direct link to ${linked} other profile${linked === 1 ? "" : "s"}` : "",
-        ].filter(Boolean).join(" · "),
-        "candidate-meta"
-      )
-    );
+  const targetLink = resolveCandidateLink(p);
+  if (targetLink) {
+    actions.append(safeLink(targetLink, `Open ${p.platform || 'profile'} ↗`));
+  } else {
+    actions.append(node("span", "Public profile observed", "candidate-meta"));
   }
+
   card.append(actions);
   return card;
 }
@@ -342,118 +477,141 @@ function renderCandidates() {
   if (!grid) return;
   grid.replaceChildren();
 
-  // Every profile the backend observed is rendered, closest match first, and
-  // nothing is capped: confirmed variants, the exact seed and lower-confidence
-  // possibilities all reach the reader.
-  const candidates = [...(latest?.candidates || [])].sort((a, b) =>
+  // Unified priority sorting
+  const allCandidates = [...(latest?.candidates || [])].sort((a, b) =>
     (relevanceRank(a) - relevanceRank(b)) ||
     (candidateMatchValue(b) - candidateMatchValue(a)) ||
     String(a.platform || "").localeCompare(String(b.platform || ""))
   );
 
-  let rendered = 0;
-
-  if (candidates.length) {
-    grid.append(node("h3", `Top Match · ${candidates.length} public profile${candidates.length === 1 ? "" : "s"} found · closest match first`));
-    grid.append(candidateCard(candidates[0], true));
-    rendered += 1;
-  }
-
-  if (candidates.length > 1) {
-    grid.append(node("h3", "Additional Matched Profile Leads"));
-    for (const p of candidates.slice(1)) {
-      grid.append(candidateCard(p, false));
-      rendered += 1;
-    }
-  }
-
-  // Real email OSINT registrations, kept separate from profile candidates.
-  const knownUrls = new Set(candidates.map(p => (p.canonical_url || "").toLowerCase()).filter(Boolean));
+  const knownUrls = new Set(allCandidates.map(p => (p.canonical_url || "").toLowerCase()).filter(Boolean));
   const emailLeads = emailCandidateLeads().filter(lead => {
     const url = (lead.canonical_url || "").toLowerCase();
     return !url || !knownUrls.has(url);
   });
-  if (emailLeads.length) {
-    grid.append(node("h3", "Matched Account Registrations (Email OSINT)"));
-    for (const p of emailLeads) {
-      const card = node("article", "", "case-card candidate-card");
-      const top = node("div", "", "candidate-top");
-      const identity = node("div", "", "candidate-identity");
-      identity.append(
-        node("p", String(p.platform || "ACCOUNT").toUpperCase(), "platform"),
-        node("strong", p.title, "candidate-handle")
-      );
-      const matchInfo = getMatchLabel(p.confidence || 0.85);
-      const chips = node("div", "", "candidate-chips");
-      chips.append(node("span", `${matchInfo.label} · ${matchInfo.score}%`, `status-chip ${matchInfo.cls}`));
-      top.append(identity, chips);
-      card.append(top);
-      if (p.username) card.append(node("p", `Username: @${p.username}`, "candidate-display"));
-      const actions = node("div", "", "candidate-actions");
-      const leadLink = profileLinkUrl(p.canonical_url);
-      if (leadLink) actions.append(safeLink(leadLink, "Open public profile ↗"));
-      card.append(actions);
-      grid.append(card);
-      rendered += 1;
-    }
-  }
 
-  if (!rendered) {
+  const combined = [...allCandidates, ...emailLeads];
+
+  // Filter input
+  const q = candidateSearchQuery.trim().toLowerCase();
+  const filtered = q
+    ? combined.filter(p => {
+        const text = `${p.platform} ${p.username} ${p.display_name} ${p.bio} ${p.raw_json?.source || ''}`.toLowerCase();
+        return text.includes(q);
+      })
+    : combined;
+
+  const totalCount = filtered.length;
+
+  if (totalCount > 0) {
+    const controlsHeader = node("div", "", "candidates-controls-header");
+    controlsHeader.style.cssText = "grid-column: 1 / -1; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;";
+
+    const titleEl = node("h3", `SEARCH RESULTS · ${totalCount} public profile${totalCount === 1 ? "" : "s"} & accounts found`);
+    titleEl.style.margin = "0";
+
+    const filterInput = node("input");
+    filterInput.type = "text";
+    filterInput.placeholder = "Filter by site, handle, or source...";
+    filterInput.value = candidateSearchQuery;
+    filterInput.className = "search-input-field";
+    filterInput.style.cssText = "max-width: 320px; padding: 6px 12px; font-size: 13px;";
+    filterInput.oninput = (e) => {
+      candidateSearchQuery = e.target.value;
+      renderCandidates();
+    };
+
+    controlsHeader.append(titleEl, filterInput);
+    grid.append(controlsHeader);
+
+    const visibleBatch = filtered.slice(0, candidatePageSize);
+    for (const p of visibleBatch) {
+      grid.append(candidateCard(p));
+    }
+
+    if (filtered.length > candidatePageSize) {
+      const remaining = filtered.length - candidatePageSize;
+      const loadMoreWrap = node("div", "", "load-more-wrap");
+      loadMoreWrap.style.cssText = "grid-column: 1 / -1; text-align: center; margin-top: 24px;";
+
+      const btn = node("button", `Show More (${remaining} remaining)`, "btn btn-secondary");
+      btn.onclick = () => {
+        candidatePageSize += 36;
+        renderCandidates();
+      };
+      loadMoreWrap.append(btn);
+      grid.append(loadMoreWrap);
+    }
+  } else if (combined.length > 0 && totalCount === 0) {
+    const empty = node("div", "", "case-card candidates-empty");
+    empty.append(
+      node("p", `No accounts matching filter "${candidateSearchQuery}".`, "candidates-empty-title"),
+      node("p", "Try clearing or broadening your search term.", "candidates-empty-sub")
+    );
+    grid.append(empty);
+  } else {
     const empty = node("div", "", "case-card candidates-empty");
     empty.append(
       node("p", "No public profiles were found for this target yet.", "candidates-empty-title"),
-      node("p", "Every card here comes from a live public observation. Run an investigation, or answer the follow-up question to search a username variant you confirm yourself.", "candidates-empty-sub")
+      node("p", "Every card here comes from a live public observation. Run an investigation to check accounts.", "candidates-empty-sub")
     );
     grid.append(empty);
   }
 }
 
-// ── Evidence Ledger ──
-function renderEvidenceLedger() {
-  const ledger = $("evidence-ledger");
-  if (!ledger) return;
-  ledger.replaceChildren();
+// ── Closely Matching Profiles ──
+function renderCloseMatches() {
+  const container = $("close-matches");
+  if (!container) return;
+  container.replaceChildren();
 
-  const items = latest?.evidence || [];
-  if (!items.length) {
-    ledger.append(node("p", "No pairwise evidence signals generated yet.", "empty-muted"));
+  const candidatesMap = new Map((latest?.candidates || []).map(c => [c.id, c]));
+  const hypotheses = latest?.hypotheses || [];
+
+  const validHypotheses = hypotheses
+    .filter(h => {
+      const cls = h.hypothesis?.classification || h.classification;
+      return cls !== "WEAK" && cls !== "CONTRADICTORY";
+    })
+    .sort((a, b) => (a.hypothesis?.rank || 99) - (b.hypothesis?.rank || 99));
+
+  if (!validHypotheses.length) {
+    container.append(node("div", "No closely matching profile clusters meeting correlation threshold.", "empty-muted"));
     return;
   }
 
-  const profileMap = new Map((latest?.candidates || []).map(p => [p.id, p]));
+  validHypotheses.forEach(hypItem => {
+    const hyp = hypItem.hypothesis || hypItem;
+    const members = hypItem.members || [];
+    if (!members.length) return;
 
-  items.forEach(item => {
-    const card = node("div", "", `evidence-ledger-card ev-${item.direction.toLowerCase()}`);
-    const top = node("div", "", "ev-card-top");
-    top.append(
-      node("strong", item.signal_type.replaceAll("_", " "), "ev-type-title"),
-      node("span", `Reliability: ${points(item.reliability)}%`, "status-chip status-chip--neutral")
-    );
-    card.append(top);
+    const clusterBox = node("div", "", "case-card report-section-box");
+    clusterBox.append(node("h3", `Hypothesis Cluster #${hyp.rank} · ${hyp.classification || "MATCH"}`));
 
-    const leftProf = profileMap.get(item.left_profile_id);
-    const rightProf = profileMap.get(item.right_profile_id);
-    const pairText = `${leftProf ? label(leftProf) : item.left_profile_id} ↔ ${rightProf ? label(rightProf) : item.right_profile_id}`;
-    
-    card.append(node("p", pairText, "ev-pair-text"));
-    card.append(node("p", item.explanation, "ev-explanation"));
+    const grid = node("div", "", "report-candidate-grid");
 
-    const meta = node("div", "", "ev-meta-line");
-    meta.append(
-      node("span", `Direction: ${item.direction}`),
-      node("span", `Family: ${item.evidence_family}`),
-      node("span", `Signal Score: ${points(item.normalized_score)}/100`),
-      node("span", `Contribution: ${item.model_contribution != null ? Number(item.model_contribution).toFixed(3) : "N/A"}`)
-    );
-    card.append(meta);
+    members.forEach(mem => {
+      const candidate = candidatesMap.get(mem.profile_id);
+      if (!candidate) return;
 
-    ledger.append(card);
+      const card = node("div", "", "report-candidate-mini");
+      const scoreVal = points(mem.score != null ? mem.score : hyp.overall_score || 0);
+      card.innerHTML = `<span class="badge badge-success" style="float:right">${scoreVal}%</span>${getPlatformSvgLogo(candidate.platform, 18)} <strong>${(candidate.platform || "").toUpperCase()}</strong> · ${candidate.username ? "@" + candidate.username : candidate.display_name || "Profile"}`;
+
+      const link = resolveCandidateLink(candidate);
+      if (link) {
+        const linkWrap = node("div", "", "prov-link-wrap");
+        linkWrap.append(safeLink(link, "Open Profile ↗"));
+        card.append(linkWrap);
+      }
+
+      grid.append(card);
+    });
+
+    clusterBox.append(grid);
+    container.append(clusterBox);
   });
 }
-
-// ── Shared helpers ──
-// `label`/`points` and the match helpers below are pure data helpers (no DOM
-// access) still used by the identifier drawer, evidence ledger and report.
 
 function renderQuestion() {
   const q = latest.question; $("question-section").hidden = !q;
@@ -474,22 +632,125 @@ function renderQuestion() {
 async function answer(value) { if (busy) return; setBusy(true); try { await request(`/api/searches/${searchId}/question-answer`, {method:"POST", body:JSON.stringify({question_id:questionId, value})}); await refresh(); } catch(e) { error(e); } finally { setBusy(false); } }
 
 function renderReport() {
-  const r = latest?.report; if (!r) { $("report").textContent = "The investigation report will be generated when the search completes."; return; }
-  $("report").replaceChildren(node("h2", "EXECUTIVE OSINT IDENTITY REPORT"));
-  if (r.executive_finding) $("report").append(node("p", r.executive_finding, "lead-finding"));
+  const r = latest?.report;
+  const reportContainer = $("report");
+  if (!reportContainer) return;
+  
+  if (!r) {
+    reportContainer.textContent = "The investigation report will be generated when the search completes.";
+    return;
+  }
 
-  const section = (title, values) => { if (!values?.length) return; $("report").append(node("h3", title)); const ul = node("ul"); values.forEach(v => { const li = node("li", typeof v === "string" ? v : v.explanation || v.note || ""); for (const url of v.source_urls || []) li.append(document.createTextNode(" "), safeLink(url, "Source ↗")); ul.append(li); }); $("report").append(ul); };
-  section("Confirmed Identity Footprint", (r.lead_candidates || []).map(p => {
-    let text = `${label(p)} — ${p.reason || "Verified public profile"}`;
-    if (p.created_at || p.raw?.created_at) text += ` (Created: ${p.created_at || p.raw.created_at})`;
-    if (p.display_name || p.raw?.owner_info) text += ` [Owner: ${p.display_name || p.raw.owner_info}]`;
-    return text;
-  }));
-  section("Public References & Code Repositories", (r.repository_references || []).map(p => `${p.url} · found in ${p.source_url}`));
-  section("Primary Supporting Evidence", r.supporting_evidence); 
-  section("Cross-Platform Evidence Correlations", r.moderate_evidence); 
-  section("Exposure Risk & Defensive Self-Audit", (r.self_audit_findings || []).map(f => `${f.connector}: ${f.status}. Reported breach occurrences: ${f.breach_names.join(", ") || "none"}. ${f.note}`));
-  section("Source Provenance", (r.source_provenance || []).map(p => ({explanation:p.connector, source_urls:p.source_url ? [p.source_url] : []})));
+  reportContainer.replaceChildren();
+
+  // Header
+  const head = node("div", "", "report-executive-head");
+  head.append(
+    node("h2", "EXECUTIVE OSINT IDENTITY REPORT", "report-title"),
+    r.executive_finding ? node("p", r.executive_finding, "lead-finding") : null
+  );
+  reportContainer.append(head);
+
+  // 1. Confirmed Identity Footprint (Deduplicated)
+  if (r.lead_candidates?.length) {
+    const sectionBox = node("div", "", "report-section-box");
+    sectionBox.append(node("h3", "Confirmed Identity Footprint"));
+    const grid = node("div", "", "report-candidate-grid");
+    const seen = new Set();
+
+    r.lead_candidates.forEach(p => {
+      const key = `${p.platform}:${p.username || p.display_name}`.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const card = node("div", "", "report-candidate-mini");
+      card.innerHTML = `${getPlatformSvgLogo(p.platform, 18)} <strong>${p.platform?.toUpperCase()}</strong> · ${p.username ? "@" + p.username : p.display_name || "Profile"}`;
+      if (p.reason) card.append(node("p", p.reason, "muted-sub"));
+      const pLink = resolveCandidateLink(p);
+      if (pLink) card.append(safeLink(pLink, "Open Profile ↗"));
+      grid.append(card);
+    });
+    sectionBox.append(grid);
+    reportContainer.append(sectionBox);
+  }
+
+  // 2. Public References & Repositories (Deduplicated & Cleaned)
+  if (r.repository_references?.length) {
+    const sectionBox = node("div", "", "report-section-box");
+    sectionBox.append(node("h3", "Public References & Code Repositories"));
+    const ul = node("ul", "", "report-clean-list");
+    const seen = new Set();
+
+    r.repository_references.forEach(ref => {
+      const key = `${ref.url}:${ref.source_url}`.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (seen.size > 10) return;
+
+      const li = node("li");
+      li.append(document.createTextNode(ref.url + " "));
+      if (ref.source_url) li.append(safeLink(ref.source_url, "Found in Source ↗"));
+      ul.append(li);
+    });
+    sectionBox.append(ul);
+    reportContainer.append(sectionBox);
+  }
+
+  // 3. Supporting Evidence (Deduplicated)
+  const allEvidence = [...(r.supporting_evidence || []), ...(r.moderate_evidence || [])];
+  if (allEvidence.length) {
+    const sectionBox = node("div", "", "report-section-box");
+    sectionBox.append(node("h3", "Supporting Evidence & Cross-Platform Correlations"));
+    const ul = node("ul", "", "report-clean-list");
+    const seenTexts = new Set();
+
+    allEvidence.forEach(ev => {
+      const text = typeof ev === "string" ? ev : ev.explanation || ev.note || "";
+      if (!text || seenTexts.has(text.toLowerCase())) return;
+      seenTexts.add(text.toLowerCase());
+      if (seenTexts.size > 8) return;
+
+      const li = node("li", text);
+      const urls = (typeof ev === "object" && ev.source_urls) ? ev.source_urls : [];
+      const cleanUrls = [...new Set(urls)].slice(0, 2);
+      cleanUrls.forEach(url => {
+        li.append(document.createTextNode(" "), safeLink(url, "Source ↗"));
+      });
+      ul.append(li);
+    });
+    sectionBox.append(ul);
+    reportContainer.append(sectionBox);
+  }
+
+  // 4. Source Provenance (Grouped by Connector)
+  if (r.source_provenance?.length) {
+    const sectionBox = node("div", "", "report-section-box");
+    sectionBox.append(node("h3", "Source Provenance Summary"));
+    const provMap = new Map();
+
+    r.source_provenance.forEach(p => {
+      const connector = p.connector || "connector";
+      if (!provMap.has(connector)) provMap.set(connector, []);
+      if (p.source_url && !provMap.get(connector).includes(p.source_url)) {
+        provMap.get(connector).push(p.source_url);
+      }
+    });
+
+    const grid = node("div", "", "report-provenance-grid");
+    provMap.forEach((urls, connector) => {
+      const card = node("div", "", "report-prov-card");
+      card.append(node("strong", connector.toUpperCase()));
+      card.append(node("span", ` · ${urls.length} observation${urls.length === 1 ? "" : "s"}`, "muted-sub"));
+      if (urls.length > 0 && urls[0]) {
+        const link = safeLink(urls[0], "View Sample ↗");
+        card.append(node("div", "", "prov-link-wrap"));
+        card.querySelector(".prov-link-wrap").append(link);
+      }
+      grid.append(card);
+    });
+    sectionBox.append(grid);
+    reportContainer.append(sectionBox);
+  }
 }
 
 async function startInvestigation(e) {
@@ -563,7 +824,6 @@ function bindFormEvents() {
 
   if (form) {
     form.onsubmit = startInvestigation;
-    form.addEventListener("submit", startInvestigation, true);
   }
   if (btn) {
     btn.onclick = startInvestigation;

@@ -1,1 +1,0 @@
-"""Osin backend package."""
