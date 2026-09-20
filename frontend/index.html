@@ -21,18 +21,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=28">
+  <link rel="stylesheet" href="/styles.css?v=29">
 </head>
 <body>
 
 <div class="deus-page-wrapper">
-  <!-- 6-Column Hairline Grid Background Layer -->
-  <div class="bg-grid-pattern" aria-hidden="true"></div>
-
   <!-- Main Grid Layout -->
   <div class="deus-grid-layout">
 
-    <!-- LEFT RAIL (Column 1: Brand Stack & Rail Navigation) -->
+    <!-- LEFT RAIL (Brand Stack & Rail Navigation) -->
     <aside class="left-rail">
       <div class="rail-top">
         <a class="brand-stacked" href="/">
@@ -56,28 +53,39 @@
       </div>
     </aside>
 
-    <!-- MAIN CONTENT COLUMN (Columns 2 to 6) -->
+    <!-- MAIN CONTENT COLUMN -->
     <main id="main-content" class="main-column">
 
-      <!-- PASSIVE BROWSER AUDIT TERMINAL (Column 2 Line) -->
+      <!-- PASSIVE BROWSER AUDIT TERMINAL (Horizontal Layout) -->
       <div id="stage2-fingerprint" class="terminal-container">
+        <div class="terminal-header-horizontal">
+          <span class="telemetry-badge">[ PASSIVE BROWSER AUDIT ]</span>
+          <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
+          <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
+          <button id="typewriter-skip-btn" class="typewriter-skip-btn" type="button">Fast Forward ⚡</button>
+        </div>
+
         <div class="terminal-prompt-bar">
           <span class="terminal-prompt-text">deus@audit ~ % passive-audit</span>
-          <div class="terminal-right-meta">
-            <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
-            <button id="typewriter-skip-btn" class="typewriter-skip-btn" type="button">Fast Forward ⚡</button>
-          </div>
         </div>
 
+        <!-- Horizontal Stream Body -->
         <div id="typewriter-content" class="typewriter-stream-body">
-          <!-- Terminal stream lines rendered by fingerprint.js -->
+          <!-- Terminal stream lines rendered horizontally by fingerprint.js -->
         </div>
 
-        <!-- Hidden Fallback Signal Container for test compatibility -->
-        <div id="fingerprint-signals" style="display:none">
-          <span id="val-os"></span><span id="val-browser"></span><span id="val-cpu"></span>
-          <span id="val-gpu-vendor"></span><span id="val-gpu-model"></span><span id="val-display"></span>
-          <span id="val-timezone"></span><span id="val-location-city"></span><span id="val-network"></span><span id="val-rarity"></span>
+        <!-- Horizontal Signal Chips for All Fetched Data -->
+        <div id="fingerprint-signals" class="signal-cards-horizontal">
+          <div class="signal-chip"><span class="signal-chip-label">OS</span><span id="val-os" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">Browser</span><span id="val-browser" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">CPU Cores</span><span id="val-cpu" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">GPU Vendor</span><span id="val-gpu-vendor" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">GPU Renderer</span><span id="val-gpu-model" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">Display</span><span id="val-display" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">Timezone</span><span id="val-timezone" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">Location</span><span id="val-location-city" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">Network / ISP</span><span id="val-network" class="signal-chip-val skeleton">Resolving...</span></div>
+          <div class="signal-chip"><span class="signal-chip-label">Entropy / Unicity</span><span id="val-rarity" class="signal-chip-val skeleton">Resolving...</span></div>
         </div>
       </div>
 
@@ -249,8 +257,8 @@
   </div>
 </div>
 
-<script src="/fingerprint.js?v=28"></script>
-<script src="/app.js?v=28" defer></script>
+<script src="/fingerprint.js?v=29"></script>
+<script src="/app.js?v=29" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();

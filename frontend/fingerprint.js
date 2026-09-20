@@ -600,6 +600,11 @@
     }
     if (sessionIdEl) sessionIdEl.textContent = `SESSION ID: ${storedId}`;
 
+    const timestampEl = document.getElementById("fp-timestamp");
+    if (timestampEl) {
+      timestampEl.textContent = `TIMESTAMP: ${new Date().toISOString()}`;
+    }
+
     // Gather real dynamic client signals
     const osBrowserStr = getOSAndBrowser();
     const cores = navigator.hardwareConcurrency || 8;
@@ -647,6 +652,19 @@
     else if (osBrowserStr.includes("Windows")) osName = "Windows";
     else if (osBrowserStr.includes("Android")) osName = "Android";
     else if (osBrowserStr.includes("iOS")) osName = "iOS";
+
+    // Populate all detailed signal chip elements
+    setSignalValue('os', osName);
+    setSignalValue('browser', osBrowserStr.split('·')[1]?.trim() || osBrowserStr);
+    setSignalValue('cpu', `${cores} logical cores`);
+    setSignalValue('gpu-vendor', gpuFull.split('·')[0]?.trim() || 'GPU');
+    setSignalValue('gpu-model', gpuShort);
+    setSignalValue('display', getScreenInfo());
+    const tzEl = document.getElementById('val-timezone');
+    if (tzEl) initTimezoneAndClock(tzEl);
+    setSignalValue('location-city', `${city}${region ? ', ' + region : ''}, ${country}`);
+    setSignalValue('network', isp);
+    setSignalValue('rarity', calculateRarity(osBrowserStr, screenRes));
 
     let cpuArch = "x86";
     if (/arm|aarch64/i.test(navigator.userAgent || "")) cpuArch = "ARM";
