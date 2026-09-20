@@ -1,6 +1,8 @@
 use crate::connectors::build_all_connectors;
 use crate::db::models::InvestigationJobRecord;
 use crate::db::repository::Repository;
+use crate::worker::seed::extract_handle;
+use futures::stream::{self, StreamExt};
 use serde_json::json;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -74,6 +76,127 @@ impl Worker {
         Ok(())
     }
 
+    async fn persist_connector_output(
+        &self,
+        search_run_id: Uuid,
+        conn_run_id: Uuid,
+        connector_name: &str,
+        output: crate::connectors::ConnectorOutput,
+        derived_note: Option<&str>,
+    ) -> Result<Vec<Uuid>, String> {
+        let mut created_ids = Vec::new();
+
+        for mut prof in output.profiles {
+            if let Some(note) = derived_note {
+                let bio = prof.bio.unwrap_or_default();
+                prof.bio = Some(format!("[{}] {}", note, bio));
+            }
+
+            let db_prof = self
+                .repo
+                .upsert_profile(
+                    &prof.platform,
+                    Some(&prof.username),
+                    Some(&prof.username.to_lowercase()),
+                    prof.display_name.as_deref(),
+                    &prof.canonical_url,
+                    prof.avatar_url.as_deref(),
+                    prof.bio.as_deref(),
+                    prof.location.as_deref(),
+                    prof.organization.as_deref(),
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
+            created_ids.push(db_prof.id);
+
+            self.repo
+                .add_observation(
+                    search_run_id,
+                    db_prof.id,
+                    conn_run_id,
+                    connector_name,
+                    Some(&prof.canonical_url),
+                    json!({
+                        "platform": prof.platform,
+                        "username": prof.username,
+                        "derived": derived_note.is_some()
+                    }),
+                    prof.raw_json,
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        self.repo
+            .complete_connector_run(conn_run_id, output.status, output.error.as_deref())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(created_ids)
+    }
+
+    async fn fetch_github_profile_links(&self, handle: &str) -> Vec<(String, String, String)> {
+        let client = reqwest::Client::new();
+        let mut results = Vec::new();
+
+        let user_url = format!("https://api.github.com/users/{}", handle);
+        let mut req = client.get(&user_url).header("User-Agent", "Deus/1.0");
+
+        if let Some(token) = &self.github_token {
+            req = req.header("Authorization", format!("Bearer {}", token));
+        }
+
+        if let Ok(resp) = req.send().await {
+            if resp.status().is_success() {
+                if let Ok(user) = resp.json::<serde_json::Value>().await {
+                    if let Some(tw) = user.get("twitter_username").and_then(|v| v.as_str()) {
+                        if !tw.trim().is_empty() {
+                            results.push(("twitter".to_string(), tw.to_string(), format!("https://x.com/{}", tw)));
+                        }
+                    }
+
+                    if let Some(blog) = user.get("blog").and_then(|v| v.as_str()) {
+                        let blog_trimmed = blog.trim();
+                        if !blog_trimmed.is_empty() {
+                            let blog_url = if blog_trimmed.starts_with("http://") || blog_trimmed.starts_with("https://") {
+                                blog_trimmed.to_string()
+                            } else {
+                                format!("https://{}", blog_trimmed)
+                            };
+                            if let Some((plat, h)) = extract_handle(&blog_url) {
+                                results.push((plat, h, blog_url));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let social_url = format!("https://api.github.com/users/{}/social_accounts", handle);
+        let mut req_social = client.get(&social_url).header("User-Agent", "Deus/1.0");
+
+        if let Some(token) = &self.github_token {
+            req_social = req_social.header("Authorization", format!("Bearer {}", token));
+        }
+
+        if let Ok(resp) = req_social.send().await {
+            if resp.status().is_success() {
+                if let Ok(accounts) = resp.json::<Vec<serde_json::Value>>().await {
+                    for acc in accounts {
+                        if let Some(url_str) = acc.get("url").and_then(|v| v.as_str()) {
+                            if let Some((plat, h)) = extract_handle(url_str) {
+                                results.push((plat, h, url_str.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        results
+    }
+
     async fn execute_job(&self, job: &InvestigationJobRecord) -> Result<(), String> {
         let search_run_id = job.search_run_id;
         info!("Executing investigation job for search_run_id: {}", search_run_id);
@@ -103,15 +226,19 @@ impl Worker {
                 .map(|v| v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);
 
+            let parallelism: usize = std::env::var("CONNECTOR_PARALLELISM")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10);
+
             for seed in seeds {
                 let seed_type = seed.seed_type.to_uppercase();
-                let seed_val = seed.normalized_value.unwrap_or_default();
-                if seed_val.is_empty() {
+                let seed_val = seed.original_value.unwrap_or_else(|| seed.normalized_value.clone().unwrap_or_default());
+                if seed_val.trim().is_empty() {
                     continue;
                 }
 
                 if seed_type == "EMAIL" {
-                    // For EMAIL seeds, run only connectors whose supported_seeds contains "email"
                     for conn in &connectors {
                         if !conn.healthcheck().supported_seeds.iter().any(|s| s.eq_ignore_ascii_case("email")) {
                             continue;
@@ -124,44 +251,8 @@ impl Worker {
                             .map_err(|e| e.to_string())?;
 
                         let output = conn.search_username(&seed_val).await;
-
-                        for prof in output.profiles {
-                            let db_prof = self
-                                .repo
-                                .upsert_profile(
-                                    &prof.platform,
-                                    Some(&prof.username),
-                                    Some(&prof.username.to_lowercase()),
-                                    prof.display_name.as_deref(),
-                                    &prof.canonical_url,
-                                    prof.avatar_url.as_deref(),
-                                    prof.bio.as_deref(),
-                                    prof.location.as_deref(),
-                                    prof.organization.as_deref(),
-                                )
-                                .await
-                                .map_err(|e| e.to_string())?;
-
-                            created_profile_ids.insert(db_prof.id);
-
-                            self.repo
-                                .add_observation(
-                                    search_run_id,
-                                    db_prof.id,
-                                    conn_run.id,
-                                    conn.name(),
-                                    Some(&prof.canonical_url),
-                                    json!({"platform": prof.platform, "username": prof.username}),
-                                    prof.raw_json,
-                                )
-                                .await
-                                .map_err(|e| e.to_string())?;
-                        }
-
-                        self.repo
-                            .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        let ids = self.persist_connector_output(search_run_id, conn_run.id, conn.name(), output, None).await?;
+                        created_profile_ids.extend(ids);
                     }
 
                     if pivot_email_localpart {
@@ -180,96 +271,97 @@ impl Worker {
                                         .map_err(|e| e.to_string())?;
 
                                     let output = conn.search_username(local_part).await;
-
-                                    for mut prof in output.profiles {
-                                        prof.bio = Some(format!("[Derived weak lead from email local-part '{}'] {}", local_part, prof.bio.unwrap_or_default()));
-                                        let db_prof = self
-                                            .repo
-                                            .upsert_profile(
-                                                &prof.platform,
-                                                Some(&prof.username),
-                                                Some(&prof.username.to_lowercase()),
-                                                prof.display_name.as_deref(),
-                                                &prof.canonical_url,
-                                                prof.avatar_url.as_deref(),
-                                                prof.bio.as_deref(),
-                                                prof.location.as_deref(),
-                                                prof.organization.as_deref(),
-                                            )
-                                            .await
-                                            .map_err(|e| e.to_string())?;
-
-                                        created_profile_ids.insert(db_prof.id);
-
-                                        self.repo
-                                            .add_observation(
-                                                search_run_id,
-                                                db_prof.id,
-                                                conn_run.id,
-                                                conn.name(),
-                                                Some(&prof.canonical_url),
-                                                json!({"platform": prof.platform, "username": prof.username, "derived_lead": true}),
-                                                prof.raw_json,
-                                            )
-                                            .await
-                                            .map_err(|e| e.to_string())?;
-                                    }
-
-                                    self.repo
-                                        .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
-                                        .await
-                                        .map_err(|e| e.to_string())?;
+                                    let note = format!("Derived weak lead from email local-part '{}'", local_part);
+                                    let ids = self.persist_connector_output(search_run_id, conn_run.id, conn.name(), output, Some(&note)).await?;
+                                    created_profile_ids.extend(ids);
                                 }
                             }
                         }
                     }
                 } else {
-                    for conn in &connectors {
-                        let conn_run = self
-                            .repo
-                            .create_connector_run(search_run_id, conn.name(), json!({"seed": seed_val}))
-                            .await
-                            .map_err(|e| e.to_string())?;
+                    // USERNAME or PROFILE_URL seed
+                    let (platform, extracted_handle) = match extract_handle(&seed_val) {
+                        Some((p, h)) => (p, h),
+                        None => {
+                            let err_msg = format!("Could not extract valid profile handle from seed '{}'", seed_val);
+                            return Err(err_msg);
+                        }
+                    };
 
-                        let output = conn.search_username(&seed_val).await;
+                    // Insert candidate #1 immediately for the profile the URL/seed points to
+                    let canonical = if seed_val.starts_with("http://") || seed_val.starts_with("https://") {
+                        seed_val.clone()
+                    } else if platform == "github" {
+                        format!("https://github.com/{}", extracted_handle)
+                    } else {
+                        format!("https://google.com/search?q={}+{}", platform, extracted_handle)
+                    };
 
-                        for prof in output.profiles {
-                            let db_prof = self
+                    let db_p1 = self
+                        .repo
+                        .upsert_profile(
+                            &platform,
+                            Some(&extracted_handle),
+                            Some(&extracted_handle.to_lowercase()),
+                            None,
+                            &canonical,
+                            None,
+                            Some("Direct seed target profile"),
+                            None,
+                            None,
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    created_profile_ids.insert(db_p1.id);
+
+                    // For github.com URLs, fetch GitHub public API for linked profiles
+                    if platform == "github" || seed_val.contains("github.com") {
+                        let linked = self.fetch_github_profile_links(&extracted_handle).await;
+                        for (l_plat, l_handle, l_url) in linked {
+                            let l_db = self
                                 .repo
                                 .upsert_profile(
-                                    &prof.platform,
-                                    Some(&prof.username),
-                                    Some(&prof.username.to_lowercase()),
-                                    prof.display_name.as_deref(),
-                                    &prof.canonical_url,
-                                    prof.avatar_url.as_deref(),
-                                    prof.bio.as_deref(),
-                                    prof.location.as_deref(),
-                                    prof.organization.as_deref(),
+                                    &l_plat,
+                                    Some(&l_handle),
+                                    Some(&l_handle.to_lowercase()),
+                                    None,
+                                    &l_url,
+                                    None,
+                                    Some("Linked from profile"),
+                                    None,
+                                    None,
                                 )
-                                .await
-                                .map_err(|e| e.to_string())?;
-
-                            created_profile_ids.insert(db_prof.id);
-
-                            self.repo
-                                .add_observation(
-                                    search_run_id,
-                                    db_prof.id,
-                                    conn_run.id,
-                                    conn.name(),
-                                    Some(&prof.canonical_url),
-                                    json!({"platform": prof.platform, "username": prof.username}),
-                                    prof.raw_json,
-                                )
-                                .await
-                                .map_err(|e| e.to_string())?;
+                                .await;
+                            if let Ok(prof) = l_db {
+                                created_profile_ids.insert(prof.id);
+                            }
                         }
+                    }
 
-                        self.repo
-                            .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
-                            .await
-                            .map_err(|e| e.to_string())?;
+                    let connectors = build_all_connectors(self.github_token.clone());
+                    let mut futures = Vec::new();
+
+                    for conn in connectors {
+                        let repo = self.repo.clone();
+                        let handle = extracted_handle.clone();
+                        futures.push(async move {
+                            let conn_name = conn.name();
+                            let conn_run_res = repo
+                                .create_connector_run(search_run_id, conn_name, json!({"seed": handle}))
+                                .await;
+                            let output = conn.search_username(&handle).await;
+                            (conn_name, conn_run_res, output)
+                        });
+                    }
+
+                    let mut stream = stream::iter(futures).buffer_unordered(parallelism);
+
+                    while let Some((conn_name, conn_run_res, output)) = stream.next().await {
+                        if let Ok(conn_run) = conn_run_res {
+                            if let Ok(ids) = self.persist_connector_output(search_run_id, conn_run.id, conn_name, output, None).await {
+                                created_profile_ids.extend(ids);
+                            }
+                        }
                     }
                 }
             }

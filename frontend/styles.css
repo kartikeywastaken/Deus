@@ -255,10 +255,18 @@ main {
   margin-bottom: 16px;
 }
 
-.highlight-osint {
+.highlight-osint, #encrypted-footprints {
   font-family: var(--font-mono);
-  color: var(--color-amber);
+  color: #ffffff;
   font-weight: 700;
+  text-transform: none !important;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 6px;
+  outline: 2.5px solid #ffffff;
+  outline-offset: 2px;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4), 0 0 24px rgba(255, 255, 255, 0.2);
 }
 
 .hero-subtitle {
@@ -1274,3 +1282,55 @@ main {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ── Item 2: Free-Floating Terminal Telemetry & TextGenerateEffect ── */
+#stage2-fingerprint, .subtle-footer-telemetry, .typewriter-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+.word-span.pending {
+  color: rgba(111, 143, 191, 0.55);
+  filter: blur(1.5px);
+  transition: color 0.2s ease, filter 0.2s ease;
+  display: inline-block;
+  margin-right: 0.25em;
+}
+
+.word-span.revealed {
+  color: #ffffff;
+  filter: blur(0px);
+  display: inline-block;
+  margin-right: 0.25em;
+}
+
+.typewriter-heading .word-span.revealed {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.typewriter-heading .word-span.pending {
+  font-weight: 700;
+  color: rgba(111, 143, 191, 0.55);
+}
+
+.fast-forward-btn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+}
+.fast-forward-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+

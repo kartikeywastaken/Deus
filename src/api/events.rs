@@ -17,7 +17,7 @@ pub async fn sse_events(
             .data(format!(r#"{{"search_run_id": "{}"}}"#, id))
     })
     .map(Ok)
-    .throttle(Duration::from_secs(2));
+    .throttle(Duration::from_secs(1));
 
     Sse::new(stream)
 }

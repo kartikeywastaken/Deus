@@ -71,7 +71,7 @@ impl ConnectorOutput {
 }
 
 #[async_trait]
-pub trait OsintConnector: Send + Sync {
+pub trait OsintConnector: Send + Sync + 'static {
     fn name(&self) -> &'static str;
     fn availability(&self) -> &'static str;
     fn healthcheck(&self) -> ConnectorHealth;

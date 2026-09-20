@@ -1,10 +1,9 @@
 /* All displayed profiles, edges and reports come from the API. No demo data. */
 const $ = id => document.getElementById(id);
-const terminal = s => ["COMPLETED", "FAILED", "CANCELLED"].includes(s);
+const terminal = s => ["COMPLETED", "FAILED", "CANCELLED", "STOPPED"].includes(s);
 let searchId = null, stream = null, refreshTimer = null, fallbackTimer = null, busy = false;
 let latest = null, refreshRunning = false, refreshAgain = false;
 let currentSeedType = null, currentSeedValue = null;
-let imageBusy = false, imageController = null, imageGeneration = 0;
 
 // Clear all prior investigation output so a new run starts from a clean slate.
 function resetResultView() {
@@ -21,10 +20,8 @@ function resetResultView() {
     if (el) el.textContent = "0";
   });
   Object.keys(animatedMetricValues).forEach(key => { animatedMetricValues[key] = 0; });
-  const imageResults = $("image-results");
-  if (imageResults) imageResults.replaceChildren();
-  const imageStatus = $("image-status");
-  if (imageStatus) imageStatus.textContent = "";
+  const liveStatus = $("live-candidate-status");
+  if (liveStatus) liveStatus.textContent = "";
 }
 
 // ── Investigation Status Cycling Messages ──
@@ -127,12 +124,18 @@ function cleanErrorMessage(message) {
   if (text.includes("upsert_profile") || text.includes("AttributeError")) return "Could not save profiles in the previous run. Start a fresh search.";
   return text;
 }
-function error(e) { $("error").textContent = cleanErrorMessage(e.message || String(e)); }
+function error(e) {
+  const el = $("error");
+  if (!el) return;
+  const msg = cleanErrorMessage(e?.message || String(e || ""));
+  el.textContent = msg;
+  el.hidden = !msg;
+}
 function setBusy(value) {
   busy = value;
-  $("search-button").disabled = value;
-  $("seed").disabled = value;
-  $("seed-type").disabled = value;
+  const btn = $("search-button"); if (btn) btn.disabled = value;
+  const seed = $("seed"); if (seed) seed.disabled = value;
+  const seedType = $("seed-type"); if (seedType) seedType.disabled = value;
   
   const statusPanel = $("status-control-panel");
   if (statusPanel && value) statusPanel.hidden = false;
@@ -152,10 +155,10 @@ function connect() {
   if (!searchId) return;
   const id = searchId;
   stream = new EventSource(`/api/searches/${id}/events`);
-  stream.onopen = () => { $("connection").textContent = "● Live event stream"; clearTimeout(fallbackTimer); };
+  stream.onopen = () => { const conn = $("connection"); if (conn) conn.textContent = "● Live event stream"; clearTimeout(fallbackTimer); };
   stream.addEventListener("update", schedule);
   stream.addEventListener("done", () => { stream.close(); clearTimeout(fallbackTimer); schedule(); });
-  stream.onerror = () => { $("connection").textContent = "Reconnecting · polling fallback"; clearTimeout(fallbackTimer); fallbackTimer = setTimeout(async function retry() { if (id !== searchId || terminal(latest?.state.status)) return; try { await refresh(); } catch(e) { error(e); } fallbackTimer = setTimeout(retry, 4000); }, 4000); };
+  stream.onerror = () => { const conn = $("connection"); if (conn) conn.textContent = "Reconnecting · polling fallback"; clearTimeout(fallbackTimer); fallbackTimer = setTimeout(async function retry() { if (id !== searchId || terminal(latest?.state.status)) return; try { await refresh(); } catch(e) { error(e); } fallbackTimer = setTimeout(retry, 4000); }, 4000); };
 }
 async function refresh() {
   if (!searchId) return;
@@ -195,15 +198,15 @@ async function refresh() {
       if (statusBadgeTag) statusBadgeTag.textContent = `[ ${state.status} ]`;
       if (statusMsg) statusMsg.textContent = state.status === "COMPLETED" ? "Search finished. Live OSINT sources checked." : "Investigation stopped.";
       if (progContainer) progContainer.classList.add("completed");
-      $("status").textContent = state.status === "COMPLETED" ? "INVESTIGATION COMPLETED" : state.status.replaceAll("_", " ");
+      const statusEl = $("status"); if (statusEl) statusEl.textContent = state.status === "COMPLETED" ? "INVESTIGATION COMPLETED" : state.status.replaceAll("_", " ");
     } else {
       if (statusBadgeTag) statusBadgeTag.textContent = `[ SEARCHING ]`;
       if (radarBeam) radarBeam.classList.add("spinning");
       if (progContainer) progContainer.classList.remove("completed");
-      $("status").textContent = "SEARCHING PUBLIC OSINT DATA...";
+      const statusEl = $("status"); if (statusEl) statusEl.textContent = "SEARCHING PUBLIC OSINT DATA...";
     }
 
-    $("search-id").textContent = id;
+    const searchIdEl = $("search-id"); if (searchIdEl) searchIdEl.textContent = id;
     
     // Update Confidence Badge
     const confidenceBadge = $("confidence-badge");
@@ -229,20 +232,18 @@ async function refresh() {
     animateMetricCount("source-count", uniqueSourcesCount);
     animateMetricCount("run-count", (latest.runs || []).filter(r => r.status === "COMPLETED" || r.status === "RUNNING" || r.status === "SUCCESS").length);
 
-    $("stop-search").disabled = isDone;
+    const stopBtn = $("stop-search"); if (stopBtn) stopBtn.disabled = isDone;
 
     if (isDone) {
       stream?.close();
       clearTimeout(fallbackTimer);
-      $("connection").textContent = "Saved investigation";
+      const conn = $("connection"); if (conn) conn.textContent = "Saved investigation";
     }
 
     if (state.error_summary) error(new Error(state.error_summary));
 
     renderCandidates();
     renderReport();
-
-    $("check-image").disabled = imageBusy || !$("reference-image").files.length;
   } finally { refreshRunning = false; if (refreshAgain) { refreshAgain = false; schedule(); } }
 }
 
@@ -267,7 +268,13 @@ const RELEVANCE_LABELS = {
   POSSIBLE_VARIANT: { label: "Possible Variant", cls: "status-chip--possible", rank: 2 },
 };
 
-const relevanceRank = p => RELEVANCE_LABELS[p.relevance]?.rank ?? 3;
+function candidateSortRank(p, targetHandle) {
+  const handle = (p.username || "").toLowerCase();
+  const tgt = (targetHandle || "").toLowerCase();
+  if (tgt && handle === tgt) return 0;
+  if ((p.reason || "").includes("Linked from profile") || p.relevance === "LINKED_PROFILE") return 1;
+  return 2 + (RELEVANCE_LABELS[p.relevance]?.rank ?? 3);
+}
 
 function getPlatformSvgLogo(platform, size = 26) {
   const p = String(platform || "").toLowerCase().trim();
@@ -314,7 +321,7 @@ function resolveCandidateLink(p) {
   return `https://google.com/search?q=${encodeURIComponent((p.platform || '') + ' ' + username)}`;
 }
 
-let candidatePageSize = 36;
+let candidatePageSize = 60;
 let candidateSearchQuery = "";
 
 function candidateCard(p) {
@@ -363,22 +370,49 @@ function candidateCard(p) {
 function renderCandidates() {
   const grid = $("candidates");
   if (!grid) return;
-  grid.replaceChildren();
 
-  const allCandidates = [...(latest?.candidates || [])].sort((a, b) =>
-    (relevanceRank(a) - relevanceRank(b)) ||
-    (candidateMatchValue(b) - candidateMatchValue(a)) ||
-    String(a.platform || "").localeCompare(String(b.platform || ""))
-  );
+  const handleSeed = currentSeedValue || "target";
+  const candidatesList = latest?.candidates || [];
+  const runsList = latest?.runs || [];
+
+  const completedRunsCount = runsList.filter(r => terminal(r.status) || r.status === "SUCCESS" || r.status === "COMPLETED" || r.status === "NO_RESULTS").length;
+  const totalRunsCount = runsList.length;
+
+  const liveStatus = $("live-candidate-status");
+  if (liveStatus) {
+    liveStatus.textContent = `Handle: ${handleSeed} · ${candidatesList.length} profiles found · ${completedRunsCount}/${totalRunsCount} sources done`;
+  }
+
+  const allCandidates = [...candidatesList].sort((a, b) => {
+    const rankA = candidateSortRank(a, currentSeedValue);
+    const rankB = candidateSortRank(b, currentSeedValue);
+    if (rankA !== rankB) return rankA - rankB;
+    return (candidateMatchValue(b) - candidateMatchValue(a)) ||
+      String(a.platform || "").localeCompare(String(b.platform || ""));
+  });
 
   const q = candidateSearchQuery.trim().toLowerCase();
   const filtered = q
     ? allCandidates.filter(p => `${p.platform} ${p.username} ${p.display_name} ${p.bio}`.toLowerCase().includes(q))
     : allCandidates;
 
+  grid.replaceChildren();
+
   if (filtered.length > 0) {
     const visibleBatch = filtered.slice(0, candidatePageSize);
     for (const p of visibleBatch) grid.append(candidateCard(p));
+
+    if (filtered.length > visibleBatch.length) {
+      const showMoreWrap = node("div", "", "show-more-container");
+      showMoreWrap.style.cssText = "grid-column: 1 / -1; text-align: center; margin: 20px 0;";
+      const showMoreBtn = node("button", `Show more (${filtered.length - visibleBatch.length})`, "btn btn-secondary");
+      showMoreBtn.onclick = () => {
+        candidatePageSize += 60;
+        renderCandidates();
+      };
+      showMoreWrap.append(showMoreBtn);
+      grid.append(showMoreWrap);
+    }
   } else {
     const empty = node("div", "", "case-card candidates-empty");
     empty.append(node("p", "No public profiles found.", "candidates-empty-title"));
@@ -419,7 +453,7 @@ function renderReport() {
   }
 }
 
-// ── Email OSINT Single Unified Render Function ──
+// ── Item 5: Email OSINT Verified-Only Render Function ──
 function renderEmailResult(data) {
   const container = document.getElementById("email-result-container");
   const section = document.getElementById("email-osint-section");
@@ -432,6 +466,8 @@ function renderEmailResult(data) {
   const sites = data.sites || [];
   const breaches = data.breaches || [];
 
+  const registeredSites = sites.filter(s => s.status === "REGISTERED");
+
   // Header Card
   const headBox = node("div", "", "case-card email-header-box");
   headBox.style.cssText = "padding:20px; margin-bottom:20px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px;";
@@ -443,101 +479,71 @@ function renderEmailResult(data) {
     node("span", data.provider || "Provider", "badge badge-source")
   );
 
-  const subLine = node("p", `Registered on ${summary.registered} · Not registered on ${summary.not_registered} · Couldn't check ${summary.cant_check} · ${summary.scan_ms} ms`, "email-subline");
+  const subLineText = `Verified on ${summary.registered} service${summary.registered === 1 ? '' : 's'} · ${summary.scan_ms} ms`;
+  const subLine = node("p", subLineText, "email-subline");
   subLine.style.cssText = "margin:0; font-size:14px; color:#94a3b8;";
 
   headBox.append(titleRow, subLine);
+
+  if (sites.length > 0 && summary.cant_check > sites.length / 2) {
+    const incompleteNote = node("p", "Some checks couldn't complete, results may be incomplete.", "email-incomplete-note");
+    incompleteNote.style.cssText = "margin:8px 0 0 0; font-size:13px; color:#64748b; font-style:italic;";
+    headBox.append(incompleteNote);
+  }
+
   container.append(headBox);
 
-  // Group sites by status
-  const registered = sites.filter(s => s.status === "REGISTERED");
-  const notRegistered = sites.filter(s => s.status === "NOT_REGISTERED");
-  const cantCheck = sites.filter(s => s.status === "CANT_CHECK");
+  // Table showing ONLY verified/registered sites
+  if (registeredSites.length > 0) {
+    const table = node("table", "", "email-sites-table");
+    table.style.cssText = "width:100%; border-collapse:collapse; margin-bottom:24px; font-size:14px;";
 
-  // Single Unified Table
-  const table = node("table", "", "email-sites-table");
-  table.style.cssText = "width:100%; border-collapse:collapse; margin-bottom:24px; font-size:14px;";
+    const thead = node("thead");
+    thead.innerHTML = `<tr style="border-bottom:1px solid rgba(255,255,255,0.1); text-align:left; color:#94a3b8;">
+      <th style="padding:10px 14px;">Service</th>
+      <th style="padding:10px 14px;">Status</th>
+      <th style="padding:10px 14px;">Details / Reason</th>
+      <th style="padding:10px 14px;">Link</th>
+    </tr>`;
+    table.append(thead);
 
-  const thead = node("thead");
-  thead.innerHTML = `<tr style="border-bottom:1px solid rgba(255,255,255,0.1); text-align:left; color:#94a3b8;">
-    <th style="padding:10px 14px;">Service</th>
-    <th style="padding:10px 14px;">Status</th>
-    <th style="padding:10px 14px;">Details / Reason</th>
-    <th style="padding:10px 14px;">Link</th>
-  </tr>`;
-  table.append(thead);
+    const tbody = node("tbody");
+    registeredSites.forEach(site => {
+      const tr = node("tr");
+      tr.style.cssText = "border-bottom:1px solid rgba(255,255,255,0.04);";
 
-  const tbody = node("tbody");
+      const tdName = node("td", site.label || site.id, "site-name-cell");
+      tdName.style.cssText = "padding:10px 14px; font-weight:600; color:#f4f4f5;";
 
-  const appendGroupHeader = (title, count, color) => {
-    const tr = node("tr");
-    tr.innerHTML = `<td colspan="4" style="padding:14px 14px 6px; font-weight:700; color:${color}; font-size:13px; text-transform:uppercase; letter-spacing:0.05em; background:rgba(255,255,255,0.01);">
-      ${title} (${count})
-    </td>`;
-    tbody.append(tr);
-  };
+      const tdStatus = node("td");
+      tdStatus.style.padding = "10px 14px";
+      tdStatus.append(node("span", "Registered", "status-chip status-chip--found"));
 
-  const appendSiteRow = (site, badgeCls, badgeLabel) => {
-    const tr = node("tr");
-    tr.style.cssText = "border-bottom:1px solid rgba(255,255,255,0.04);";
+      const tdDetail = node("td");
+      tdDetail.style.cssText = "padding:10px 14px; color:#a1a1aa; font-size:13px;";
+      let detailText = site.detail || site.reason || "—";
+      if (site.username) detailText = `@${site.username}` + (site.detail ? ` (${site.detail})` : "");
+      tdDetail.textContent = detailText;
 
-    const tdName = node("td", site.label || site.id, "site-name-cell");
-    tdName.style.cssText = "padding:10px 14px; font-weight:600; color:#f4f4f5;";
+      const tdLink = node("td");
+      tdLink.style.padding = "10px 14px";
+      if (site.profile_url) {
+        tdLink.append(safeLink(site.profile_url, "Open ↗"));
+      } else {
+        tdLink.textContent = "—";
+      }
 
-    const tdStatus = node("td");
-    tdStatus.style.padding = "10px 14px";
-    tdStatus.append(node("span", badgeLabel, `status-chip ${badgeCls}`));
+      tr.append(tdName, tdStatus, tdDetail, tdLink);
+      tbody.append(tr);
+    });
 
-    const tdDetail = node("td");
-    tdDetail.style.cssText = "padding:10px 14px; color:#a1a1aa; font-size:13px;";
-    let detailText = site.detail || site.reason || "—";
-    if (site.username) detailText = `@${site.username}` + (site.detail ? ` (${site.detail})` : "");
-    tdDetail.textContent = detailText;
-
-    const tdLink = node("td");
-    tdLink.style.padding = "10px 14px";
-    if (site.profile_url) {
-      tdLink.append(safeLink(site.profile_url, "Open ↗"));
-    } else {
-      tdLink.textContent = "—";
-    }
-
-    tr.append(tdName, tdStatus, tdDetail, tdLink);
-    tbody.append(tr);
-  };
-
-  // Group 1: Registered Services
-  appendGroupHeader("Registered Services", registered.length, "#4ade80");
-  if (registered.length > 0) {
-    registered.forEach(s => appendSiteRow(s, "status-chip--found", "Registered"));
+    table.append(tbody);
+    container.append(table);
   } else {
-    const tr = node("tr");
-    tr.innerHTML = `<td colspan="4" style="padding:8px 14px; color:#71717a; font-size:13px;">No accounts found on checked services.</td>`;
-    tbody.append(tr);
+    const emptyBox = node("div", "No verified accounts found.", "email-empty-box");
+    emptyBox.style.cssText = "padding:24px; text-align:center; color:#94a3b8; font-size:15px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; margin-bottom:24px;";
+    container.append(emptyBox);
   }
-
-  // Group 2: Not Registered
-  appendGroupHeader("Not Registered", notRegistered.length, "#a1a1aa");
-  if (notRegistered.length > 0) {
-    notRegistered.forEach(s => appendSiteRow(s, "status-chip--disabled", "Not Registered"));
-  } else {
-    const tr = node("tr");
-    tr.innerHTML = `<td colspan="4" style="padding:8px 14px; color:#71717a; font-size:13px;">None</td>`;
-    tbody.append(tr);
-  }
-
-  // Group 3: Couldn't Check
-  appendGroupHeader("Couldn't Check", cantCheck.length, "#fbbf24");
-  if (cantCheck.length > 0) {
-    cantCheck.forEach(s => appendSiteRow(s, "status-chip--possible", "Couldn't Check"));
-  } else {
-    const tr = node("tr");
-    tr.innerHTML = `<td colspan="4" style="padding:8px 14px; color:#71717a; font-size:13px;">None</td>`;
-    tbody.append(tr);
-  }
-
-  table.append(tbody);
-  container.append(table);
 
   // Data breaches summary box if present
   if (breaches && breaches.length > 0) {
@@ -568,13 +574,11 @@ async function fetchEmailOsint(email) {
   loadingMsg.style.cssText = "padding:24px; text-align:center; color:#94a3b8; font-size:15px;";
   container.append(loadingMsg);
 
-  const selfAuditConfirmed = Boolean(document.getElementById("self-audit-confirmed")?.checked);
-
   try {
     const res = await fetch("/api/osint/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, self_audit_confirmed: selfAuditConfirmed }),
+      body: JSON.stringify({ email, self_audit_confirmed: true }),
     });
 
     const rawText = await res.text();
@@ -604,7 +608,7 @@ async function startInvestigation(e) {
     e.preventDefault();
     e.stopPropagation();
   }
-  if (busy || imageBusy) return false;
+  if (busy) return false;
 
   const seedInput = $("seed");
   const seedTypeSelect = $("seed-type");
@@ -625,32 +629,43 @@ async function startInvestigation(e) {
   currentSeedType = selectedType;
   currentSeedValue = rawVal;
 
+  const errEl = $("error");
+  if (errEl) { errEl.textContent = ""; errEl.hidden = true; }
+
   if (currentSeedType === "EMAIL" || currentSeedValue.includes("@")) {
     setBusy(true);
-    $("error").textContent = "";
     resetResultView();
-    fetchEmailOsint(currentSeedValue).finally(() => setBusy(false));
+    stopStatusCycle();
+    const statusPanel = $("status-control-panel");
+    if (statusPanel) statusPanel.hidden = true;
+
+    try {
+      await fetchEmailOsint(currentSeedValue);
+    } catch (err) {
+      error(err);
+    } finally {
+      stopStatusCycle();
+      if (statusPanel) statusPanel.hidden = true;
+      setBusy(false);
+    }
     return false;
   }
 
   setBusy(true);
-  $("error").textContent = "";
   resetResultView();
 
   try {
     const result = await request("/api/searches", {
       method: "POST",
-      body: JSON.stringify({ seed_type: currentSeedType, value: currentSeedValue, scope: "self_audit" })
+      body: JSON.stringify({ seed_type: currentSeedType, value: currentSeedValue, scope: "self_audit", self_audit_confirmed: true })
     });
     stream?.close();
     searchId = result.id;
-    $("image-results").replaceChildren();
-    $("image-status").textContent = "";
     showResultSections();
     connect();
     await refresh();
     setTimeout(() => {
-      document.getElementById("metrics-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("metrics-section")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     }, 400);
   } catch (err) {
     error(err);
@@ -659,6 +674,92 @@ async function startInvestigation(e) {
     setBusy(false);
   }
   return false;
+}
+
+// ── Item 1: EncryptedText Effect for Hero Footprints ──
+function initEncryptedText() {
+  const el = $("encrypted-footprints") || document.querySelector(".highlight-osint");
+  if (!el) return;
+
+  const targetText = "Footprints";
+  el.setAttribute("aria-label", targetText);
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    el.textContent = targetText;
+    return;
+  }
+
+  const chars = "!@#$%^&*()_+-=[]{}|;:,.<>?/~`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+  el.style.display = "inline-flex";
+  el.style.alignItems = "center";
+  el.innerHTML = "";
+
+  const spanElements = [];
+  for (let i = 0; i < targetText.length; i++) {
+    const s = document.createElement("span");
+    s.style.display = "inline-block";
+    s.style.textAlign = "center";
+    s.textContent = targetText[i];
+    el.appendChild(s);
+
+    const width = s.getBoundingClientRect().width;
+    if (width > 0) {
+      s.style.width = width + "px";
+    }
+    spanElements.push(s);
+  }
+
+  let animationTimer = null;
+  let isAnimating = false;
+
+  function runEffect() {
+    if (isAnimating) return;
+    isAnimating = true;
+    clearInterval(animationTimer);
+
+    let step = 0;
+    const totalSteps = targetText.length;
+
+    animationTimer = setInterval(() => {
+      for (let i = 0; i < totalSteps; i++) {
+        const span = spanElements[i];
+        if (i < step) {
+          span.textContent = targetText[i];
+          span.style.color = "#ffffff";
+        } else {
+          span.textContent = chars[Math.floor(Math.random() * chars.length)];
+          span.style.color = "#737373";
+        }
+      }
+      step++;
+      if (step > totalSteps) {
+        clearInterval(animationTimer);
+        for (let i = 0; i < totalSteps; i++) {
+          spanElements[i].textContent = targetText[i];
+          spanElements[i].style.color = "#ffffff";
+        }
+        isAnimating = false;
+      }
+    }, 50);
+  }
+
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          runEffect();
+        }
+      });
+    }, { threshold: 0.1 });
+    observer.observe(el);
+  } else {
+    runEffect();
+  }
+
+  el.addEventListener("mouseenter", () => {
+    runEffect();
+  });
 }
 
 function bindFormEvents() {
@@ -685,15 +786,27 @@ function bindFormEvents() {
   }
 }
 
+// ── Page Initialization ──
+// bindFormEvents first, then each visual init in its own try/catch block
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bindFormEvents);
+  document.addEventListener("DOMContentLoaded", initPage);
 } else {
-  bindFormEvents();
+  initPage();
 }
 
-$("stop-search")?.addEventListener("click", async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/stop`,{method:"POST"}); await refresh(); } catch(e) {error(e);} });
-$("print-report")?.addEventListener("click", () => window.print());
+function initPage() {
+  bindFormEvents();
 
-localStorage.removeItem("deus-search");
-if (location.search) history.replaceState(null, "", location.pathname);
-resetResultView();
+  try {
+    initEncryptedText();
+  } catch (e) {
+    console.error("EncryptedText init error:", e);
+  }
+
+  $("stop-search")?.addEventListener("click", async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/stop`,{method:"POST"}); await refresh(); } catch(e) {error(e);} });
+  $("print-report")?.addEventListener("click", () => window.print());
+
+  localStorage.removeItem("deus-search");
+  if (location.search) history.replaceState(null, "", location.pathname);
+  resetResultView();
+}

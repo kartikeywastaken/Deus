@@ -206,6 +206,19 @@
     setInterval(updateClock, 1000);
   }
 
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return response;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
   // 6. Approximate Location & ISP (Client-side IP Geo, Cached)
   async function getGeoAndISP() {
     const cached = sessionStorage.getItem('deus_geo_cache');
@@ -218,7 +231,7 @@
     }
 
     try {
-      const res = await fetch('https://ipapi.co/json/');
+      const res = await fetchWithTimeout('https://ipapi.co/json/', {}, 2500);
       if (!res.ok) throw new Error('IP API error');
       const data = await res.json();
       const city = data.city || 'Unknown City';
@@ -233,7 +246,7 @@
     } catch (e) {
       // Fallback endpoint
       try {
-        const res2 = await fetch('https://ip-api.com/json/?fields=status,country,regionName,city,isp,query');
+        const res2 = await fetchWithTimeout('https://ip-api.com/json/?fields=status,country,regionName,city,isp,query', {}, 2500);
         const data2 = await res2.json();
         if (data2.status === 'success') {
           const locationStr = `${data2.city}, ${data2.regionName}, ${data2.country} · ${data2.isp}`;
@@ -574,7 +587,7 @@
     }
   }
 
-  // --- TYPEWRITER PASSIVE AUDIT STREAM ENGINE ---
+  // --- TYPEWRITER PASSIVE AUDIT STREAM ENGINE (TextGenerateEffect) ---
   async function initTypewriterStream() {
     const contentEl = document.getElementById("typewriter-content");
     const sessionIdEl = document.getElementById("fp-session-id");
@@ -673,67 +686,72 @@
       { type: "b", text: `• ${webrtcStr.includes('gathered') ? webrtcStr : 'WebRTC connection gathered public network address ' + (geoObj.ip || '127.0.0.1') + '.'}` }
     ];
 
-    let isTyping = true;
+    contentEl.replaceChildren();
+
     const skipBtn = document.getElementById("typewriter-skip-btn");
-    if (skipBtn) {
-      skipBtn.onclick = () => {
-        isTyping = false;
-        renderAllLinesImmediately();
-        document.getElementById("search-panel-section")?.scrollIntoView({ behavior: "smooth" });
-      };
+    const allWordSpans = [];
+
+    // Render EVERY word up front with class "word-span pending"
+    lines.forEach(line => {
+      const cls = line.type === "h" ? "typewriter-heading" : line.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
+      const div = document.createElement("div");
+      div.className = cls;
+
+      const words = line.text.split(" ");
+      words.forEach((word, wIdx) => {
+        const span = document.createElement("span");
+        span.className = "word-span pending";
+        span.textContent = word + (wIdx < words.length - 1 ? " " : "");
+        div.appendChild(span);
+        allWordSpans.push(span);
+      });
+
+      contentEl.appendChild(div);
+    });
+
+    let revealTimer = null;
+
+    function revealAllInstantly() {
+      if (revealTimer) clearInterval(revealTimer);
+      allWordSpans.forEach(span => {
+        span.className = "word-span revealed";
+      });
+      appendCompleteMessage();
+      if (skipBtn) skipBtn.style.display = "none";
     }
 
-    function renderAllLinesImmediately() {
-      contentEl.replaceChildren();
-      lines.forEach(l => {
-        const cls = l.type === "h" ? "typewriter-heading" : l.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
-        const div = document.createElement("div");
-        div.className = cls;
-        div.textContent = l.text;
-        contentEl.appendChild(div);
-      });
+    function appendCompleteMessage() {
+      if (document.getElementById("typewriter-complete-msg")) return;
       const completeDiv = document.createElement("div");
+      completeDiv.id = "typewriter-complete-msg";
       completeDiv.className = "typewriter-complete-msg";
       completeDiv.textContent = "→ PASSIVE AUDIT COMPLETE. OSINT ENGINE READY BELOW.";
       contentEl.appendChild(completeDiv);
     }
 
-    let lineIdx = 0;
-    let charIdx = 0;
-    let currentDiv = null;
-
-    function typeNext() {
-      if (!isTyping) return;
-      if (lineIdx >= lines.length) {
-        const completeDiv = document.createElement("div");
-        completeDiv.className = "typewriter-complete-msg";
-        completeDiv.textContent = "→ PASSIVE AUDIT COMPLETE. OSINT ENGINE READY BELOW.";
-        contentEl.appendChild(completeDiv);
-        return;
-      }
-
-      const currentLine = lines[lineIdx];
-      if (charIdx === 0) {
-        currentDiv = document.createElement("div");
-        currentDiv.className = currentLine.type === "h" ? "typewriter-heading" : currentLine.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
-        contentEl.appendChild(currentDiv);
-      }
-
-      if (charIdx < currentLine.text.length) {
-        currentDiv.textContent = currentLine.text.slice(0, charIdx + 1);
-        charIdx++;
-        const char = currentLine.text.charAt(charIdx - 1);
-        const delay = char === "." ? 50 : char === "\n" ? 180 : 12;
-        setTimeout(typeNext, delay);
-      } else {
-        lineIdx++;
-        charIdx = 0;
-        setTimeout(typeNext, 90);
-      }
+    if (skipBtn) {
+      skipBtn.style.display = "inline-block";
+      skipBtn.onclick = () => {
+        revealAllInstantly();
+      };
     }
 
-    contentEl.replaceChildren();
-    typeNext();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      revealAllInstantly();
+      return;
+    }
+
+    let wordIdx = 0;
+    revealTimer = setInterval(() => {
+      if (wordIdx < allWordSpans.length) {
+        allWordSpans[wordIdx].className = "word-span revealed";
+        wordIdx++;
+      } else {
+        clearInterval(revealTimer);
+        appendCompleteMessage();
+        if (skipBtn) skipBtn.style.display = "none";
+      }
+    }, 35);
   }
 
   // --- STAGE 2 MAIN ENTRY POINT ---

@@ -21,7 +21,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=26">
+  <link rel="stylesheet" href="/styles.css?v=27">
 </head>
 <body>
 
@@ -69,7 +69,7 @@
   <div id="typewriter-content" class="telemetry-compact-stream">
     <!-- Telemetry streams subtly -->
   </div>
-  <button id="typewriter-skip-btn" style="display:none" type="button"></button>
+  <button id="typewriter-skip-btn" class="btn btn-secondary" style="margin-top:8px; font-size:11px; padding:4px 10px;" type="button">Fast Forward ⚡</button>
 
   <!-- Hidden Fallback Container for test compatibility -->
   <div id="fingerprint-signals" style="display:none">
@@ -97,7 +97,7 @@
 
       <!-- Hero Main Title -->
       <h1 class="hero-title">
-        Search for <span class="highlight-osint">Footprints</span>
+        Search for <span id="encrypted-footprints" class="highlight-osint" aria-label="Footprints">Footprints</span>
       </h1>
       <p class="hero-subtitle">
         Search usernames, email addresses, phone numbers, profile URLs, and handles across public OSINT data sources.
@@ -121,14 +121,6 @@
           <i data-lucide="user-check"></i>
           <span>Full Name / Handle</span>
         </button>
-      </div>
-
-      <!-- Self-Audit Authorization Checkbox -->
-      <div class="self-audit-wrap" style="margin: 16px 0 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-        <input type="checkbox" id="self-audit-confirmed" style="accent-color: #3b82f6; width: 16px; height: 16px; cursor: pointer;">
-        <label for="self-audit-confirmed" style="font-size: 13px; color: #94a3b8; cursor: pointer; user-select: none;">
-          This is my own email / I'm authorized to check it
-        </label>
       </div>
 
       <!-- Main Unified Search Bar -->
@@ -237,7 +229,7 @@
           <span class="section-badge"><i data-lucide="grid"></i> Search Results</span>
           <h2>Search Results</h2>
         </div>
-        <span class="mono-data section-meta-info">Observed public profiles · Single unified grid</span>
+        <span id="live-handle-status" class="mono-data section-meta-info">Observed public profiles · Single unified grid</span>
       </div>
       <div id="candidates" class="candidates-grid"></div>
     </section>
@@ -284,8 +276,8 @@
   </div>
 </footer>
 
-<script src="/fingerprint.js?v=14"></script>
-<script src="/app.js?v=26" defer></script>
+<script src="/fingerprint.js?v=27"></script>
+<script src="/app.js?v=27" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();

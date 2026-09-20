@@ -1,0 +1,25 @@
+{
+  "name": "deus",
+  "version": "1.0.0",
+  "description": "See [the September 9 implementation notes](IMPLEMENTATION_NOTES.md) for the latest SSE dashboard, scoring/pivot fixes, authenticated adapters, required `.env` settings, verified results and remaining authentication requirements. It supersedes older status descriptions below.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kartikeywastaken/Deus.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kartikeywastaken/Deus/issues"
+  },
+  "homepage": "https://github.com/kartikeywastaken/Deus#readme",
+  "dependencies": {
+    "jsdom": "^30.1.0"
+  }
+}
