@@ -131,6 +131,7 @@ impl Repository {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn upsert_profile(
         &self,
         platform: &str,
@@ -231,6 +232,7 @@ impl Repository {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn add_observation(
         &self,
         search_run_id: Uuid,

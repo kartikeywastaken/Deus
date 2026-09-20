@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, sqlx::Type)]
 #[sqlx(type_name = "search_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SearchStatus {
+    #[default]
     Created,
     Discovering,
     Normalizing,
@@ -20,23 +21,12 @@ pub enum SearchStatus {
     Cancelled,
 }
 
-impl Default for SearchStatus {
-    fn default() -> Self {
-        Self::Created
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, sqlx::Type)]
 #[sqlx(type_name = "search_scope", rename_all = "snake_case")]
 pub enum SearchScope {
+    #[default]
     SelfAudit,
     Authorized,
-}
-
-impl Default for SearchScope {
-    fn default() -> Self {
-        Self::SelfAudit
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

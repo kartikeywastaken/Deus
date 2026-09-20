@@ -1,8 +1,4 @@
 use crate::connectors::build_all_connectors;
-use crate::correlation::akinator::select_best_question;
-use crate::correlation::clustering::build_hypotheses;
-use crate::correlation::features::{Direction, EvidenceFamily, EvidenceSignal, SignalType};
-use crate::correlation::scorer::score_evidence;
 use crate::db::models::InvestigationJobRecord;
 use crate::db::repository::Repository;
 use serde_json::json;
@@ -103,59 +99,178 @@ impl Worker {
                 .map_err(|e| e.to_string())?;
 
             let connectors = build_all_connectors(self.github_token.clone());
+            let pivot_email_localpart = std::env::var("EMAIL_LOCALPART_PIVOT")
+                .map(|v| v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
 
             for seed in seeds {
+                let seed_type = seed.seed_type.to_uppercase();
                 let seed_val = seed.normalized_value.unwrap_or_default();
                 if seed_val.is_empty() {
                     continue;
                 }
 
-                for conn in &connectors {
-                    let conn_run = self
-                        .repo
-                        .create_connector_run(search_run_id, conn.name(), json!({"seed": seed_val}))
-                        .await
-                        .map_err(|e| e.to_string())?;
+                if seed_type == "EMAIL" {
+                    // For EMAIL seeds, run only connectors whose supported_seeds contains "email"
+                    for conn in &connectors {
+                        if !conn.healthcheck().supported_seeds.iter().any(|s| s.eq_ignore_ascii_case("email")) {
+                            continue;
+                        }
 
-                    let output = conn.search_username(&seed_val).await;
-
-                    for prof in output.profiles {
-                        let db_prof = self
+                        let conn_run = self
                             .repo
-                            .upsert_profile(
-                                &prof.platform,
-                                Some(&prof.username),
-                                Some(&prof.username.to_lowercase()),
-                                prof.display_name.as_deref(),
-                                &prof.canonical_url,
-                                prof.avatar_url.as_deref(),
-                                prof.bio.as_deref(),
-                                prof.location.as_deref(),
-                                prof.organization.as_deref(),
-                            )
+                            .create_connector_run(search_run_id, conn.name(), json!({"seed": seed_val}))
                             .await
                             .map_err(|e| e.to_string())?;
 
-                        created_profile_ids.insert(db_prof.id);
+                        let output = conn.search_username(&seed_val).await;
+
+                        for prof in output.profiles {
+                            let db_prof = self
+                                .repo
+                                .upsert_profile(
+                                    &prof.platform,
+                                    Some(&prof.username),
+                                    Some(&prof.username.to_lowercase()),
+                                    prof.display_name.as_deref(),
+                                    &prof.canonical_url,
+                                    prof.avatar_url.as_deref(),
+                                    prof.bio.as_deref(),
+                                    prof.location.as_deref(),
+                                    prof.organization.as_deref(),
+                                )
+                                .await
+                                .map_err(|e| e.to_string())?;
+
+                            created_profile_ids.insert(db_prof.id);
+
+                            self.repo
+                                .add_observation(
+                                    search_run_id,
+                                    db_prof.id,
+                                    conn_run.id,
+                                    conn.name(),
+                                    Some(&prof.canonical_url),
+                                    json!({"platform": prof.platform, "username": prof.username}),
+                                    prof.raw_json,
+                                )
+                                .await
+                                .map_err(|e| e.to_string())?;
+                        }
 
                         self.repo
-                            .add_observation(
-                                search_run_id,
-                                db_prof.id,
-                                conn_run.id,
-                                conn.name(),
-                                Some(&prof.canonical_url),
-                                json!({"platform": prof.platform, "username": prof.username}),
-                                prof.raw_json,
-                            )
+                            .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
                             .await
                             .map_err(|e| e.to_string())?;
                     }
 
-                    self.repo
-                        .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
-                        .await
-                        .map_err(|e| e.to_string())?;
+                    if pivot_email_localpart {
+                        if let Some(at_idx) = seed_val.find('@') {
+                            let local_part = &seed_val[..at_idx];
+                            if !local_part.is_empty() {
+                                for conn in &connectors {
+                                    if !conn.healthcheck().supported_seeds.iter().any(|s| s.eq_ignore_ascii_case("username")) {
+                                        continue;
+                                    }
+
+                                    let conn_run = self
+                                        .repo
+                                        .create_connector_run(search_run_id, conn.name(), json!({"seed": local_part, "pivot_from": seed_val}))
+                                        .await
+                                        .map_err(|e| e.to_string())?;
+
+                                    let output = conn.search_username(local_part).await;
+
+                                    for mut prof in output.profiles {
+                                        prof.bio = Some(format!("[Derived weak lead from email local-part '{}'] {}", local_part, prof.bio.unwrap_or_default()));
+                                        let db_prof = self
+                                            .repo
+                                            .upsert_profile(
+                                                &prof.platform,
+                                                Some(&prof.username),
+                                                Some(&prof.username.to_lowercase()),
+                                                prof.display_name.as_deref(),
+                                                &prof.canonical_url,
+                                                prof.avatar_url.as_deref(),
+                                                prof.bio.as_deref(),
+                                                prof.location.as_deref(),
+                                                prof.organization.as_deref(),
+                                            )
+                                            .await
+                                            .map_err(|e| e.to_string())?;
+
+                                        created_profile_ids.insert(db_prof.id);
+
+                                        self.repo
+                                            .add_observation(
+                                                search_run_id,
+                                                db_prof.id,
+                                                conn_run.id,
+                                                conn.name(),
+                                                Some(&prof.canonical_url),
+                                                json!({"platform": prof.platform, "username": prof.username, "derived_lead": true}),
+                                                prof.raw_json,
+                                            )
+                                            .await
+                                            .map_err(|e| e.to_string())?;
+                                    }
+
+                                    self.repo
+                                        .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
+                                        .await
+                                        .map_err(|e| e.to_string())?;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    for conn in &connectors {
+                        let conn_run = self
+                            .repo
+                            .create_connector_run(search_run_id, conn.name(), json!({"seed": seed_val}))
+                            .await
+                            .map_err(|e| e.to_string())?;
+
+                        let output = conn.search_username(&seed_val).await;
+
+                        for prof in output.profiles {
+                            let db_prof = self
+                                .repo
+                                .upsert_profile(
+                                    &prof.platform,
+                                    Some(&prof.username),
+                                    Some(&prof.username.to_lowercase()),
+                                    prof.display_name.as_deref(),
+                                    &prof.canonical_url,
+                                    prof.avatar_url.as_deref(),
+                                    prof.bio.as_deref(),
+                                    prof.location.as_deref(),
+                                    prof.organization.as_deref(),
+                                )
+                                .await
+                                .map_err(|e| e.to_string())?;
+
+                            created_profile_ids.insert(db_prof.id);
+
+                            self.repo
+                                .add_observation(
+                                    search_run_id,
+                                    db_prof.id,
+                                    conn_run.id,
+                                    conn.name(),
+                                    Some(&prof.canonical_url),
+                                    json!({"platform": prof.platform, "username": prof.username}),
+                                    prof.raw_json,
+                                )
+                                .await
+                                .map_err(|e| e.to_string())?;
+                        }
+
+                        self.repo
+                            .complete_connector_run(conn_run.id, output.status, output.error.as_deref())
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
                 }
             }
         }
@@ -164,150 +279,16 @@ impl Worker {
             .repo
             .get_profiles(search_run_id)
             .await
-            .map_err(|e| e.to_string())?;
+            .unwrap_or_default();
 
-        let profile_ids: Vec<Uuid> = all_profiles.iter().map(|p| p.id).collect();
-        let mut pairwise_scores = Vec::new();
-        let mut all_signals = Vec::new();
-
-        // Performance guard: if profile count is large (> 60), perform fast exact matching only
-        let max_pairwise = 60;
-        let compare_limit = all_profiles.len().min(max_pairwise);
-
-        for i in 0..compare_limit {
-            for j in (i + 1)..compare_limit {
-                let p1 = &all_profiles[i];
-                let p2 = &all_profiles[j];
-
-                let mut signals = Vec::new();
-
-                if let (Some(u1), Some(u2)) = (&p1.normalized_username, &p2.normalized_username) {
-                    if u1 == u2 {
-                        signals.push(EvidenceSignal {
-                            signal_type: SignalType::UsernameExact,
-                            evidence_family: EvidenceFamily::Username,
-                            direction: Direction::Support,
-                            normalized_score: 1.0,
-                            reliability: 1.0,
-                            explanation: format!("Exact matching username '{}'", u1),
-                        });
-                    } else if compare_limit <= 30 {
-                        let sim = strsim::jaro_winkler(u1, u2);
-                        if sim >= 0.85 {
-                            signals.push(EvidenceSignal {
-                                signal_type: SignalType::UsernameSimilarity,
-                                evidence_family: EvidenceFamily::Username,
-                                direction: Direction::Support,
-                                normalized_score: sim,
-                                reliability: 0.8,
-                                explanation: format!("High username Jaro-Winkler similarity: {:.2}", sim),
-                            });
-                        }
-                    }
-                }
-
-                let assessment = score_evidence(&signals);
-                pairwise_scores.push((p1.id, p2.id, assessment.raw_score, assessment.classification));
-                all_signals.extend(signals);
-            }
-        }
-
-        let clusters = build_hypotheses(&profile_ids, &pairwise_scores);
-
-        for cluster in &clusters {
-            let hyp_id = Uuid::new_v4();
-            let hyp_res = sqlx::query(
-                r#"
-                INSERT INTO identity_hypotheses (id, search_run_id, rank, overall_score, classification, status, model_version, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, 'ACTIVE', 'deterministic-v0.1-rust', NOW(), NOW())
-                ON CONFLICT (search_run_id, rank) DO UPDATE SET
-                    overall_score = EXCLUDED.overall_score,
-                    classification = EXCLUDED.classification,
-                    updated_at = NOW()
-                "#
-            )
-            .bind(hyp_id)
-            .bind(search_run_id)
-            .bind(cluster.rank)
-            .bind(cluster.overall_score)
-            .bind(format!("{:?}", cluster.classification).to_uppercase())
-            .execute(&self.repo.pool)
-            .await;
-
-            if let Err(e) = hyp_res {
-                error!("Failed to insert identity_hypothesis: {}", e);
-            }
-
-            for pid in &cluster.profile_ids {
-                let mem_id = Uuid::new_v4();
-                let mem_res = sqlx::query(
-                    r#"
-                    INSERT INTO hypothesis_memberships (id, hypothesis_id, profile_id, score, classification, support_count, contradiction_count, computed_at, model_version)
-                    VALUES ($1, $2, $3, $4, $5, 1, 0, NOW(), 'deterministic-v0.1-rust')
-                    ON CONFLICT (hypothesis_id, profile_id) DO NOTHING
-                    "#
-                )
-                .bind(mem_id)
-                .bind(hyp_id)
-                .bind(pid)
-                .bind(cluster.overall_score)
-                .bind(format!("{:?}", cluster.classification).to_uppercase())
-                .execute(&self.repo.pool)
-                .await;
-
-                if let Err(e) = mem_res {
-                    error!("Failed to insert hypothesis_membership: {}", e);
-                }
-            }
-        }
-
-        let top_score = clusters.first().map(|c| c.overall_score).unwrap_or(0.0);
-        let action = job.payload.get("action").and_then(|v| v.as_str()).unwrap_or("start");
-
-        let mut has_pending_question = false;
-        if action == "start" {
-            if let Some(question) = select_best_question(&profile_ids, top_score) {
-                let q_id = Uuid::new_v4();
-                let q_res = sqlx::query(
-                    r#"
-                    INSERT INTO investigation_questions (
-                        id, search_run_id, question_type, question_text, options, context, reason,
-                        affected_profile_ids, affected_hypothesis_ids, expected_information_gain, sensitivity_level, status, created_at
-                    )
-                    VALUES ($1, $2, $3, $4, $5, '{}', $6, $7, '{}', $8, $9, 'PENDING', NOW())
-                    "#
-                )
-                .bind(q_id)
-                .bind(search_run_id)
-                .bind(format!("{:?}", question.question_type).to_uppercase())
-                .bind(&question.question_text)
-                .bind(&question.options)
-                .bind(&question.reason)
-                .bind(&question.affected_profile_ids)
-                .bind(question.expected_information_gain)
-                .bind(format!("{:?}", question.sensitivity_level).to_uppercase())
-                .execute(&self.repo.pool)
-                .await;
-
-                if let Err(e) = q_res {
-                    error!("Failed to insert investigation_question: {}", e);
-                } else {
-                    has_pending_question = true;
-                }
-            }
-        }
-
-        let final_status = if has_pending_question { "AWAITING_USER" } else { "COMPLETED" };
+        let final_status = "COMPLETED";
         let conn_runs = self.repo.get_connector_runs(search_run_id).await.unwrap_or_default();
         let first_url = all_profiles.first().map(|p| p.canonical_url.clone()).unwrap_or_default();
-        let top_classif = clusters.first().map(|c| c.classification).unwrap_or(crate::db::models::Classification::Ambiguous);
 
         let executive_finding = format!(
-            "{} candidate profiles found across {} connectors; top hypothesis classified as {:?} with a {:.1} match confidence.",
+            "Executive OSINT Identity Report: {} candidate profiles found across {} connectors.",
             all_profiles.len(),
-            conn_runs.len(),
-            top_classif,
-            top_score
+            conn_runs.len()
         );
 
         let lead_candidates: Vec<serde_json::Value> = all_profiles.iter().map(|p| {
@@ -316,7 +297,7 @@ impl Worker {
                 "username": p.normalized_username.as_deref().unwrap_or(p.username.as_deref().unwrap_or("")),
                 "display_name": p.display_name.as_deref().unwrap_or(""),
                 "canonical_url": p.canonical_url,
-                "reason": format!("Matched via {:?} evidence cluster", top_classif)
+                "reason": format!("Candidate profile discovered on {}", p.platform)
             })
         }).collect();
 
@@ -329,12 +310,7 @@ impl Worker {
             })
         }).collect();
 
-        let supporting_evidence: Vec<serde_json::Value> = all_signals.iter().filter(|s| s.direction == Direction::Support).map(|s| {
-            json!({
-                "explanation": s.explanation,
-                "source_urls": Vec::<String>::new()
-            })
-        }).collect();
+        let supporting_evidence: Vec<serde_json::Value> = Vec::new();
 
         let source_provenance: Vec<serde_json::Value> = conn_runs.iter().map(|r| {
             json!({
@@ -353,8 +329,6 @@ impl Worker {
             "source_provenance": source_provenance,
             "search_run_id": search_run_id,
             "profiles_found": all_profiles.len(),
-            "hypotheses": clusters.len(),
-            "top_score": top_score,
             "status": final_status,
             "engine": "Deus Rust Backend (raven-osint + adler-core)",
         });

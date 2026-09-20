@@ -347,7 +347,8 @@ impl SiteEngine {
                             "category": rule.category,
                             "http_status": status_code,
                             "detection_method": format!("{:?}", rule.detection_type),
-                            "verified": true,
+                            "verified": false,
+                            "http_hit": true,
                         }),
                     };
                     SiteCheckResult::Found(prof)
@@ -426,6 +427,7 @@ impl SiteEngine {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SiteCheckResult {
     Found(DiscoveredProfile),
     NotFound,

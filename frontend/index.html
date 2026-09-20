@@ -21,7 +21,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=25">
+  <link rel="stylesheet" href="/styles.css?v=26">
 </head>
 <body>
 
@@ -48,7 +48,6 @@
     <a href="#search-panel-section" class="active"><i data-lucide="search" class="nav-icon"></i> Search</a>
     <a href="#view-overview"><i data-lucide="grid" class="nav-icon"></i> Results</a>
     <a href="#email-osint-section"><i data-lucide="shield-alert" class="nav-icon"></i> Account Discovery</a>
-    <a href="#close-matches-section"><i data-lucide="users" class="nav-icon"></i> Matches</a>
     <a href="#view-report"><i data-lucide="file-text" class="nav-icon"></i> Report</a>
   </nav>
 
@@ -104,7 +103,7 @@
         Search usernames, email addresses, phone numbers, profile URLs, and handles across public OSINT data sources.
       </p>
 
-      <!-- Category Filter Tabs (UserSearch Style) -->
+      <!-- Category Filter Tabs -->
       <div class="search-category-tabs" role="tablist" aria-label="Select Seed Type">
         <button type="button" class="category-tab active" data-seed="USERNAME" id="tab-username" role="tab" aria-selected="true">
           <i data-lucide="user"></i>
@@ -122,13 +121,17 @@
           <i data-lucide="user-check"></i>
           <span>Full Name / Handle</span>
         </button>
-        <button type="button" class="category-tab" id="tab-avatar" role="tab" aria-selected="false">
-          <i data-lucide="image"></i>
-          <span>Avatar Image</span>
-        </button>
       </div>
 
-      <!-- Main Unified Search Bar (HIBP & UserSearch Style) -->
+      <!-- Self-Audit Authorization Checkbox -->
+      <div class="self-audit-wrap" style="margin: 16px 0 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <input type="checkbox" id="self-audit-confirmed" style="accent-color: #3b82f6; width: 16px; height: 16px; cursor: pointer;">
+        <label for="self-audit-confirmed" style="font-size: 13px; color: #94a3b8; cursor: pointer; user-select: none;">
+          This is my own email / I'm authorized to check it
+        </label>
+      </div>
+
+      <!-- Main Unified Search Bar -->
       <form id="search-form" class="unified-searchbar" aria-label="Start an investigation">
         <!-- Hidden Select kept for test compatibility & form binding -->
         <select id="seed-type" class="visually-hidden" aria-label="Seed Type">
@@ -162,7 +165,7 @@
         <div class="trust-item"><i data-lucide="globe"></i> <span>1,036+ Public Sources</span></div>
       </div>
 
-      <!-- UNIFIED INVESTIGATION STATUS & LOADING CONTAINER (Hidden by default, shown only during/after search) -->
+      <!-- UNIFIED INVESTIGATION STATUS & LOADING CONTAINER -->
       <section class="statusbar-card" id="status-control-panel" hidden>
         <div id="search-loading-overlay" class="search-loading-container">
           <div class="status-top-wrapper">
@@ -187,65 +190,21 @@
           <div class="status-footer-controls">
             <div class="status-chips-wrap">
               <span id="confidence-badge" class="status-chip status-chip--neutral" style="display:none;">Confidence: 0%</span>
-              <span id="ai-status" class="status-chip status-chip--disabled">AI adviser: Not run yet</span>
             </div>
             <div class="actions">
-              <button id="continue-search" class="btn btn-secondary" disabled>Skip / Continue</button>
               <button id="stop-search" class="btn btn-destructive" disabled>Stop</button>
             </div>
           </div>
         </div>
-        <!-- Status Bar Kept for JS Binding -->
         <div id="investigation-status-bar" style="display:none" hidden></div>
       </section>
-
-      <!-- Optional Avatar Image Upload Dropzone (Collapsible) -->
-      <div class="case-card dropzone-card" id="image-section" hidden>
-        <div class="dropzone-header">
-          <i data-lucide="upload-cloud" class="dropzone-icon"></i>
-          <div>
-            <h3 class="dropzone-title">Avatar Reference Check</h3>
-            <p id="image-prompt" class="dropzone-sub">Upload an avatar image to check reuse across discovered profiles.</p>
-          </div>
-        </div>
-
-        <div class="dropzone-input-wrap">
-          <label for="reference-image" class="dropzone-label">
-            <i data-lucide="image-plus" class="upload-btn-icon"></i>
-            <span>Choose Reference Image</span>
-            <small>JPEG, PNG or WebP up to 5 MB</small>
-            <input id="reference-image" type="file" accept="image/jpeg,image/png,image/webp">
-          </label>
-        </div>
-
-        <div class="image-actions">
-          <button id="check-image" type="button" class="btn btn-secondary" disabled>Check candidate avatars</button>
-          <button id="clear-image" type="button" class="btn btn-secondary">Clear</button>
-        </div>
-        <p id="image-status" role="status" aria-live="polite" class="image-status-text"></p>
-        <div id="image-results"></div>
-      </div>
 
       <!-- Error Alert Box -->
       <div id="error" role="alert" class="error-toast" hidden></div>
 
     </section>
 
-    <!-- QUESTION & HINTS SECTION (Dynamic follow-up from backend) -->
-    <section id="question-section" class="question-card" hidden>
-      <div class="question-header">
-        <i data-lucide="help-circle" class="question-icon"></i>
-        <div>
-          <h2 id="question"></h2>
-          <p id="question-reason"></p>
-        </div>
-      </div>
-      <form id="question-form">
-        <div id="question-options" class="question-options-grid"></div>
-      </form>
-    </section>
-
-    <!-- ═══ RECON METRICS STAT COUNTER BAR (HIBP Style Stat Cards) ═══ -->
+    <!-- ═══ RECON METRICS STAT COUNTER BAR ═══ -->
     <section class="metrics-container" aria-label="Investigation metrics" id="metrics-section" hidden>
       <div class="metrics-summary-bar">
         <div class="metric-tile">
@@ -268,13 +227,10 @@
           <strong id="source-count" class="mono-data count-num">0</strong>
           <span class="metric-label">Independent Sources</span>
         </div>
-        <div class="metric-tile" style="display:none">
-          <strong id="run-count" class="mono-data count-num">0</strong>
-        </div>
       </div>
     </section>
 
-    <!-- ═══ RANKED CANDIDATE RESULTS (UNIFIED GRID - NO MATCH / ADDITIONAL SEPARATION) ═══ -->
+    <!-- ═══ RANKED CANDIDATE RESULTS ═══ -->
     <section id="view-overview" class="results-section" hidden>
       <div class="section-title-bar">
         <div>
@@ -286,31 +242,9 @@
       <div id="candidates" class="candidates-grid"></div>
     </section>
 
-    <!-- ═══ EMAIL OSINT & ACCOUNT DISCOVERY (HIBP Style Breach Cards) ═══ -->
+    <!-- ═══ EMAIL OSINT & ACCOUNT DISCOVERY ═══ -->
     <section class="results-section case-card" id="email-osint-section" hidden aria-label="Email OSINT discovery results" aria-live="polite">
-      <div class="section-title-bar">
-        <div>
-          <span class="section-badge"><i data-lucide="shield-alert"></i> Account &amp; Breach Discovery</span>
-          <h2>Registered Services &amp; Account Enumeration</h2>
-        </div>
-      </div>
-      <p class="section-subtext">Public account registrations and service footprints discovered for this target.</p>
-      
-      <div id="email-osint-overview" class="email-overview-box"></div>
-      <div id="email-osint-meta" class="metrics-tabs" style="margin:16px 0 24px"></div>
-      <div id="email-osint-sources" class="email-sources-grid"></div>
-    </section>
-
-    <!-- ═══ CLOSELY MATCHING PROFILES ═══ -->
-    <section id="close-matches-section" class="results-section" hidden>
-      <div class="section-title-bar">
-        <div>
-          <span class="section-badge"><i data-lucide="users"></i> Identity Clusters</span>
-          <h2>Closely Matching Profiles</h2>
-        </div>
-        <span class="mono-data section-meta-info">Ranked hypothesis candidates &amp; profile correlations</span>
-      </div>
-      <div id="close-matches" class="close-matches-container"></div>
+      <div id="email-result-container"></div>
     </section>
 
     <!-- ═══ EXECUTIVE REPORT ═══ -->
@@ -318,7 +252,7 @@
       <div class="section-title-bar">
         <div>
           <span class="section-badge"><i data-lucide="file-text"></i> OSINT Intelligence Report</span>
-          <h2>Executive Investigation Report</h2>
+          <h2>Executive OSINT Identity Report</h2>
         </div>
         <button id="print-report" class="btn btn-secondary"><i data-lucide="printer"></i> Print / Save PDF</button>
       </div>
@@ -332,7 +266,6 @@
 <!-- ═══ FOOTER ═══ -->
 <footer class="site-footer">
   <div class="footer-inner">
-    
     <div class="footer-brand">
       <img src="/logo.png" alt="Loki Footer Logo" class="footer-logo-img">
       <span class="brand-name">DEUS OSINT</span>
@@ -342,7 +275,6 @@
       <a href="#search-panel-section">Search Engine</a>
       <a href="#view-overview">Search Results</a>
       <a href="#email-osint-section">Account Discovery</a>
-      <a href="#close-matches-section">Matching Profiles</a>
       <a href="#view-report">Identity Report</a>
     </div>
 
@@ -353,7 +285,7 @@
 </footer>
 
 <script src="/fingerprint.js?v=14"></script>
-<script src="/app.js?v=18" defer></script>
+<script src="/app.js?v=26" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
@@ -362,7 +294,6 @@
     const tabs = document.querySelectorAll('.category-tab');
     const select = document.getElementById('seed-type');
     const seedInput = document.getElementById('seed');
-    const imageSection = document.getElementById('image-section');
 
     const placeholders = {
       USERNAME: "Enter username (e.g. johndoe, alex_dev)...",
@@ -380,15 +311,10 @@
         tab.classList.add('active');
         tab.setAttribute('aria-selected', 'true');
 
-        if (tab.id === 'tab-avatar') {
-          if (imageSection) imageSection.hidden = false;
-          imageSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else {
-          const seedType = tab.dataset.seed;
-          if (select && seedType) select.value = seedType;
-          if (seedInput && placeholders[seedType]) seedInput.placeholder = placeholders[seedType];
-          if (seedInput) seedInput.focus();
-        }
+        const seedType = tab.dataset.seed;
+        if (select && seedType) select.value = seedType;
+        if (seedInput && placeholders[seedType]) seedInput.placeholder = placeholders[seedType];
+        if (seedInput) seedInput.focus();
       });
     });
 

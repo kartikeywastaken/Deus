@@ -26,7 +26,7 @@ impl OsintConnector for GitHubConnector {
             connector: self.name().to_string(),
             availability: self.availability().to_string(),
             auth_required: false,
-            supported_seeds: vec!["username".to_string(), "email".to_string()],
+            supported_seeds: vec!["username".to_string()],
         }
     }
 
