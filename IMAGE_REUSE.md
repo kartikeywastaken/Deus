@@ -1,71 +1,44 @@
-# Optional image-reuse checks
+# In-Memory Photo Matching for Profile Candidates
 
-This feature compares whole images, not people or faces. It never adds identity
-evidence, changes rankings, or merges accounts. No API key or new dependency is needed.
+This feature compares an optional user-attached photo against profile pictures of candidate profiles found during a username search using local, zero-third-party image matching (cross-correlation, center crop matching, inscribed circle masking, and SHA-256 exact matching).
 
-## Try it
+It does **not** recognize faces, detect facial landmarks, calculate facial embeddings, or perform biometric identification. It only matches instances of the **same photo** (allowing crops, resizes, horizontal mirrors, circular crops, and JPEG recompression).
 
-1. Start a username/profile search. Optionally choose a JPEG, PNG or WebP in the
-   **Check image reuse** panel. The file stays local to the tab until comparison.
-2. On completion, a selected image is checked automatically. Alternatively click
-   **Check current candidates**, or select an image after completion and click that button.
-3. Read the per-profile results and open the public source to review it. Another
-   image can be selected afterward. The input is cleared after every attempt.
+## Privacy and Storage Guarantees
 
-No photo is required to run a search. Closing/reloading the tab loses pending
-photos and image results. Results remain visible in the tab until cleared or a new
-search is started; they are not included in the saved identity report.
+- **Memory Only**: The uploaded photo is stored exclusively in an in-memory `PhotoStore` (TTL 30 minutes, LRU max capacity 16 entries).
+- **Zero Disk / DB Storage**: The photo is never written to disk, database, logs, or persistent storage.
+- **Zero Third-Party Services**: Comparison runs strictly on the local server process. The photo never leaves the machine, and no third-party reverse image search APIs (Google Lens, SerpAPI, TinEye, etc.) are called.
+- **Cache-Control**: All matching responses use `Cache-Control: no-store`.
 
-## API and retention
+## Endpoints
 
-`POST /api/searches/{search_id}/image-matches` accepts **raw image bytes** with
-`Content-Type: image/jpeg`, `image/png`, `image/webp`, or `application/octet-stream`.
-It returns per-profile status, profile/avatar URLs, source observation IDs, check
-time, limits and method version. Responses use `Cache-Control: no-store`.
+- `POST /api/searches/:id/photo` (multipart field `"photo"`): Prepares the photo (EXIF orientation applied, checked for format/size/dimensions/detail) and returns `{ "token": token, "width": w, "height": h }`.
+- `GET /api/searches/:id/photo-matches?token=`: Polls match results for the current candidates of the search run. Cached per `(token, avatar_url)`.
+- `DELETE /api/searches/:id/photo?token=`: Explicitly clears the photo session from memory.
 
-Only avatar URLs observed within that search are fetched. No URL from the upload
-is followed; EXIF location is neither read into results nor stored. Reference bytes,
-downloaded bytes, hashes and thumbnails are request-local. Nothing is inserted in
-PostgreSQL, the evidence ledger, vectors, jobs or application files. No background
-retry retains the image. The old fingerprint-persisting `/images` endpoint now
-returns 410. Existing historical artifacts are not deleted by this change.
+## Matching Algorithm and Verdicts
 
-Memory release is not a guarantee of cryptographic RAM erasure. Production hosting
-must separately disable proxy/body logging, core dumps, and persistent request
-capture. Aborting the browser request clears its UI; bounded server work may finish.
-The original image on the user's device and the public source are never deleted.
+1. **Pre-processing**:
+   - Magic bytes check: JPEG, PNG, or WebP only.
+   - Max size: 5 MB. Max dimensions: 16 MP (checked before full decode).
+   - EXIF orientation applied using `kamadak-exif`.
+   - Low detail rejection: grayscale standard deviation must be $\ge 12.0$.
+   - Prepared image: grayscale, downscaled so longest side = 96 px (`Lanczos3`).
 
-## Methods and honest limitations
+2. **Avatar Matching**:
+   - `EXACT_FILE`: SHA-256 hash of avatar bytes equals upload byte hash (strength 1.0).
+   - `SAME_PHOTO`: Normalized Zero-mean Cross-Correlation (ZNCC) strength $\ge 0.90$ across multi-scale window fractions ($f \in [0.30, 1.0]$), horizontal mirrors, and inscribed circle masking.
+   - `POSSIBLE_MATCH`: ZNCC strength $0.85 \le \text{strength} < 0.90$.
+   - `NO_MATCH`: strength $< 0.85$.
+   - `TOO_SMALL`: Avatar side $< 24$ px.
+   - `UNAVAILABLE`: Avatar URL could not be fetched (SSRF blocked, timeout, HTTP 404/500).
 
-- `EXACT_FILE`: SHA-256 of bytes agrees — “Same image appears on this profile.”
-- `SAME_PIXELS`: decoded RGBA pixels and dimensions agree after EXIF orientation.
-- `POSSIBLE_REUSE`: pHash and dHash distances at most 4/64 each, normalized thumbnail
-  MSE at most 0.006, aspect ratio within 2%. This is a conservative heuristic for
-  resizing/compression, **not** a calibrated probability. Review manually.
-- `NO_REUSE_DETECTED`: no whole-image match. Different photographs, crops and edits
-  may not match. This supplies no negative evidence about a person.
-- `INCONCLUSIVE`: low-detail images cannot be reliably compared perceptually.
-- `NO_PUBLIC_IMAGE`, `UNAVAILABLE`, `TIMEOUT`, `LIMIT_REACHED`: explicit coverage gaps.
+3. **Known Limitations**:
+   - Rotated copies (e.g. 45° or 90° rotated) are not matched.
+   - Different photographs of the same individual will **not** match.
 
-Copied photos, stock images, logos and default avatars can match; this never proves
-who controls an account. No face detection, face embeddings, facial recognition,
-reverse-face search or biometric inference is performed.
+## Rate Limits and SSRF Safety
 
-## Bounds
-
-5 MB encoded upload/download, 16 MP decoded, still images only; 32 distinct avatar
-URLs, four concurrent downloads, 15 seconds per image, 45 seconds for comparison.
-Uploads have a 20-second deadline. At most two checks per API process and one per
-search per process are admitted. Repeated avatar URLs are fetched once per request.
-This is a local-app concurrency guard, not multi-instance production rate limiting.
-
-The existing HTTPS fetcher validates/pins public DNS, rejects private destinations
-on redirects, restricts content types and size, and uses no operator cookies or
-authentication. Login walls and inaccessible avatars are not bypassed.
-
-## Tests
-
-`python -m pytest tests/unit/test_image_reuse.py -q` covers algorithmic image fixtures,
-validation, stateless API behavior, missing avatars, duplicates, private destinations,
-budgets and timeouts. These fixtures never enter production results. For a real
-test, upload an image you possess against an actual completed search in the UI.
+- Upload rate limit: default 20 uploads per IP per hour (configurable via `PHOTO_MATCH_PER_IP_HOURLY`).
+- Avatar fetches are performed using `safe_fetch` with strict DNS validation blocking loopback (`127.0.0.0/8`, `::1`), private, link-local, and multicast IP addresses, with redirect re-validation at every hop.

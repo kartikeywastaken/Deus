@@ -54,7 +54,11 @@ html, body {
   border: 0 !important;
 }
 
-/* Background lines removed as requested */
+[hidden] {
+  display: none !important;
+}
+
+/* Background lines removed */
 .bg-grid-pattern {
   display: none !important;
 }
@@ -185,7 +189,7 @@ html, body {
   }
 }
 
-/* Horizontal Passive Browser Audit Terminal */
+/* Horizontal Passive Audit Terminal Stream */
 .terminal-container {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -195,7 +199,7 @@ html, body {
   background-color: rgba(255, 255, 255, 0.015);
 }
 
-.terminal-header-horizontal {
+.terminal-header-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -215,10 +219,14 @@ html, body {
   letter-spacing: 0.08em;
 }
 
+.terminal-prompt-bar {
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+
 .terminal-prompt-text {
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .terminal-prompt-text::after {
@@ -262,7 +270,7 @@ html, body {
   border-color: var(--fg);
 }
 
-/* Horizontal Streaming Rows */
+/* Horizontal Line-by-Line Stream Body */
 .typewriter-stream-body {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -273,6 +281,7 @@ html, body {
   gap: 12px;
   align-items: center;
   padding-bottom: 8px;
+  margin-bottom: 12px;
   scrollbar-width: thin;
 }
 
@@ -326,7 +335,7 @@ html, body {
   padding: 4px 8px;
 }
 
-/* Detailed Horizontal Signals Bar */
+/* Horizontal Signals Bar */
 .signal-cards-horizontal {
   display: flex;
   flex-direction: row;
@@ -445,6 +454,68 @@ html, body {
   right: 0;
   height: 2px;
   background-color: var(--accent);
+}
+
+/* Image Upload Zone */
+.image-upload-area {
+  margin-bottom: 24px;
+}
+
+.image-drop-zone {
+  border: 1px dashed var(--line);
+  padding: 32px;
+  text-align: center;
+  background-color: rgba(255, 255, 255, 0.01);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.image-drop-zone:hover, .image-drop-zone.dragover {
+  border-color: var(--accent);
+  background-color: rgba(236, 28, 36, 0.03);
+}
+
+.drop-zone-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.drop-zone-icon {
+  font-size: 32px;
+}
+
+.drop-zone-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.image-preview-box {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background-color: var(--bg);
+}
+
+.image-preview-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
+.image-preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
 }
 
 /* Search Bar */
@@ -1017,3 +1088,148 @@ html, body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Photo Attachment & Match UI */
+.photo-attach-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.photo-attach-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background-color: var(--card-bg, rgba(255, 255, 255, 0.03));
+  border: 1px dashed var(--line, #333);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted, #aaa);
+  cursor: pointer;
+  width: fit-content;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.photo-attach-trigger:hover {
+  border-color: var(--accent, #ec1c24);
+  color: var(--fg, #fff);
+}
+
+.photo-chip-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background-color: rgba(236, 28, 36, 0.08);
+  border: 1px solid var(--accent, #ec1c24);
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.photo-chip-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.photo-chip-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg, #fff);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photo-chip-remove {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.photo-chip-remove:hover {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+.photo-attach-subtext {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted, #888);
+  line-height: 1.4;
+  max-width: 650px;
+}
+
+.photo-summary-line {
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line, #333);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg, #ddd);
+}
+
+.photo-match-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  width: fit-content;
+}
+
+.photo-match-chip--same {
+  background-color: rgba(46, 204, 113, 0.15);
+  border: 1px solid #2ecc71;
+  color: #2ecc71;
+}
+
+.photo-match-chip--possible {
+  background-color: rgba(243, 156, 18, 0.15);
+  border: 1px solid #f39c12;
+  color: #f39c12;
+}
+
+.photo-side-by-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  margin-top: 10px;
+  background-color: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line, #333);
+  border-radius: 4px;
+}
+
+.photo-side-by-side-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.photo-side-by-side-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted, #888);
+  text-align: center;
+  margin-top: 4px;
+}
+

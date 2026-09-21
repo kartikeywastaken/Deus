@@ -3,6 +3,8 @@ pub mod config;
 pub mod connectors;
 pub mod correlation;
 pub mod db;
+pub mod enrich;
 pub mod image;
 pub mod osint;
+pub mod photo_match;
 pub mod worker;

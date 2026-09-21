@@ -62,6 +62,17 @@ fn get_provider_label(domain: &str) -> String {
     }
 }
 
+pub async fn email_info_handler() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(json!({
+            "service": "Email OSINT Holehe Audit API",
+            "method_required": "POST",
+            "payload_format": { "email": "user@example.com", "self_audit_confirmed": true }
+        })),
+    )
+}
+
 pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
     let start = Instant::now();
     let norm = match normalize_email(&payload.email) {

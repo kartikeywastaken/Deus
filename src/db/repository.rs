@@ -323,6 +323,16 @@ impl Repository {
         .await
     }
 
+    pub async fn get_observations(&self, search_run_id: Uuid) -> Result<Vec<ProfileObservationRecord>, sqlx::Error> {
+        sqlx::query_as::<_, ProfileObservationRecord>(
+            "SELECT * FROM profile_observations WHERE search_run_id = $1 ORDER BY observed_at ASC"
+        )
+        .bind(search_run_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+
     pub async fn update_search_status(&self, id: Uuid, status: &str, error_summary: Option<&str>) -> Result<(), sqlx::Error> {
         let now = Utc::now();
         sqlx::query(

@@ -5,6 +5,14 @@ let searchId = null, stream = null, refreshTimer = null, fallbackTimer = null, b
 let latest = null, refreshRunning = false, refreshAgain = false;
 let currentSeedType = null, currentSeedValue = null;
 
+// Photo Match state
+let attachedPhotoFile = null;
+let photoToken = null;
+let photoMatchResults = null;
+let photoFilterOnly = false;
+let lastPhotoPollTime = 0;
+let localPhotoObjectUrl = null;
+
 // Clear all prior investigation output so a new run starts from a clean slate.
 function resetResultView() {
   const reportEl = $("report");
@@ -22,6 +30,13 @@ function resetResultView() {
   Object.keys(animatedMetricValues).forEach(key => { animatedMetricValues[key] = 0; });
   const liveStatus = $("live-candidate-status");
   if (liveStatus) liveStatus.textContent = "";
+
+  photoFilterOnly = false;
+  photoMatchResults = null;
+  const summaryEl = $("photo-match-summary");
+  if (summaryEl) { summaryEl.style.display = "none"; summaryEl.textContent = ""; }
+  const filterBtn = $("photo-filter-toggle");
+  if (filterBtn) filterBtn.style.display = "none";
 }
 
 // ── Investigation Status Cycling Messages ──
@@ -77,7 +92,19 @@ function showResultSections() {
 const node = (tag, text = "", cls = "") => { const n = document.createElement(tag); n.textContent = text; if (cls) n.className = cls; return n; };
 const label = p => `${p.platform} ${p.username ? "@" + p.username : p.display_name || "profile"}`;
 const points = v => Math.round(Math.max(0, Math.min(1, v || 0)) * 100);
-function safeLink(url, text) { const a = node("a", text); try { if (new URL(url).protocol !== "https:") return node("span", text); } catch { return node("span", text); } a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
+function safeLink(url, text) {
+  const a = node("a", text);
+  try {
+    const targetUrl = new URL(url, window.location.href);
+    if (!["http:", "https:"].includes(targetUrl.protocol)) return node("span", text);
+    a.href = targetUrl.href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    return a;
+  } catch (_) {
+    return node("span", text);
+  }
+}
 
 // ── Metric Count-Up Animation ──
 const animatedMetricValues = {
@@ -136,15 +163,10 @@ function setBusy(value) {
   const btn = $("search-button"); if (btn) btn.disabled = value;
   const seed = $("seed"); if (seed) seed.disabled = value;
   const seedType = $("seed-type"); if (seedType) seedType.disabled = value;
-  
-  const statusPanel = $("status-control-panel");
-  if (statusPanel && value) statusPanel.hidden = false;
-
   if (value) {
+    stopStatusCycle();
     startStatusCycle();
-    const beam = $("radar-beam");
-    if (beam) beam.classList.add("spinning");
-  } else if (!searchId) {
+  } else {
     stopStatusCycle();
   }
 }
@@ -160,6 +182,79 @@ function connect() {
   stream.addEventListener("done", () => { stream.close(); clearTimeout(fallbackTimer); schedule(); });
   stream.onerror = () => { const conn = $("connection"); if (conn) conn.textContent = "Reconnecting · polling fallback"; clearTimeout(fallbackTimer); fallbackTimer = setTimeout(async function retry() { if (id !== searchId || terminal(latest?.state.status)) return; try { await refresh(); } catch(e) { error(e); } fallbackTimer = setTimeout(retry, 4000); }, 4000); };
 }
+
+async function uploadPhotoForSearch(id, file) {
+  const formData = new FormData();
+  formData.append("photo", file);
+  const res = await fetch(`/api/searches/${id}/photo`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || "Failed to upload photo");
+  }
+  return data.token;
+}
+
+async function pollPhotoMatches() {
+  if (!searchId || !photoToken) return;
+  const now = Date.now();
+  if (photoMatchResults && photoMatchResults.status === "done") return;
+  if (now - lastPhotoPollTime < 1800) return; // Throttle to 2s
+  lastPhotoPollTime = now;
+
+  try {
+    const res = await fetch(`/api/searches/${searchId}/photo-matches?token=${encodeURIComponent(photoToken)}`, {
+      headers: { "Cache-Control": "no-store" }
+    });
+    if (res.status === 404) {
+      error(new Error("Photo session expired. Re-attach your photo to match results."));
+      photoToken = null;
+      return;
+    }
+    if (!res.ok) return;
+    const data = await res.json();
+    photoMatchResults = data;
+    renderPhotoMatchSummary();
+    renderCandidates();
+  } catch (_) {}
+}
+
+function renderPhotoMatchSummary() {
+  const summaryEl = $("photo-match-summary");
+  const filterBtn = $("photo-filter-toggle");
+  if (!summaryEl) return;
+
+  if (!photoMatchResults) {
+    summaryEl.style.display = "none";
+    if (filterBtn) filterBtn.style.display = "none";
+    return;
+  }
+
+  const c = photoMatchResults.counts || {};
+  const matchedCount = (photoMatchResults.matches || []).length;
+
+  let text = `Photo check: ${photoMatchResults.checked || 0} compared · ${c.same_photo || 0} same photo · ${c.possible_match || 0} possible · ${c.no_avatar || 0} had no public picture · ${c.unavailable || 0} couldn't be fetched`;
+
+  if (photoMatchResults.status === "done" && (photoMatchResults.total || 0) > 0 && matchedCount === 0) {
+    text += `<br><span style="color:var(--muted); margin-top:4px; display:inline-block;">No profile picture matched this photo. Profiles may use a different picture, and some platforms (Instagram, LinkedIn, X, Facebook) hide pictures from automated checks.</span>`;
+  }
+
+  summaryEl.innerHTML = text;
+  summaryEl.style.display = "block";
+
+  if (filterBtn) {
+    filterBtn.textContent = `Photo matches only (${matchedCount})`;
+    filterBtn.style.display = matchedCount > 0 ? "inline-flex" : "none";
+    filterBtn.onclick = () => {
+      photoFilterOnly = !photoFilterOnly;
+      filterBtn.classList.toggle("active", photoFilterOnly);
+      renderCandidates();
+    };
+  }
+}
+
 async function refresh() {
   if (!searchId) return;
   if (refreshRunning) { refreshAgain = true; return; }
@@ -241,6 +336,10 @@ async function refresh() {
     }
 
     if (state.error_summary) error(new Error(state.error_summary));
+
+    if (photoToken) {
+      await pollPhotoMatches();
+    }
 
     renderCandidates();
     renderReport();
@@ -342,6 +441,24 @@ function candidateCard(p) {
   card.append(header);
 
   const chips = node("div", "", "candidate-chips");
+
+  // Check photo match status for candidate
+  let matchedItem = null;
+  if (photoMatchResults && photoMatchResults.matches) {
+    matchedItem = photoMatchResults.matches.find(m => m.profile_id === p.id || m.profile_id === String(p.id) || (m.platform === p.platform && m.username === p.username));
+  }
+
+  if (matchedItem) {
+    const pct = Math.round((matchedItem.strength || 0) * 100);
+    if (matchedItem.verdict === "SAME_PHOTO") {
+      const chip = node("span", `📷 Same photo · ${pct}%`, "photo-match-chip photo-match-chip--same");
+      chips.append(chip);
+    } else if (matchedItem.verdict === "POSSIBLE_MATCH") {
+      const chip = node("span", `📷 Possible match · ${pct}% · verify`, "photo-match-chip photo-match-chip--possible");
+      chips.append(chip);
+    }
+  }
+
   const matchInfo = getMatchLabel(candidateMatchValue(p));
   const rel = RELEVANCE_LABELS[p.relevance];
   const badgeText = rel ? `${rel.label} · ${matchInfo.score}%` : `${matchInfo.label} · ${matchInfo.score}%`;
@@ -349,6 +466,25 @@ function candidateCard(p) {
   chips.append(node("span", badgeText, `status-chip ${badgeCls}`));
   if (p.raw_json?.verified === true) chips.append(node("span", "✓ Verified", "status-chip status-chip--found"));
   card.append(chips);
+
+  // If photo matched, show side-by-side comparison
+  if (matchedItem && (matchedItem.verdict === "SAME_PHOTO" || matchedItem.verdict === "POSSIBLE_MATCH")) {
+    const sbs = node("div", "", "photo-side-by-side");
+    const userImgSrc = localPhotoObjectUrl || "/logo.png";
+    const profileImgSrc = matchedItem.avatar_url || p.avatar_url;
+    sbs.innerHTML = `
+      <div style="text-align:center;">
+        <img src="${userImgSrc}" class="photo-side-by-side-img" alt="Attached photo">
+        <div class="photo-side-by-side-label">Your photo</div>
+      </div>
+      <div style="font-size:16px; font-weight:bold; color:var(--accent,#ec1c24);">↔</div>
+      <div style="text-align:center;">
+        <img src="${profileImgSrc}" class="photo-side-by-side-img" alt="Profile avatar">
+        <div class="photo-side-by-side-label">Profile picture</div>
+      </div>
+    `;
+    card.append(sbs);
+  }
 
   const why = node("div", "", "candidate-why");
   why.append(node("span", "Why this result?", "candidate-why-title"));
@@ -383,7 +519,30 @@ function renderCandidates() {
     liveStatus.textContent = `Handle: ${handleSeed} · ${candidatesList.length} profiles found · ${completedRunsCount}/${totalRunsCount} sources done`;
   }
 
+  // Show Header attach photo button if search has completed and no photo was attached initially
+  const headerAttachBtn = $("header-attach-photo-btn");
+  if (headerAttachBtn) {
+    if (!attachedPhotoFile && searchId && candidatesList.length > 0) {
+      headerAttachBtn.style.display = "inline-flex";
+      headerAttachBtn.onclick = () => {
+        $("photo-attach-input")?.click();
+      };
+    } else {
+      headerAttachBtn.style.display = "none";
+    }
+  }
+
   const allCandidates = [...candidatesList].sort((a, b) => {
+    // Sort photo matches to top (SAME_PHOTO = 0, POSSIBLE_MATCH = 1, others = 2)
+    let aPhotoRank = 2, bPhotoRank = 2;
+    if (photoMatchResults && photoMatchResults.matches) {
+      const mA = photoMatchResults.matches.find(m => m.profile_id === a.id || m.profile_id === String(a.id) || (m.platform === a.platform && m.username === a.username));
+      const mB = photoMatchResults.matches.find(m => m.profile_id === b.id || m.profile_id === String(b.id) || (m.platform === b.platform && m.username === b.username));
+      if (mA) aPhotoRank = mA.verdict === "SAME_PHOTO" ? 0 : 1;
+      if (mB) bPhotoRank = mB.verdict === "SAME_PHOTO" ? 0 : 1;
+    }
+    if (aPhotoRank !== bPhotoRank) return aPhotoRank - bPhotoRank;
+
     const rankA = candidateSortRank(a, currentSeedValue);
     const rankB = candidateSortRank(b, currentSeedValue);
     if (rankA !== rankB) return rankA - rankB;
@@ -392,9 +551,17 @@ function renderCandidates() {
   });
 
   const q = candidateSearchQuery.trim().toLowerCase();
-  const filtered = q
+  let filtered = q
     ? allCandidates.filter(p => `${p.platform} ${p.username} ${p.display_name} ${p.bio}`.toLowerCase().includes(q))
     : allCandidates;
+
+  if (photoFilterOnly) {
+    filtered = filtered.filter(p => {
+      if (!photoMatchResults || !photoMatchResults.matches) return false;
+      const m = photoMatchResults.matches.find(item => item.profile_id === p.id || item.profile_id === String(p.id) || (item.platform === p.platform && item.username === p.username));
+      return m && (m.verdict === "SAME_PHOTO" || m.verdict === "POSSIBLE_MATCH");
+    });
+  }
 
   grid.replaceChildren();
 
@@ -415,7 +582,7 @@ function renderCandidates() {
     }
   } else {
     const empty = node("div", "", "case-card candidates-empty");
-    empty.append(node("p", "No public profiles found.", "candidates-empty-title"));
+    empty.append(node("p", photoFilterOnly ? "No matched profiles found for the photo filter." : "No public profiles found.", "candidates-empty-title"));
     grid.append(empty);
   }
 }
@@ -436,198 +603,62 @@ function renderReport() {
     r.executive_finding ? node("p", r.executive_finding, "lead-finding") : null
   );
   reportContainer.append(head);
-
-  if (r.lead_candidates?.length) {
-    const sectionBox = node("div", "", "report-section-box");
-    sectionBox.append(node("h3", "Discovered Profiles"));
-    const grid = node("div", "", "report-candidate-grid");
-    r.lead_candidates.forEach(p => {
-      const card = node("div", "", "report-candidate-mini");
-      card.innerHTML = `${getPlatformSvgLogo(p.platform, 18)} <strong>${(p.platform || '').toUpperCase()}</strong> · ${p.username ? "@" + p.username : p.display_name || "Profile"}`;
-      const pLink = resolveCandidateLink(p);
-      if (pLink) card.append(safeLink(pLink, "Open Profile ↗"));
-      grid.append(card);
-    });
-    sectionBox.append(grid);
-    reportContainer.append(sectionBox);
-  }
 }
 
-// ── Item 5: Email OSINT Verified-Only Render Function ──
 function renderEmailResult(data) {
-  const container = document.getElementById("email-result-container");
-  const section = document.getElementById("email-osint-section");
-  if (!container || !section) return;
-
-  section.hidden = false;
+  const container = $("email-result-container");
+  if (!container) return;
   container.replaceChildren();
 
-  const summary = data.summary || { registered: 0, not_registered: 0, cant_check: 0, scan_ms: 0 };
-  const sites = data.sites || [];
-  const breaches = data.breaches || [];
+  const sec = $("email-osint-section");
+  if (sec) sec.hidden = false;
 
-  const registeredSites = sites.filter(s => s.status === "REGISTERED");
-
-  // Header Card
-  const headBox = node("div", "", "case-card email-header-box");
-
-  const titleRow = node("div", "", "email-title-row");
-  titleRow.append(
-    node("h2", data.email || "Email Account Discovery", "email-heading"),
-    node("span", data.provider || "Provider", "status-chip status-chip--neutral")
+  const header = node("div", "", "email-result-header");
+  header.append(
+    node("h2", `Account Discovery for ${data.email || currentSeedValue}`, "email-result-title"),
+    node("p", "Automated passive registration and breach checks across supported platforms.", "email-result-sub")
   );
-
-  const subLineText = `Verified on ${summary.registered} service${summary.registered === 1 ? '' : 's'} · ${summary.scan_ms} ms`;
-  const subLine = node("p", subLineText, "email-subline");
-
-  headBox.append(titleRow, subLine);
-
-  if (sites.length > 0 && summary.cant_check > sites.length / 2) {
-    const incompleteNote = node("p", "Some checks couldn't complete, results may be incomplete.", "email-incomplete-note");
-    headBox.append(incompleteNote);
-  }
-
-  container.append(headBox);
-
-  // Table showing ONLY verified/registered sites
-  if (registeredSites.length > 0) {
-    const table = node("table", "", "email-sites-table");
-
-    const thead = node("thead");
-    thead.innerHTML = `<tr>
-      <th>Service</th>
-      <th>Status</th>
-      <th>Details / Reason</th>
-      <th>Link</th>
-    </tr>`;
-    table.append(thead);
-
-    const tbody = node("tbody");
-    registeredSites.forEach(site => {
-      const tr = node("tr");
-
-      const tdName = node("td", site.label || site.id, "site-name-cell");
-
-      const tdStatus = node("td");
-      tdStatus.append(node("span", "Registered", "status-chip status-chip--found"));
-
-      const tdDetail = node("td");
-      let detailText = site.detail || site.reason || "—";
-      if (site.username) detailText = `@${site.username}` + (site.detail ? ` (${site.detail})` : "");
-      tdDetail.textContent = detailText;
-
-      const tdLink = node("td");
-      if (site.profile_url) {
-        tdLink.append(safeLink(site.profile_url, "Open ↗"));
-      } else {
-        tdLink.textContent = "—";
-      }
-
-      tr.append(tdName, tdStatus, tdDetail, tdLink);
-      tbody.append(tr);
-    });
-
-    table.append(tbody);
-    container.append(table);
-  } else {
-    const emptyBox = node("div", "No verified accounts found.", "email-empty-box");
-    container.append(emptyBox);
-  }
-
-  // Data breaches summary box if present
-  if (breaches && breaches.length > 0) {
-    const breachBox = node("div", "", "case-card breach-box");
-    const breachTitle = node("h3", `Data Breach Exposures (${breaches.length})`);
-    const names = breaches.map(b => b.name).join(", ");
-    const breachText = node("p", `Exposed in public data breaches: ${names}`, "breach-text");
-
-    breachBox.append(breachTitle, breachText);
-    container.append(breachBox);
-  }
+  container.append(header);
 }
 
 async function fetchEmailOsint(email) {
-  const container = document.getElementById("email-result-container");
-  const section = document.getElementById("email-osint-section");
-  if (!container || !section) return;
+  const container = $("email-result-container");
+  if (!container) return;
 
-  section.hidden = false;
-  container.replaceChildren();
+  const sec = $("email-osint-section");
+  if (sec) sec.hidden = false;
 
-  const loadingMsg = node("div", "Scanning… (up to ~1 min)", "loading-msg");
-  loadingMsg.style.cssText = "padding:24px; text-align:center; color:#94a3b8; font-size:15px;";
-  container.append(loadingMsg);
+  container.innerHTML = `
+    <div style="padding:24px; text-align:center;" class="mono-data">
+      <span class="live-pulse"></span> Scanning email registration and breach endpoints...
+    </div>
+  `;
 
   try {
-    const res = await fetch("/api/osint/email", {
+    const data = await request("/api/osint/email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, self_audit_confirmed: true }),
+      body: JSON.stringify({ email })
     });
-
-    const rawText = await res.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch (_) {
-      throw new Error(`HTTP ${res.status}: Invalid response format`);
-    }
-
-    if (!res.ok) {
-      const detailMsg = data && data.detail ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : res.statusText;
-      throw new Error(`HTTP ${res.status}: ${detailMsg}`);
-    }
-
     renderEmailResult(data);
-  } catch (e) {
-    container.replaceChildren();
-    const errBox = node("div", e.message || String(e), "error-toast");
-    errBox.style.cssText = "padding:16px; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.3); border-radius:8px; color:#f87171;";
-    container.append(errBox);
+  } catch (err) {
+    container.innerHTML = `<div class="error-toast" style="padding:16px;">${err.message || String(err)}</div>`;
   }
 }
-
-const KNOWN_PROFILE_HOSTS = [
-  "github.com", "x.com", "twitter.com", "instagram.com", "tiktok.com",
-  "youtube.com", "linkedin.com", "reddit.com", "medium.com", "dev.to",
-  "gitlab.com", "twitch.tv", "t.me", "keybase.io", "pinterest.com",
-  "codepen.io", "soundcloud.com", "tumblr.com", "stackoverflow.com"
-];
 
 function classifySeed(raw, fallbackType = "USERNAME") {
   const val = String(raw || "").trim();
   if (!val) return { type: fallbackType, value: "" };
 
-  const lower = val.toLowerCase();
-
-  // (a) URL check: starts with http(s):// OR looks like host/path of a known profile host
-  if (lower.startsWith("http://") || lower.startsWith("https://")) {
-    return { type: "PROFILE_URL", value: val };
-  }
-
-  // Strip optional subdomains (www., m., mobile.) for domain match
-  const stripped = lower.replace(/^(www\.|m\.|mobile\.)/, "");
-  const isKnownHost = KNOWN_PROFILE_HOSTS.some(host => {
-    return stripped === host || stripped.startsWith(host + "/") || stripped.endsWith("." + host) || stripped.includes("." + host + "/");
-  });
-
-  if (isKnownHost) {
-    return { type: "PROFILE_URL", value: "https://" + val };
-  }
-
-  // (b) EMAIL check: ONLY if matches ^[^\s@/:]+@[^\s@/:]+\.[^\s@/:]{2,}$
   const emailRegex = /^[^\s@/:]+@[^\s@/:]+\.[^\s@/:]{2,}$/;
   if (emailRegex.test(val)) {
     return { type: "EMAIL", value: val };
   }
 
-  // (c) Bare "@handle" -> USERNAME (strip the @)
   if (val.startsWith("@") && val.length > 1) {
     return { type: "USERNAME", value: val.slice(1) };
   }
 
-  // (d) Otherwise fallback to currently selected tab/type
-  return { type: fallbackType, value: val };
+  return { type: "USERNAME", value: val };
 }
 window.classifySeed = classifySeed;
 
@@ -642,10 +673,11 @@ async function startInvestigation(e) {
   const seedTypeSelect = $("seed-type");
   if (!seedInput || !seedTypeSelect) return false;
 
+  const fallbackType = seedTypeSelect.value || "USERNAME";
+
   const rawVal = seedInput.value;
   if (!rawVal.trim()) return false;
 
-  const fallbackType = seedTypeSelect.value || "USERNAME";
   const classified = classifySeed(rawVal, fallbackType);
 
   currentSeedType = classified.type;
@@ -692,6 +724,15 @@ async function startInvestigation(e) {
     stream?.close();
     searchId = result.id;
     showResultSections();
+
+    if (attachedPhotoFile) {
+      try {
+        photoToken = await uploadPhotoForSearch(searchId, attachedPhotoFile);
+      } catch (err) {
+        error(err);
+      }
+    }
+
     connect();
     await refresh();
     setTimeout(() => {
@@ -792,17 +833,103 @@ function initEncryptedText() {
   });
 }
 
+function handleAttachedPhotoSelected(file) {
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    error(new Error("Photo exceeds 5 MB size limit"));
+    return;
+  }
+  const type = (file.type || "").toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(type)) {
+    error(new Error("Photo must be JPEG, PNG, or WebP"));
+    return;
+  }
+
+  attachedPhotoFile = file;
+  if (localPhotoObjectUrl) {
+    URL.revokeObjectURL(localPhotoObjectUrl);
+  }
+  localPhotoObjectUrl = URL.createObjectURL(file);
+
+  const trigger = $("photo-attach-trigger");
+  const preview = $("photo-chip-preview");
+  const img = $("photo-chip-img");
+  const name = $("photo-chip-name");
+
+  if (img) img.src = localPhotoObjectUrl;
+  if (name) name.textContent = file.name;
+  if (trigger) trigger.style.display = "none";
+  if (preview) preview.style.display = "inline-flex";
+
+  // If search is already running or completed, upload photo directly
+  if (searchId && !photoToken) {
+    uploadPhotoForSearch(searchId, file)
+      .then(token => {
+        photoToken = token;
+        refresh();
+      })
+      .catch(err => error(err));
+  }
+}
+
+function clearAttachedPhoto() {
+  if (photoToken && searchId) {
+    fetch(`/api/searches/${searchId}/photo?token=${encodeURIComponent(photoToken)}`, { method: "DELETE" }).catch(() => {});
+  }
+  attachedPhotoFile = null;
+  photoToken = null;
+  photoMatchResults = null;
+  photoFilterOnly = false;
+
+  if (localPhotoObjectUrl) {
+    URL.revokeObjectURL(localPhotoObjectUrl);
+    localPhotoObjectUrl = null;
+  }
+
+  const trigger = $("photo-attach-trigger");
+  const preview = $("photo-chip-preview");
+  const input = $("photo-attach-input");
+  const summaryEl = $("photo-match-summary");
+  const filterBtn = $("photo-filter-toggle");
+
+  if (input) input.value = "";
+  if (trigger) trigger.style.display = "inline-flex";
+  if (preview) preview.style.display = "none";
+  if (summaryEl) { summaryEl.style.display = "none"; summaryEl.textContent = ""; }
+  if (filterBtn) filterBtn.style.display = "none";
+
+  renderCandidates();
+}
+
+function initPhotoAttachControls() {
+  const trigger = $("photo-attach-trigger");
+  const input = $("photo-attach-input");
+  const removeBtn = $("photo-chip-remove");
+
+  if (trigger && input) {
+    trigger.onclick = () => input.click();
+    input.onchange = () => {
+      if (input.files && input.files.length > 0) {
+        handleAttachedPhotoSelected(input.files[0]);
+      }
+    };
+  }
+
+  if (removeBtn) {
+    removeBtn.onclick = (e) => {
+      e.stopPropagation();
+      clearAttachedPhoto();
+    };
+  }
+}
+
 function bindFormEvents() {
   const form = $("search-form");
-  const btn = $("search-button");
   const seedInput = $("seed");
   const seedTypeSelect = $("seed-type");
 
   if (form) {
-    form.onsubmit = startInvestigation;
-  }
-  if (btn) {
-    btn.onclick = startInvestigation;
+    form.addEventListener("submit", startInvestigation);
   }
   if (seedInput && seedTypeSelect) {
     seedInput.addEventListener("input", () => {
@@ -818,6 +945,8 @@ function bindFormEvents() {
       });
     });
   }
+
+  initPhotoAttachControls();
 }
 
 // ── Page Initialization ──

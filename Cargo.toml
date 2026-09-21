@@ -32,10 +32,13 @@ strsim = "0.11"
 petgraph = "0.6"
 
 # Image Hashing & Cryptography
-img_hash = "3.2"
 image = "0.23"
+
+kamadak-exif = "0.5"
 sha2 = "0.10"
+sha1 = "0.10"
 hex = "0.4"
+thiserror = "1.0"
 
 # Networking & Utilities
 reqwest = { version = "0.12", features = ["json"] }

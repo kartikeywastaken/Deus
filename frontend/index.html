@@ -21,7 +21,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=29">
+  <link rel="stylesheet" href="/styles.css?v=32">
 </head>
 <body>
 
@@ -29,7 +29,7 @@
   <!-- Main Grid Layout -->
   <div class="deus-grid-layout">
 
-    <!-- LEFT RAIL (Brand Stack & Rail Navigation) -->
+    <!-- LEFT RAIL -->
     <aside class="left-rail">
       <div class="rail-top">
         <a class="brand-stacked" href="/">
@@ -56,9 +56,9 @@
     <!-- MAIN CONTENT COLUMN -->
     <main id="main-content" class="main-column">
 
-      <!-- PASSIVE BROWSER AUDIT TERMINAL (Horizontal Layout) -->
+      <!-- PASSIVE BROWSER AUDIT TERMINAL (Horizontal Stream) -->
       <div id="stage2-fingerprint" class="terminal-container">
-        <div class="terminal-header-horizontal">
+        <div class="terminal-header-line">
           <span class="telemetry-badge">[ PASSIVE BROWSER AUDIT ]</span>
           <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
           <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
@@ -71,10 +71,10 @@
 
         <!-- Horizontal Stream Body -->
         <div id="typewriter-content" class="typewriter-stream-body">
-          <!-- Terminal stream lines rendered horizontally by fingerprint.js -->
+          <!-- Stream comments rendered horizontally by fingerprint.js -->
         </div>
 
-        <!-- Horizontal Signal Chips for All Fetched Data -->
+        <!-- Signal Chips Container -->
         <div id="fingerprint-signals" class="signal-cards-horizontal">
           <div class="signal-chip"><span class="signal-chip-label">OS</span><span id="val-os" class="signal-chip-val skeleton">Resolving...</span></div>
           <div class="signal-chip"><span class="signal-chip-label">Browser</span><span id="val-browser" class="signal-chip-val skeleton">Resolving...</span></div>
@@ -104,7 +104,7 @@
             <div class="hero-right-meta">
               <p class="hero-credits-text">
                 PUBLIC OSINT FOOTPRINT &amp; IDENTITY DISCOVERY ENGINE.<br>
-                SEARCH USERNAMES, EMAILS, PHONE NUMBERS, AND PROFILE URLS ACROSS PUBLIC OSINT DATA SOURCES.
+                SEARCH USERNAMES AND EMAILS ACROSS PUBLIC OSINT DATA SOURCES WITH IN-MEMORY PHOTO MATCHING.
               </p>
             </div>
           </div>
@@ -117,21 +117,13 @@
             <button type="button" class="category-tab" data-seed="EMAIL" id="tab-email" role="tab" aria-selected="false">
               <span>Email Address</span>
             </button>
-            <button type="button" class="category-tab" data-seed="PROFILE_URL" id="tab-url" role="tab" aria-selected="false">
-              <span>Profile URL</span>
-            </button>
-            <button type="button" class="category-tab" data-seed="NAME" id="tab-name" role="tab" aria-selected="false">
-              <span>Full Name / Handle</span>
-            </button>
           </div>
 
           <!-- Main Search Bar -->
-          <form id="search-form" class="unified-searchbar" aria-label="Start an investigation">
+          <form id="search-form" class="unified-searchbar" onsubmit="event.preventDefault(); return false;" aria-label="Start an investigation">
             <select id="seed-type" class="visually-hidden" aria-label="Seed Type">
               <option value="USERNAME" selected>Username</option>
               <option value="EMAIL">Email Address</option>
-              <option value="PROFILE_URL">Social Profile URL</option>
-              <option value="NAME">Full Name / Handle</option>
             </select>
 
             <div class="search-input-wrapper">
@@ -141,12 +133,32 @@
                 autocomplete="off" 
                 required 
                 maxlength="500" 
-                placeholder="Enter username (e.g. johndoe), email, profile URL..."
+                placeholder="Enter username (e.g. johndoe), email..."
               >
               <button id="search-button" class="search-action-btn" type="submit">
                 <span>Start investigation</span>
                 <span class="btn-arrow">→</span>
               </button>
+            </div>
+
+            <!-- Optional Photo Match Control -->
+            <div id="photo-attach-container" class="photo-attach-container">
+              <input type="file" id="photo-attach-input" accept="image/jpeg,image/png,image/webp" hidden>
+              
+              <div id="photo-attach-trigger" class="photo-attach-trigger">
+                <span class="photo-icon">📷</span>
+                <span class="photo-attach-label">Add a photo to match (optional)</span>
+              </div>
+
+              <div id="photo-chip-preview" class="photo-chip-preview" style="display:none;">
+                <img id="photo-chip-img" class="photo-chip-img" alt="Attached photo preview">
+                <span id="photo-chip-name" class="photo-chip-name">photo.jpg</span>
+                <button type="button" id="photo-chip-remove" class="photo-chip-remove" aria-label="Remove photo">✕ Remove</button>
+              </div>
+
+              <div class="photo-attach-subtext">
+                Finds profiles that use this exact photo (crops and resizes included). It doesn't recognise faces, so a different photo of the same person won't match.
+              </div>
             </div>
           </form>
 
@@ -216,13 +228,18 @@
               <span class="section-badge">$ search-results</span>
               <h2>Observed Public Profiles</h2>
             </div>
-            <span id="live-candidate-status" class="mono-data section-meta-info"></span>
+            <div class="photo-match-header-actions" style="display:flex; gap:8px; align-items:center;">
+              <button type="button" id="header-attach-photo-btn" class="btn btn-secondary" style="display:none;">📷 Match a photo with these results</button>
+              <button type="button" id="photo-filter-toggle" class="btn btn-secondary filter-btn" style="display:none;">Photo matches only (0)</button>
+              <span id="live-candidate-status" class="mono-data section-meta-info"></span>
+            </div>
           </div>
+          <div id="photo-match-summary" class="photo-summary-line" style="display:none;"></div>
           <div id="candidates" class="candidates-grid"></div>
         </section>
 
         <!-- Email OSINT & Account Discovery -->
-        <section class="results-section case-card" id="email-osint-section" hidden aria-label="Email OSINT discovery results" aria-live="polite">
+        <section class="results-section case-card" id="email-osint-section" hidden aria-label="OSINT discovery results" aria-live="polite">
           <div id="email-result-container"></div>
         </section>
 
@@ -257,8 +274,8 @@
   </div>
 </div>
 
-<script src="/fingerprint.js?v=29"></script>
-<script src="/app.js?v=29" defer></script>
+<script src="/fingerprint.js?v=32"></script>
+<script src="/app.js?v=32" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
@@ -271,8 +288,6 @@
     const placeholders = {
       USERNAME: "Enter username (e.g. johndoe, alex_dev)...",
       EMAIL: "Enter email address (e.g. user@example.com)...",
-      PROFILE_URL: "Enter profile URL (e.g. https://github.com/username)...",
-      NAME: "Enter full name or handle (e.g. John Doe)...",
     };
 
     tabs.forEach(tab => {

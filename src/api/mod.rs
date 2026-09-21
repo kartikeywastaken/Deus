@@ -3,12 +3,13 @@ pub mod connectors;
 pub mod events;
 pub mod graph;
 pub mod health;
-pub mod images;
+pub mod photo_match;
 pub mod reports;
 pub mod searches;
 
 use crate::db::repository::Repository;
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
@@ -38,9 +39,16 @@ pub fn build_router(repo: Repository) -> Router {
         .route("/api/searches/:id/report", get(reports::get_report))
         .route("/api/searches/:id/graph", get(graph::get_graph))
         .route("/api/searches/:id/events", get(events::sse_events))
-        .route("/api/searches/:id/images", post(images::upload_image))
-        .route("/api/searches/:id/image-matches", post(images::upload_image))
-        .route("/api/osint/email", post(crate::osint::email::scan))
+        .route(
+            "/api/searches/:id/photo",
+            post(photo_match::upload_photo_handler).delete(photo_match::clear_photo_handler),
+        )
+        .route(
+            "/api/searches/:id/photo-matches",
+            get(photo_match::get_photo_matches_handler),
+        )
+        .route("/api/osint/email", post(crate::osint::email::scan).get(crate::osint::email::email_info_handler))
+        .layer(DefaultBodyLimit::max(15 * 1024 * 1024))
         .layer(cors)
         .with_state(repo);
 
