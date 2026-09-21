@@ -23,10 +23,11 @@ impl Config {
         Self {
             database_url: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql://osint:osint-dev@localhost:5432/osint".to_string()),
-            api_port: env::var("API_PORT")
-                .ok()
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(8765),
+            api_port: env::var("PORT")
+            .or_else(|_| env::var("API_PORT"))
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(8765),
             github_token: env::var("GITHUB_TOKEN").ok().filter(|s| !s.is_empty()),
             ai_adviser_enabled: env::var("AI_ADVISER_ENABLED")
                 .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
