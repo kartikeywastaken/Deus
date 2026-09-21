@@ -42,6 +42,7 @@
           <a href="#view-overview">Results</a>
           <a href="#email-osint-section">Account Discovery</a>
           <a href="#view-report">Report</a>
+          <a href="#docs" id="nav-docs">Docs</a>
         </nav>
       </div>
 
@@ -56,36 +57,51 @@
     <!-- MAIN CONTENT COLUMN -->
     <main id="main-content" class="main-column">
 
-      <!-- PASSIVE BROWSER AUDIT TERMINAL (Horizontal Stream) -->
-      <div id="stage2-fingerprint" class="terminal-container">
-        <div class="terminal-header-line">
-          <span class="telemetry-badge">[ PASSIVE BROWSER AUDIT ]</span>
-          <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
-          <span id="fp-session-id" class="mono-data">SESSION ID: RESOLVING...</span>
-          <button id="typewriter-skip-btn" class="typewriter-skip-btn" type="button">Fast Forward ⚡</button>
+      <!-- PASSIVE BROWSER AUDIT TERMINAL (Linux Terminal Console) -->
+      <div id="stage2-fingerprint" class="linux-terminal-window">
+        <!-- Linux Window Title Bar -->
+        <div class="terminal-window-header">
+          <div class="terminal-window-dots">
+            <span class="terminal-dot terminal-dot--close"></span>
+            <span class="terminal-dot terminal-dot--minimize"></span>
+            <span class="terminal-dot terminal-dot--maximize"></span>
+          </div>
+          <div class="terminal-title-center">
+            <span class="terminal-title-text">bash — deus@audit: ~ (passive-browser-audit)</span>
+          </div>
+          <div class="terminal-header-right">
+            <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
+            <button id="typewriter-skip-btn" class="typewriter-skip-btn" type="button">Fast Forward ⚡</button>
+          </div>
         </div>
 
-        <div class="terminal-prompt-bar">
-          <span class="terminal-prompt-text">deus@audit ~ % passive-audit</span>
-        </div>
+        <!-- Terminal Console Inner Body -->
+        <div class="terminal-console-body">
+          <div class="terminal-prompt-bar">
+            <span class="terminal-prompt-symbol">❯</span>
+            <span class="terminal-prompt-path">deus@audit ~ %</span>
+            <span class="terminal-command-text">./passive-audit --stream --verbose</span>
+            <span class="terminal-cursor"></span>
+          </div>
 
-        <!-- Horizontal Stream Body -->
-        <div id="typewriter-content" class="typewriter-stream-body">
-          <!-- Stream comments rendered horizontally by fingerprint.js -->
-        </div>
+          <!-- Vertical Stream Body with Word Typing Effect -->
+          <div id="typewriter-content" class="typewriter-stream-body">
+            <!-- Stream narrative rendered dynamically by fingerprint.js -->
+          </div>
 
-        <!-- Signal Chips Container -->
-        <div id="fingerprint-signals" class="signal-cards-horizontal">
-          <div class="signal-chip"><span class="signal-chip-label">OS</span><span id="val-os" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">Browser</span><span id="val-browser" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">CPU Cores</span><span id="val-cpu" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">GPU Vendor</span><span id="val-gpu-vendor" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">GPU Renderer</span><span id="val-gpu-model" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">Display</span><span id="val-display" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">Timezone</span><span id="val-timezone" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">Location</span><span id="val-location-city" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">Network / ISP</span><span id="val-network" class="signal-chip-val skeleton">Resolving...</span></div>
-          <div class="signal-chip"><span class="signal-chip-label">Entropy / Unicity</span><span id="val-rarity" class="signal-chip-val skeleton">Resolving...</span></div>
+          <!-- Signal Chips Container -->
+          <div id="fingerprint-signals" class="signal-cards-grid">
+            <div class="signal-chip"><span class="signal-chip-label">OS</span><span id="val-os" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Browser</span><span id="val-browser" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">CPU Cores</span><span id="val-cpu" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">GPU Vendor</span><span id="val-gpu-vendor" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">GPU Renderer</span><span id="val-gpu-model" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Display</span><span id="val-display" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Timezone</span><span id="val-timezone" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Location</span><span id="val-location-city" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Network / ISP</span><span id="val-network" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Entropy / Unicity</span><span id="val-rarity" class="signal-chip-val skeleton">Resolving...</span></div>
+          </div>
         </div>
       </div>
 
@@ -201,18 +217,6 @@
             <div class="metric-tile">
               <strong id="candidate-count" class="mono-data count-num">0</strong>
               <span class="metric-label">Profiles Found</span>
-            </div>
-            <div class="metric-tile">
-              <strong id="identifier-count" class="mono-data count-num">0</strong>
-              <span class="metric-label">Identifiers Discovered</span>
-            </div>
-            <div class="metric-tile">
-              <strong id="observation-count" class="mono-data count-num">0</strong>
-              <span class="metric-label">Observations</span>
-            </div>
-            <div class="metric-tile">
-              <strong id="evidence-count" class="mono-data count-num">0</strong>
-              <span class="metric-label">Evidence Signals</span>
             </div>
             <div class="metric-tile">
               <strong id="source-count" class="mono-data count-num">0</strong>

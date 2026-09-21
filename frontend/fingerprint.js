@@ -769,7 +769,7 @@
         appendCompleteMessage();
         if (skipBtn) skipBtn.style.display = "none";
       }
-    }, 35);
+    }, 65);
   }
 
   // --- STAGE 2 MAIN ENTRY POINT ---
