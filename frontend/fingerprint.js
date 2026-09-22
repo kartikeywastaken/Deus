@@ -363,35 +363,44 @@
       }
     }
 
+    // Primary: ipwho.is (HTTPS, CORS-enabled, Free)
     try {
-      const res = await fetchWithTimeout('https://ipapi.co/json/', {}, 2500);
-      if (!res.ok) throw new Error('IP API error');
-      const data = await res.json();
-      const city = data.city || '';
-      const region = data.region_code || data.region || '';
-      const country = data.country_name || '';
-      const org = data.org || data.asn || '';
-
-      if (city || country || org) {
-        const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
-        const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data.ip || '127.0.0.1' };
-        sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
-        return resultObj;
+      const res = await fetchWithTimeout('https://ipwho.is/', {}, 1800);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const city = data.city || '';
+          const region = data.region || data.region_code || '';
+          const country = data.country || '';
+          const org = data.connection?.org || data.connection?.isp || data.isp || '';
+          const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
+          const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data.ip || '127.0.0.1' };
+          sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
+          return resultObj;
+        }
       }
     } catch (e) {
       /* try fallback */
     }
 
+    // Fallback: ipapi.co
     try {
-      const res2 = await fetchWithTimeout('https://ip-api.com/json/?fields=status,country,regionName,city,isp,query', {}, 2500);
-      const data2 = await res2.json();
-      if (data2.status === 'success') {
-        const locationStr = `${data2.city}${data2.regionName ? ', ' + data2.regionName : ''}, ${data2.country} · ${data2.isp}`;
-        const resultObj = { isFailed: false, locationStr, city: data2.city, region: data2.regionName, country: data2.country, org: data2.isp, ip: data2.query };
-        sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
-        return resultObj;
+      const res2 = await fetchWithTimeout('https://ipapi.co/json/', {}, 1800);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        const city = data2.city || '';
+        const region = data2.region_code || data2.region || '';
+        const country = data2.country_name || '';
+        const org = data2.org || data2.asn || '';
+
+        if (city || country || org) {
+          const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
+          const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data2.ip || '127.0.0.1' };
+          sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
+          return resultObj;
+        }
       }
-    } catch (err) {
+    } catch (e) {
       /* ignore */
     }
 
@@ -654,19 +663,23 @@
       timestampEl.textContent = `TIMESTAMP: ${new Date().toISOString()}`;
     }
 
-    // Gather all passive client signals
+    // 1. Gather all FAST synchronous local client signals
     const osBrowserStr = getOSAndBrowser();
     const cpuStr = getCPUInfo();
     const gpuObj = getGPUInfo();
     const webglCapsStr = getWebGLCapabilities();
-    const canvasHashStr = await getCanvasFingerprintHash();
-    const geoObj = await getGeoAndISP();
     const fontsObj = detectFonts();
     const languagesPluginsStr = getLanguagesAndPlugins();
     const touchMediaStr = getTouchAndMediaFeatures();
     const screenRes = getScreenInfo();
-    const sessionStr = await checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes);
     const unicityStr = calculateRarity(osBrowserStr, screenRes);
+
+    // Populate synchronous signal chips immediately (remove skeleton placeholders)
+    setSignalValue('rarity', unicityStr);
+    setSignalValue('webgl-caps', webglCapsStr);
+    setSignalValue('touch-pointer', touchMediaStr);
+    setSignalValue('languages-pdf', languagesPluginsStr);
+    setSignalValue('fonts-detected', fontsObj.statusMsg);
 
     // Dynamic local time & sleep condition
     const now = new Date();
@@ -690,28 +703,39 @@
     else if (osBrowserStr.includes("Android")) osName = "Android";
     else if (osBrowserStr.includes("iOS")) osName = "iOS";
 
-    // Populate expanded signal chips (complementary non-redundant technical signals)
-    setSignalValue('rarity', unicityStr);
-    setSignalValue('webgl-caps', webglCapsStr);
-    setSignalValue('canvas-hash', canvasHashStr);
-    setSignalValue('touch-pointer', touchMediaStr);
-    setSignalValue('languages-pdf', languagesPluginsStr);
-    setSignalValue('fonts-detected', fontsObj.statusMsg);
-
     // Initialize typing challenge
     initTypingChallenge();
+
+    // 2. Start async tasks in parallel with safe fallbacks
+    const canvasHashPromise = getCanvasFingerprintHash().catch(() => 'Canvas Hash: [unavailable]');
+    const sessionPromise = checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes).catch(() => 'Session persistence active.');
+    const geoPromise = getGeoAndISP().catch(() => ({
+      isFailed: true,
+      locationStr: 'Network IP geolocation lookup restricted / offline',
+      org: 'ISP Undetermined'
+    }));
+
+    // Update canvas chip as soon as calculated
+    canvasHashPromise.then(canvasHashStr => setSignalValue('canvas-hash', canvasHashStr));
+
+    // Await async signals for narrative stream text with short timeout resilience
+    const [canvasHashStr, sessionStr, geoObj] = await Promise.all([
+      canvasHashPromise,
+      sessionPromise,
+      geoPromise
+    ]);
 
     // Geo narrative text
     let geoNarrative = geoObj.isFailed
       ? `• Location lookup: IP geolocation endpoint restricted / offline.`
       : `• You're in or near ${geoObj.locationStr}.`;
 
-    // Construct dynamic narrative lines (Focus on location, OS/Browser identity, and Session)
+    // Construct dynamic narrative lines
     const lines = [
       { type: "p", text: `${gpuObj.shortName}, ${cpuStr}, and a ${screenRes} display.` },
       { type: "p", text: `Live system audit active.` },
       { type: "h", text: `Where you are` },
-      { type: "b", text: `• Network Provider: ${geoObj.org}.` },
+      { type: "b", text: `• Network Provider: ${geoObj.org || 'ISP Undetermined'}.` },
       { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
       { type: "b", text: geoNarrative },
       { type: "h", text: `What device you are using` },
