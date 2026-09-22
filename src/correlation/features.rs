@@ -26,6 +26,7 @@ pub enum SignalType {
     BiographicalContradiction,
     LocationConflict,
     OrganizationConflict,
+    NameSearchMention,
 }
 
 impl SignalType {
@@ -55,6 +56,7 @@ impl SignalType {
             Self::BiographicalContradiction => "BIOGRAPHICAL_CONTRADICTION",
             Self::LocationConflict => "LOCATION_CONFLICT",
             Self::OrganizationConflict => "ORGANIZATION_CONFLICT",
+            Self::NameSearchMention => "NAME_SEARCH_MENTION",
         }
     }
 }

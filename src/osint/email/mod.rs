@@ -1,8 +1,11 @@
+pub mod duolingo;
 pub mod github;
 pub mod gravatar;
 pub mod hibp;
 pub mod holehe;
+pub mod keybase;
 pub mod normalize;
+pub mod npm;
 pub mod pgp;
 pub mod types;
 
@@ -86,7 +89,7 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
         }
     };
 
-    let self_audit_confirmed = payload.self_audit_confirmed.unwrap_or(false);
+    let self_audit_confirmed = payload.self_audit_confirmed.unwrap_or(true);
     let cache_key = format!("{}:{}", norm.normalized, self_audit_confirmed);
 
     // Cache lookup (10 minute TTL)
@@ -118,7 +121,7 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
     };
 
     // Run sources concurrently
-    let (holehe_results, gravatar_results, github_results, pgp_results, breaches) = tokio::join!(
+    let (holehe_results, gravatar_results, github_results, pgp_results, duolingo_results, keybase_results, npm_results, breaches) = tokio::join!(
         async {
             if self_audit_confirmed {
                 holehe::check(&norm.normalized).await
@@ -172,6 +175,51 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
             }
         },
         async {
+            match timeout(Duration::from_secs(8), duolingo::check(&ctx)).await {
+                Ok(res) => res,
+                Err(_) => vec![SiteResult {
+                    id: "duolingo".to_string(),
+                    label: "Duolingo".to_string(),
+                    status: Status::CantCheck,
+                    via: "duolingo_api".to_string(),
+                    reason: Some("request timed out".to_string()),
+                    username: None,
+                    profile_url: None,
+                    detail: None,
+                }],
+            }
+        },
+        async {
+            match timeout(Duration::from_secs(8), keybase::check(&ctx)).await {
+                Ok(res) => res,
+                Err(_) => vec![SiteResult {
+                    id: "keybase".to_string(),
+                    label: "Keybase".to_string(),
+                    status: Status::CantCheck,
+                    via: "keybase_api".to_string(),
+                    reason: Some("request timed out".to_string()),
+                    username: None,
+                    profile_url: None,
+                    detail: None,
+                }],
+            }
+        },
+        async {
+            match timeout(Duration::from_secs(8), npm::check(&ctx)).await {
+                Ok(res) => res,
+                Err(_) => vec![SiteResult {
+                    id: "npm".to_string(),
+                    label: "NPM Registry".to_string(),
+                    status: Status::CantCheck,
+                    via: "npm_api".to_string(),
+                    reason: Some("request timed out".to_string()),
+                    username: None,
+                    profile_url: None,
+                    detail: None,
+                }],
+            }
+        },
+        async {
             timeout(Duration::from_secs(8), hibp::check(&ctx))
                 .await
                 .unwrap_or_default()
@@ -183,6 +231,9 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
     all_sites.extend(gravatar_results);
     all_sites.extend(github_results);
     all_sites.extend(pgp_results);
+    all_sites.extend(duolingo_results);
+    all_sites.extend(keybase_results);
+    all_sites.extend(npm_results);
 
     let sites = dedupe_and_sort_sites(all_sites);
 

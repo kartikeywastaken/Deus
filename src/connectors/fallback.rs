@@ -34,6 +34,21 @@ impl SubprocessConnector {
     }
 }
 
+fn is_binary_installed_sync(name: &str) -> bool {
+    let bin_name = match name {
+        "sherlock" => env::var("SHERLOCK_BINARY").unwrap_or_else(|_| "sherlock".to_string()),
+        "maigret" => env::var("MAIGRET_BINARY").unwrap_or_else(|_| "maigret".to_string()),
+        other => other.to_string(),
+    };
+    std::process::Command::new(&bin_name)
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 #[async_trait]
 impl OsintConnector for SubprocessConnector {
     fn name(&self) -> &'static str {
@@ -41,7 +56,11 @@ impl OsintConnector for SubprocessConnector {
     }
 
     fn availability(&self) -> &'static str {
-        "CLI_SUBPROCESS"
+        if is_binary_installed_sync(self.name) {
+            "CLI_SUBPROCESS"
+        } else {
+            "NOT_INSTALLED"
+        }
     }
 
     fn healthcheck(&self) -> ConnectorHealth {

@@ -144,6 +144,18 @@ impl Repository {
         current_location: Option<&str>,
         current_organization: Option<&str>,
     ) -> Result<ProfileRecord, sqlx::Error> {
+        let norm_platform = platform.trim().to_lowercase();
+        let norm_url = {
+            let mut s = canonical_url.trim().to_string();
+            if s.starts_with("http://") {
+                s = format!("https://{}", &s[7..]);
+            }
+            if s.ends_with('/') && s.len() > 8 {
+                s.pop();
+            }
+            s
+        };
+
         let id = Uuid::new_v4();
         let now = Utc::now();
         let record = sqlx::query_as::<_, ProfileRecord>(
@@ -165,11 +177,11 @@ impl Repository {
             "#,
         )
         .bind(id)
-        .bind(platform)
+        .bind(&norm_platform)
         .bind(username)
         .bind(normalized_username)
         .bind(display_name)
-        .bind(canonical_url)
+        .bind(&norm_url)
         .bind(avatar_url)
         .bind(current_bio)
         .bind(current_location)

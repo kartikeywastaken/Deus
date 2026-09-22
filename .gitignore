@@ -11,7 +11,10 @@ dist/
 build/
 *.egg-info/
 .DS_Store
-data/
+data/*.db
+data/*.sqlite
+data/tmp/
+node_modules/
 target/
 uploads/
 

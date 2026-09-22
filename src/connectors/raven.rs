@@ -9,7 +9,11 @@ pub struct RavenConnector {
 impl RavenConnector {
     pub fn new() -> Self {
         Self {
-            engine: SiteEngine::load_from_dataset("raven-osint", "raven_sites.json"),
+            engine: SiteEngine::load_from_dataset(
+                "raven-osint",
+                "raven_sites.json",
+                include_str!("../../data/sites/raven_sites.json"),
+            ),
         }
     }
 }
@@ -41,5 +45,17 @@ impl OsintConnector for RavenConnector {
 
     async fn search_username(&self, username: &str) -> ConnectorOutput {
         self.engine.run_search(username).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_raven_connector_rules_loaded() {
+        let conn = RavenConnector::new();
+        assert!(conn.engine.load_error().is_none());
+        assert!(conn.engine.rules_count() > 100);
     }
 }

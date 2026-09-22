@@ -70,11 +70,12 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
 
             if let Ok(json) = r.json::<Value>().await {
                 if let Some(entry) = json.get("entry").and_then(|v| v.as_array()).and_then(|arr| arr.first()) {
+                    let mut out = Vec::new();
                     let preferred_username = entry.get("preferredUsername").and_then(|v| v.as_str()).map(String::from);
                     let canonical_url = entry.get("profileUrl").and_then(|v| v.as_str()).map(String::from)
                         .unwrap_or_else(|| format!("https://gravatar.com/{}", preferred_username.as_deref().unwrap_or(&sha256_hash)));
 
-                    return vec![SiteResult {
+                    out.push(SiteResult {
                         id: "gravatar".to_string(),
                         label: "Gravatar".to_string(),
                         status: Status::Registered,
@@ -83,7 +84,30 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
                         username: preferred_username,
                         profile_url: Some(canonical_url),
                         detail: Some("public Gravatar profile".to_string()),
-                    }];
+                    });
+
+                    if let Some(accounts) = entry.get("accounts").and_then(|v| v.as_array()) {
+                        for acc in accounts {
+                            let domain = acc.get("domain").and_then(|v| v.as_str()).unwrap_or("linked account");
+                            let shortname = acc.get("shortname").and_then(|v| v.as_str()).unwrap_or(domain);
+                            let acc_url = acc.get("url").and_then(|v| v.as_str()).map(String::from);
+                            let acc_user = acc.get("username").and_then(|v| v.as_str()).map(String::from);
+                            let label = format!("Gravatar linked: {}", shortname);
+
+                            out.push(SiteResult {
+                                id: format!("gravatar_{}", shortname),
+                                label,
+                                status: Status::Registered,
+                                via: "gravatar_links".to_string(),
+                                reason: None,
+                                username: acc_user,
+                                profile_url: acc_url,
+                                detail: Some(format!("linked on Gravatar ({})", domain)),
+                            });
+                        }
+                    }
+
+                    return out;
                 }
             }
 

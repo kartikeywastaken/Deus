@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -49,13 +49,17 @@ pub struct SiteEngine {
 }
 
 impl SiteEngine {
-    pub fn load_from_dataset(source_name: &'static str, filename: &str) -> Self {
+    pub fn load_from_dataset(
+        source_name: &'static str,
+        filename: &str,
+        embedded_json: &'static str,
+    ) -> Self {
         let data_dir = env::var("SITES_DATA_DIR").unwrap_or_else(|_| "data/sites".to_string());
         let path = PathBuf::from(&data_dir).join(filename);
 
-        match Self::read_rules_from_file(&path) {
+        match fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|content| Self::parse_rules_from_str(&content).map_err(|e| e.to_string())) {
             Ok(rules) => {
-                info!("Loaded {} site rules for {}", rules.len(), source_name);
+                info!("Loaded {} site rules for {} from runtime file {:?}", rules.len(), source_name, path);
                 Self {
                     source_name,
                     rules,
@@ -63,6 +67,21 @@ impl SiteEngine {
                 }
             }
             Err(e) => {
+                if !embedded_json.is_empty() {
+                    match Self::parse_rules_from_str(embedded_json) {
+                        Ok(rules) => {
+                            info!("Loaded {} site rules for {} from compile-time embedded dataset (runtime file {:?} missing or unreadable: {})", rules.len(), source_name, path, e);
+                            return Self {
+                                source_name,
+                                rules,
+                                load_error: None,
+                            };
+                        }
+                        Err(emb_err) => {
+                            warn!("Failed to parse embedded site rules for {}: {}", source_name, emb_err);
+                        }
+                    }
+                }
                 warn!("Failed to load site rules for {} at {:?}: {}", source_name, path, e);
                 Self {
                     source_name,
@@ -81,9 +100,16 @@ impl SiteEngine {
         }
     }
 
-    fn read_rules_from_file(path: &Path) -> Result<Vec<SiteRule>, Box<dyn std::error::Error + Send + Sync>> {
-        let content = fs::read_to_string(path)?;
-        let json_val: serde_json::Value = serde_json::from_str(&content)?;
+    pub fn load_error(&self) -> Option<&str> {
+        self.load_error.as_deref()
+    }
+
+    pub fn rules_count(&self) -> usize {
+        self.rules.len()
+    }
+
+    fn parse_rules_from_str(content: &str) -> Result<Vec<SiteRule>, Box<dyn std::error::Error + Send + Sync>> {
+        let json_val: serde_json::Value = serde_json::from_str(content)?;
 
         let mut rules = Vec::new();
 
@@ -107,7 +133,7 @@ impl SiteEngine {
         }
 
         if rules.is_empty() {
-            return Err("No valid site rules found in file".into());
+            return Err("No valid site rules found in dataset content".into());
         }
 
         Ok(rules)
@@ -256,6 +282,10 @@ impl SiteEngine {
                     sites_checked += 1;
                     profiles.push(prof);
                 }
+                SiteCheckResult::Blocked(prof) => {
+                    sites_checked += 1;
+                    profiles.push(prof);
+                }
                 SiteCheckResult::NotFound => {
                     sites_checked += 1;
                 }
@@ -324,18 +354,38 @@ impl SiteEngine {
 
                     if let Ok((b_status, ref b_body, _)) = Self::send_http_request(client, &baseline_url).await {
                         if Self::eval_site_hit(rule, b_status, b_body) {
-                            // Baseline also returned positive for random non-existent user -> false positive site!
-                            return SiteCheckResult::NotFound;
+                            // Baseline also returned positive for random non-existent user -> provider blocks automated checks!
+                            let blocked_prof = DiscoveredProfile {
+                                platform: rule.name.clone(),
+                                username: username.to_string(),
+                                canonical_url: Self::clean_to_web_profile_url(rule, username, &target_url),
+                                display_name: Some(format!("{} (Verification Blocked)", rule.name)),
+                                avatar_url: None,
+                                bio: Some("Could not verify — provider blocks automated checks".to_string()),
+                                location: None,
+                                organization: None,
+                                raw_json: json!({
+                                    "source": source_name,
+                                    "site_name": rule.name,
+                                    "category": rule.category,
+                                    "http_status": status_code,
+                                    "blocked": true,
+                                    "verification_note": "Could not verify — provider blocks automated checks",
+                                }),
+                            };
+                            return SiteCheckResult::Blocked(blocked_prof);
                         }
                     }
 
+                    let raw_url = final_url.unwrap_or(target_url);
+                    let canonical_url = Self::clean_to_web_profile_url(rule, username, &raw_url);
                     let meta = Self::extract_html_metadata(&body);
                     let display_name = meta.display_name.filter(|d| d != username && !d.is_empty());
 
                     let prof = DiscoveredProfile {
                         platform: rule.name.clone(),
                         username: username.to_string(),
-                        canonical_url: final_url.unwrap_or(target_url),
+                        canonical_url,
                         display_name,
                         avatar_url: meta.avatar_url,
                         bio: meta.bio,
@@ -425,11 +475,48 @@ impl SiteEngine {
             organization: None,
         }
     }
+
+    pub fn clean_to_web_profile_url(rule: &SiteRule, username: &str, raw_url: &str) -> String {
+        if let Some(ref pretty) = rule.uri_pretty {
+            let p = pretty.replace("{}", username).replace("{username}", username);
+            if !p.is_empty() {
+                return p;
+            }
+        }
+
+        let url = raw_url.trim();
+
+        if url.contains("api.github.com/users/") {
+            return format!("https://github.com/{}", username);
+        }
+        if url.contains("pypi.org/pypi/") {
+            return format!("https://pypi.org/user/{}", username);
+        }
+        if url.contains("crates.io/api/v1/users/") {
+            return format!("https://crates.io/users/{}", username);
+        }
+        if url.contains("hub.docker.com/v2/users/") || url.contains("docker.com/v2/users/") {
+            return format!("https://hub.docker.com/u/{}", username);
+        }
+        if url.contains("gitlab.com/api/v4/users") {
+            return format!("https://gitlab.com/{}", username);
+        }
+
+        let mut cleaned = url.to_string();
+        if cleaned.ends_with("/json") {
+            cleaned.truncate(cleaned.len() - 5);
+        } else if cleaned.ends_with(".json") {
+            cleaned.truncate(cleaned.len() - 5);
+        }
+
+        cleaned
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
 enum SiteCheckResult {
     Found(DiscoveredProfile),
+    Blocked(DiscoveredProfile),
     NotFound,
     Skipped,
     Errored,
@@ -525,5 +612,24 @@ mod tests {
         assert!(reg.is_match("validUser"));
         assert!(!reg.is_match("usr")); // too short
         assert!(!reg.is_match("invalid_user_name_too_long")); // too long / contains underscores
+    }
+
+    #[test]
+    fn test_embedded_dataset_fallback() {
+        let sample_json = r#"{
+            "github": {
+                "errorType": "status_code",
+                "url": "https://github.com/{}",
+                "urlMain": "https://github.com/",
+                "username_claimed": "octocat"
+            }
+        }"#;
+
+        std::env::set_var("SITES_DATA_DIR", "/nonexistent_path_deus_test");
+        let engine = SiteEngine::load_from_dataset("test-src", "nonexistent.json", sample_json);
+        assert!(engine.load_error.is_none());
+        assert_eq!(engine.rules.len(), 1);
+        assert_eq!(engine.rules[0].name, "github");
+        std::env::remove_var("SITES_DATA_DIR");
     }
 }

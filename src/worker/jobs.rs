@@ -1,7 +1,7 @@
 use crate::connectors::build_all_connectors;
 use crate::db::models::InvestigationJobRecord;
 use crate::db::repository::Repository;
-use crate::worker::seed::extract_handle;
+use crate::worker::seed::{extract_handle, normalize_canonical_url};
 use futures::stream::{self, StreamExt};
 use serde_json::json;
 use std::collections::HashSet;
@@ -87,6 +87,8 @@ impl Worker {
         let mut created_ids = Vec::new();
 
         for mut prof in output.profiles {
+            prof.canonical_url = normalize_canonical_url(&prof.canonical_url);
+
             if let Some(note) = derived_note {
                 let bio = prof.bio.unwrap_or_default();
                 prof.bio = Some(format!("[{}] {}", note, bio));
@@ -278,6 +280,38 @@ impl Worker {
                             }
                         }
                     }
+                } else if seed_type == "NAME" {
+                    for conn in &connectors {
+                        if !conn.healthcheck().supported_seeds.iter().any(|s| s.eq_ignore_ascii_case("name")) {
+                            continue;
+                        }
+
+                        let conn_run = self
+                            .repo
+                            .create_connector_run(search_run_id, conn.name(), json!({"seed": seed_val}))
+                            .await
+                            .map_err(|e| e.to_string())?;
+
+                        let output = conn.search_username(&seed_val).await;
+                        let ids = self.persist_connector_output(search_run_id, conn_run.id, conn.name(), output, Some("Discovered via name search")).await?;
+                        created_profile_ids.extend(ids);
+                    }
+                } else if seed_type == "PHONE" {
+                    for conn in &connectors {
+                        if !conn.healthcheck().supported_seeds.iter().any(|s| s.eq_ignore_ascii_case("phone")) {
+                            continue;
+                        }
+
+                        let conn_run = self
+                            .repo
+                            .create_connector_run(search_run_id, conn.name(), json!({"seed": seed_val}))
+                            .await
+                            .map_err(|e| e.to_string())?;
+
+                        let output = conn.search_username(&seed_val).await;
+                        let ids = self.persist_connector_output(search_run_id, conn_run.id, conn.name(), output, Some("Phone structural metadata")).await?;
+                        created_profile_ids.extend(ids);
+                    }
                 } else {
                     // USERNAME or PROFILE_URL seed
                     let (platform, extracted_handle) = match extract_handle(&seed_val) {
@@ -288,36 +322,38 @@ impl Worker {
                         }
                     };
 
-                    // Insert candidate #1 immediately for the profile the URL/seed points to
-                    let canonical = if seed_val.starts_with("http://") || seed_val.starts_with("https://") {
-                        seed_val.clone()
-                    } else if platform == "github" {
-                        format!("https://github.com/{}", extracted_handle)
-                    } else {
-                        format!("https://google.com/search?q={}+{}", platform, extracted_handle)
-                    };
+                    // Insert direct seed target profile if the seed was a full profile URL or explicit path
+                    if seed_val.starts_with("http://") || seed_val.starts_with("https://") || seed_val.contains('/') {
+                        let raw_canonical = if seed_val.starts_with("http://") || seed_val.starts_with("https://") {
+                            seed_val.clone()
+                        } else {
+                            format!("https://{}", seed_val)
+                        };
+                        let canonical = normalize_canonical_url(&raw_canonical);
 
-                    let db_p1 = self
-                        .repo
-                        .upsert_profile(
-                            &platform,
-                            Some(&extracted_handle),
-                            Some(&extracted_handle.to_lowercase()),
-                            None,
-                            &canonical,
-                            None,
-                            Some("Direct seed target profile"),
-                            None,
-                            None,
-                        )
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    created_profile_ids.insert(db_p1.id);
+                        let db_p1 = self
+                            .repo
+                            .upsert_profile(
+                                &platform,
+                                Some(&extracted_handle),
+                                Some(&extracted_handle.to_lowercase()),
+                                None,
+                                &canonical,
+                                None,
+                                Some("Direct seed target profile"),
+                                None,
+                                None,
+                            )
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        created_profile_ids.insert(db_p1.id);
+                    }
 
                     // For github.com URLs, fetch GitHub public API for linked profiles
                     if platform == "github" || seed_val.contains("github.com") {
                         let linked = self.fetch_github_profile_links(&extracted_handle).await;
                         for (l_plat, l_handle, l_url) in linked {
+                            let norm_l_url = normalize_canonical_url(&l_url);
                             let l_db = self
                                 .repo
                                 .upsert_profile(
@@ -325,7 +361,7 @@ impl Worker {
                                     Some(&l_handle),
                                     Some(&l_handle.to_lowercase()),
                                     None,
-                                    &l_url,
+                                    &norm_l_url,
                                     None,
                                     Some("Linked from profile"),
                                     None,

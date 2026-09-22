@@ -15,8 +15,6 @@ let localPhotoObjectUrl = null;
 
 // Clear all prior investigation output so a new run starts from a clean slate.
 function resetResultView() {
-  const reportEl = $("report");
-  if (reportEl) reportEl.textContent = "An executive OSINT identity report appears when the investigation finishes.";
   ["evidence", "candidates", "email-result-container"].forEach(id => {
     const el = $(id);
     if (el) el.replaceChildren();
@@ -77,7 +75,6 @@ function showResultSections() {
   const ids = [
     "metrics-section",
     "view-overview",
-    "view-report",
   ];
   ids.forEach(id => {
     const el = $(id);
@@ -115,23 +112,38 @@ const animatedMetricValues = {
   "observation-count": 0,
   "source-count": 0,
 };
+const activeTweens = {};
 
 function animateMetricCount(id, targetVal) {
   const el = $(id);
   if (!el) return;
   const numericTarget = parseInt(targetVal, 10) || 0;
-  const obj = { val: animatedMetricValues[id] ?? 0 };
+
+  if (activeTweens[id]) {
+    activeTweens[id].kill();
+    delete activeTweens[id];
+  }
+  if (window.gsap) {
+    gsap.killTweensOf(el);
+  }
+
+  const currentVal = parseInt(el.textContent, 10) || animatedMetricValues[id] || 0;
+  const obj = { val: currentVal };
+
   if (window.gsap && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    gsap.to(obj, {
+    activeTweens[id] = gsap.to(obj, {
       val: numericTarget,
       duration: 1.5,
       ease: "power2.out",
       onUpdate: () => {
-        el.textContent = Math.round(obj.val);
+        const rounded = Math.round(obj.val);
+        animatedMetricValues[id] = rounded;
+        el.textContent = rounded;
       },
       onComplete: () => {
         animatedMetricValues[id] = numericTarget;
         el.textContent = numericTarget;
+        delete activeTweens[id];
       }
     });
   } else {
@@ -342,7 +354,6 @@ async function refresh() {
     }
 
     renderCandidates();
-    renderReport();
   } finally { refreshRunning = false; if (refreshAgain) { refreshAgain = false; schedule(); } }
 }
 
@@ -389,6 +400,60 @@ function getPlatformSvgLogo(platform, size = 26) {
   if (p.includes("reddit")) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.562-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.688-.562-1.249-1.25-1.249zm-4.566 3.967c-.07.067-.07.176 0 .243.68.68 1.83.68 2.51 0a.17.17 0 0 0 0-.243l-.116-.118a.17.17 0 0 0-.243 0c-.43.43-1.16.43-1.59 0a.17.17 0 0 0-.243 0z"/></svg>`;
   }
+  if (p.includes("youtube")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`;
+  }
+  if (p.includes("linkedin")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>`;
+  }
+  if (p.includes("tiktok")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.29-2.63.71-5.33 2.65-7.1 1.69-1.57 4.09-2.32 6.38-1.95v4.25c-1.11-.25-2.31-.04-3.27.52-.97.55-1.63 1.56-1.78 2.67-.22 1.44.37 2.94 1.52 3.82.97.77 2.27 1.05 3.49.77 1.25-.27 2.33-1.13 2.87-2.28.38-.79.52-1.68.49-2.56V.02z"/></svg>`;
+  }
+  if (p.includes("twitch")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M11.571 4.714h1.715v5.143h-1.715zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>`;
+  }
+  if (p.includes("medium")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M13.54 12a6.8 6.8 0 0 1-6.77 6.82A6.8 6.8 0 0 1 0 12a6.8 6.8 0 0 1 6.77-6.82A6.8 6.8 0 0 1 13.54 12zM20.96 12c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42c1.87 0 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/></svg>`;
+  }
+  if (p.includes("telegram")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.892 8.258l-2.006 9.462c-.15.672-.546.834-1.11.516l-3.057-2.254-1.474 1.42c-.163.163-.3.3-.615.3l.219-3.1 5.642-5.1c.245-.219-.054-.34-.381-.123l-6.974 4.39-3.007-.94c-.655-.204-.668-.655.137-.97l11.75-4.528c.544-.204 1.02.123.876.927z"/></svg>`;
+  }
+  if (p.includes("gitlab")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 0 1-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 0 1 5.5 2a.43.43 0 0 1 .4.28l2.25 6.92h7.7l2.25-6.92a.43.43 0 0 1 .4-.28.42.42 0 0 1 .79.17l2.44 7.51 1.22 3.78a.84.84 0 0 1-.3.94z"/></svg>`;
+  }
+  if (p.includes("pinterest")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146 1.123.345 2.306.535 3.55.535 6.607 0 11.985-5.365 11.985-11.987C23.97 5.39 18.592.026 11.985.026z"/></svg>`;
+  }
+  if (p.includes("devto") || p.includes("dev.to")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M7.42 10.05c-.18-.16-.46-.24-.84-.24H5.43v4.38h1.16c.37 0 .65-.08.83-.24.19-.16.29-.43.29-.81v-2.28c0-.38-.1-.65-.29-.81zm8.01 0c-.18-.16-.47-.24-.86-.24h-1.15v4.38h1.15c.39 0 .68-.08.86-.24.19-.16.28-.43.28-.81v-2.28c0-.38-.09-.65-.28-.81zM0 3v18h24V3H0zm10.74 12.63H9.41l-2.02-4.14v4.14H6.11V8.37h1.49l1.92 3.93V8.37h1.22v7.26zm5.82 0h-3.32V8.37h3.32c.86 0 1.5.24 1.93.72.43.48.65 1.14.65 1.99v1.85c0 .85-.22 1.51-.65 1.99-.43.48-1.07.71-1.93.71zm5.33-4.12v1.54h-1.92v2.58h-1.28V8.37h3.2v1.14h-1.92v1.75h1.92z"/></svg>`;
+  }
+  if (p.includes("codepen")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="social-logo-svg"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/><polyline points="2 15.5 12 8.5 22 15.5"/><line x1="12" y1="2" x2="12" y2="8.5"/></svg>`;
+  }
+  if (p.includes("soundcloud")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M1.175 12.225c-.068 0-.135.01-.19.043A.445.445 0 0 0 .76 12.67v5.42c0 .175.093.332.242.411.056.03.119.044.18.044.116 0 .232-.047.315-.138l.003-.003.003-.003c.09-.098.138-.226.138-.362V12.72a.455.455 0 0 0-.466-.495zm2.148-2.613c-.247 0-.448.201-.448.448v7.94c0 .247.201.448.448.448s.448-.201.448-.448v-7.94c0-.247-.201-.448-.448-.448zm2.148-1.503c-.247 0-.448.201-.448.448v10.946c0 .247.201.448.448.448s.448-.201.448-.448V8.557c0-.247-.201-.448-.448-.448zm2.149-1.393c-.247 0-.448.201-.448.448v13.732c0 .247.201.448.448.448s.448-.201.448-.448V7.164c0-.247-.201-.448-.448-.448zm2.148-1.455c-.247 0-.448.201-.448.448v16.643c0 .247.201.448.448.448s.448-.201.448-.448V5.709c0-.247-.201-.448-.448-.448zm8.683.82c-.888 0-1.745.263-2.484.757a.449.449 0 0 0-.171.353v15.228c0 .247.201.448.448.448h8.65c2.143 0 3.886-1.743 3.886-3.886 0-2.072-1.632-3.771-3.69-3.881A5.334 5.334 0 0 0 18.5 5.264z"/></svg>`;
+  }
+  if (p.includes("pypi") || p.includes("python")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 0L1.75 5.9v12.2L12 24l10.25-5.9V5.9L12 0zm-1.5 3.5h3v3h-3v-3zm7.5 13.5l-6 3.5-6-3.5V9.5l6-3.5 6 3.5v7.5z"/></svg>`;
+  }
+  if (p.includes("crates") || p.includes("rust")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.8l7 3.5v7l-7 3.5-7-3.5v-7l7-3.5z"/></svg>`;
+  }
+  if (p.includes("npm")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M0 7.33v9.33h9.33V20H14.67v-3.33H24V7.33H0zm18.67 6.67h-2.67V10.67h-2.67v3.33H4V10.67H1.33V8.67h17.34v5.33z"/></svg>`;
+  }
+  if (p.includes("docker")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.186v1.887c0 .102.083.185.185.185zm-2.954-5.43h2.118a.185.185 0 00.186-.186V3.574a.185.185 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185zm0 2.716h2.118a.185.185 0 00.186-.186V6.29a.185.185 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186zm0 2.714h2.118a.186.186 0 00.186-.185V9.006a.185.185 0 00-.186-.186h-2.118a.185.185 0 00-.185.186v1.887c0 .102.082.185.185.185zm-2.955 0h2.119a.186.186 0 00.185-.185V9.006a.185.185 0 00-.185-.186H8.074a.185.185 0 00-.185.186v1.887c0 .102.083.185.185.185zm0-2.714h2.119a.185.185 0 00.185-.186V6.29a.185.185 0 00-.185-.185H8.074a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186zm0-2.716h2.119a.186.186 0 00.185-.186V3.574a.186.186 0 00-.185-.185H8.074a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185zm-2.955 5.43h2.119a.186.186 0 00.185-.185V9.006a.185.185 0 00-.186-.186H5.119a.185.185 0 00-.185.186v1.887c0 .102.083.185.185.185zm0-2.714h2.119a.185.185 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.119a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186zm-2.955 2.714h2.119a.186.186 0 00.185-.185V9.006a.185.185 0 00-.185-.186H2.164a.185.185 0 00-.185.186v1.887c0 .102.083.185.185.185zM.05 11.758c0 3.864 3.018 7.03 6.945 7.03 4.912 0 8.878-3.058 10.366-7.514h-1.956c-1.258 3.256-4.475 5.534-8.41 5.534-3.003 0-5.512-1.96-6.425-4.664H.05z"/></svg>`;
+  }
+  if (p.includes("steam")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.524-4.524 4.524h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 14.77C1.847 20.024 6.6 24 12.021 24c6.627 0 11.999-5.373 11.999-12S18.606 0 11.979 0z"/></svg>`;
+  }
+  if (p.includes("spotify")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141 4.38-1.38 9.841-.72 13.561 1.56.36.18.54.78.18 1.26zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.18-1.2-.18-1.38-.72-.18-.6.18-1.2.72-1.38 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>`;
+  }
+  if (p.includes("wikipedia") || p.includes("wiki")) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="social-logo-svg"><path d="M12.09 13.118l2.356-5.463 2.457 5.463h-4.813zM0 24h24V0H0v24zm12-21.2a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm6.66 14.86h-2.19l-.79-1.84h-7.35l-.79 1.84H5.34l5.44-12.02h2.43l5.45 12.02z"/></svg>`;
+  }
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="social-logo-svg"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 }
 
@@ -414,10 +479,10 @@ function fallbackAvatar(p) {
 }
 
 function resolveCandidateLink(p) {
-  if (p.canonical_url) return p.canonical_url;
-  const username = p.username || p.display_name;
-  if (!username) return null;
-  return `https://google.com/search?q=${encodeURIComponent((p.platform || '') + ' ' + username)}`;
+  if (p.canonical_url && /^https?:\/\//i.test(p.canonical_url)) {
+    return p.canonical_url;
+  }
+  return null;
 }
 
 let candidatePageSize = 60;
@@ -461,9 +526,11 @@ function candidateCard(p) {
 
   const matchInfo = getMatchLabel(candidateMatchValue(p));
   const rel = RELEVANCE_LABELS[p.relevance];
-  const badgeText = rel ? `${rel.label} · ${matchInfo.score}%` : `${matchInfo.label} · ${matchInfo.score}%`;
+  const badgeText = rel ? rel.label : matchInfo.label;
   const badgeCls = rel ? rel.cls : matchInfo.cls;
-  chips.append(node("span", badgeText, `status-chip ${badgeCls}`));
+  if (badgeText && badgeText !== "Weak Match") {
+    chips.append(node("span", badgeText, `status-chip ${badgeCls}`));
+  }
   if (p.raw_json?.verified === true) chips.append(node("span", "✓ Verified", "status-chip status-chip--found"));
   card.append(chips);
 
@@ -508,7 +575,38 @@ function renderCandidates() {
   if (!grid) return;
 
   const handleSeed = currentSeedValue || "target";
-  const candidatesList = latest?.candidates || [];
+  const rawCandidatesList = latest?.candidates || [];
+
+  // Filter out candidates with raw API/JSON URLs or synthetic search URLs
+  const filteredCandidates = rawCandidatesList.filter(cand => {
+    const url = String(cand.canonical_url || "").toLowerCase();
+    if (url.includes("/api/") || url.includes("api.") || url.endsWith(".json") || url.includes("google.com/search")) {
+      return false;
+    }
+    return true;
+  });
+
+  // Deduplicate candidates by normalized platform & handle / canonical URL key
+  const dedupedMap = new Map();
+  for (const cand of filteredCandidates) {
+    const platKey = String(cand.platform || "").trim().toLowerCase();
+    const userKey = String(cand.normalized_username || cand.username || "").trim().toLowerCase();
+    let urlKey = String(cand.canonical_url || "").trim().replace(/\/$/, "");
+    if (urlKey.startsWith("http://")) urlKey = "https://" + urlKey.slice(7);
+    const primaryKey = (platKey && userKey) ? `${platKey}:${userKey}` : urlKey;
+
+    if (!dedupedMap.has(primaryKey)) {
+      dedupedMap.set(primaryKey, { ...cand });
+    } else {
+      const existing = dedupedMap.get(primaryKey);
+      if (!existing.display_name && cand.display_name) existing.display_name = cand.display_name;
+      if (!existing.avatar_url && cand.avatar_url) existing.avatar_url = cand.avatar_url;
+      if (!existing.bio && cand.bio) existing.bio = cand.bio;
+      if (!existing.location && cand.location) existing.location = cand.location;
+      if (!existing.organization && cand.organization) existing.organization = cand.organization;
+    }
+  }
+  const candidatesList = Array.from(dedupedMap.values());
   const runsList = latest?.runs || [];
 
   const completedRunsCount = runsList.filter(r => terminal(r.status) || r.status === "SUCCESS" || r.status === "COMPLETED" || r.status === "NO_RESULTS").length;
@@ -519,10 +617,10 @@ function renderCandidates() {
     liveStatus.textContent = `Handle: ${handleSeed} · ${candidatesList.length} profiles found · ${completedRunsCount}/${totalRunsCount} sources done`;
   }
 
-  // Show Header attach photo button if search has completed and no photo was attached initially
+  // Show Header attach photo button if search has completed and no photo was attached initially (only for USERNAME searches)
   const headerAttachBtn = $("header-attach-photo-btn");
   if (headerAttachBtn) {
-    if (!attachedPhotoFile && searchId && candidatesList.length > 0) {
+    if (!attachedPhotoFile && searchId && candidatesList.length > 0 && currentSeedType !== "EMAIL") {
       headerAttachBtn.style.display = "inline-flex";
       headerAttachBtn.onclick = () => {
         $("photo-attach-input")?.click();
@@ -587,23 +685,7 @@ function renderCandidates() {
   }
 }
 
-function renderReport() {
-  const r = latest?.report;
-  const reportContainer = $("report");
-  if (!reportContainer) return;
-  if (!r) {
-    reportContainer.textContent = "The investigation report will be generated when the search completes.";
-    return;
-  }
-  reportContainer.replaceChildren();
 
-  const head = node("div", "", "report-executive-head");
-  head.append(
-    node("h2", "EXECUTIVE OSINT IDENTITY REPORT", "report-title"),
-    r.executive_finding ? node("p", r.executive_finding, "lead-finding") : null
-  );
-  reportContainer.append(head);
-}
 
 function renderEmailResult(data) {
   const container = $("email-result-container");
@@ -616,9 +698,73 @@ function renderEmailResult(data) {
   const header = node("div", "", "email-result-header");
   header.append(
     node("h2", `Account Discovery for ${data.email || currentSeedValue}`, "email-result-title"),
-    node("p", "Automated passive registration and breach checks across supported platforms.", "email-result-sub")
+    node("p", `Provider: ${data.provider || 'Unknown'} — Automated registration & breach checks.`, "email-result-sub")
   );
+
+  if (data.summary) {
+    const summaryRow = node("div", "", "email-summary-row");
+    summaryRow.style.cssText = "display:flex;gap:12px;margin:16px 0;flex-wrap:wrap;";
+
+    const regBadge = node("span", `Registered: ${data.summary.registered}`, "badge badge-success");
+    regBadge.style.cssText = "padding:6px 12px;background:rgba(34,197,94,0.15);color:#4ade80;border-radius:6px;font-weight:600;";
+
+    summaryRow.append(regBadge);
+    if (data.summary.scan_ms) {
+      const timeTag = node("span", `Scan duration: ${data.summary.scan_ms}ms`, "mono-data");
+      timeTag.style.cssText = "padding:6px 12px;color:#71717a;font-size:12px;align-self:center;";
+      summaryRow.append(timeTag);
+    }
+    header.append(summaryRow);
+  }
+
   container.append(header);
+
+  const sites = data.sites || [];
+  const registered = sites.filter(s => s.status === "REGISTERED");
+
+  const resultsGrid = node("div", "", "email-sites-grid");
+  resultsGrid.style.cssText = "display:flex;flex-direction:column;gap:16px;margin-top:16px;";
+
+  if (registered.length > 0) {
+    const regBlock = node("div", "", "case-card email-group-card");
+    regBlock.append(node("h3", `Registered Accounts (${registered.length})`, "email-group-title"));
+    const list = node("div", "", "email-sites-list");
+    list.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:10px;margin-top:10px;";
+    registered.forEach(s => {
+      const item = node("div", "", "email-site-item registered");
+      item.style.cssText = "padding:10px 14px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:6px;";
+      let html = `<strong>${s.label || s.id}</strong>`;
+      if (s.username) html += `<br><span style="font-size:12px;color:#a1a1aa">@${s.username}</span>`;
+      if (s.profile_url) html += `<br><a href="${s.profile_url}" target="_blank" rel="noopener" style="font-size:12px;color:#38bdf8">View Profile</a>`;
+      item.innerHTML = html;
+      list.append(item);
+    });
+    regBlock.append(list);
+    resultsGrid.append(regBlock);
+  } else {
+    const emptyBlock = node("div", "", "case-card email-group-card");
+    emptyBlock.append(node("p", "No registered accounts found across verified services.", "email-result-sub"));
+    resultsGrid.append(emptyBlock);
+  }
+
+  const breaches = data.breaches || [];
+  const breachBlock = node("div", "", "case-card email-group-card");
+  breachBlock.append(node("h3", `Breach Exposures (${breaches.length})`, "email-group-title"));
+  if (breaches.length > 0) {
+    const list = node("div", "", "email-breach-list");
+    list.style.cssText = "display:flex;flex-direction:column;gap:6px;margin-top:10px;";
+    breaches.forEach(b => {
+      const item = node("div", `${b.name} (${b.domain})`, "email-breach-item");
+      item.style.cssText = "padding:8px 12px;background:rgba(239,68,68,0.1);border-left:3px solid #ef4444;border-radius:4px;color:#fca5a5;font-size:13px;";
+      list.append(item);
+    });
+    breachBlock.append(list);
+  } else {
+    breachBlock.append(node("p", "No known breach exposures reported.", "email-result-sub"));
+  }
+  resultsGrid.append(breachBlock);
+
+  container.append(resultsGrid);
 }
 
 async function fetchEmailOsint(email) {
@@ -637,7 +783,7 @@ async function fetchEmailOsint(email) {
   try {
     const data = await request("/api/osint/email", {
       method: "POST",
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, self_audit_confirmed: true })
     });
     renderEmailResult(data);
   } catch (err) {
@@ -690,6 +836,7 @@ async function startInvestigation(e) {
     t.classList.toggle("active", isActive);
     t.setAttribute("aria-selected", String(isActive));
   });
+  updatePhotoContainerVisibility(classified.type);
 
   const errEl = $("error");
   if (errEl) { errEl.textContent = ""; errEl.hidden = true; }
@@ -901,6 +1048,18 @@ function clearAttachedPhoto() {
   renderCandidates();
 }
 
+function updatePhotoContainerVisibility(seedType) {
+  const container = $("photo-attach-container");
+  const headerBtn = $("header-attach-photo-btn");
+  if (seedType === "EMAIL") {
+    if (container) container.style.display = "none";
+    if (headerBtn) headerBtn.style.display = "none";
+    if (attachedPhotoFile) clearAttachedPhoto();
+  } else {
+    if (container) container.style.display = "block";
+  }
+}
+
 function initPhotoAttachControls() {
   const trigger = $("photo-attach-trigger");
   const input = $("photo-attach-input");
@@ -928,6 +1087,20 @@ function bindFormEvents() {
   const seedInput = $("seed");
   const seedTypeSelect = $("seed-type");
 
+  const tabs = document.querySelectorAll(".category-tab");
+  tabs.forEach(t => {
+    t.addEventListener("click", () => {
+      const seedType = t.dataset.seed;
+      if (seedTypeSelect) seedTypeSelect.value = seedType;
+      tabs.forEach(tab => {
+        const isActive = tab.dataset.seed === seedType;
+        tab.classList.toggle("active", isActive);
+        tab.setAttribute("aria-selected", String(isActive));
+      });
+      updatePhotoContainerVisibility(seedType);
+    });
+  });
+
   if (form) {
     form.addEventListener("submit", startInvestigation);
   }
@@ -937,12 +1110,12 @@ function bindFormEvents() {
       if (!raw.trim()) return;
       const classified = classifySeed(raw, seedTypeSelect.value || "USERNAME");
       seedTypeSelect.value = classified.type;
-      const tabs = document.querySelectorAll(".category-tab");
       tabs.forEach(t => {
         const isActive = t.dataset.seed === classified.type;
         t.classList.toggle("active", isActive);
         t.setAttribute("aria-selected", String(isActive));
       });
+      updatePhotoContainerVisibility(classified.type);
     });
   }
 
@@ -967,7 +1140,6 @@ function initPage() {
   }
 
   $("stop-search")?.addEventListener("click", async () => { if (!searchId || busy) return; try { await request(`/api/searches/${searchId}/stop`,{method:"POST"}); await refresh(); } catch(e) {error(e);} });
-  $("print-report")?.addEventListener("click", () => window.print());
 
   localStorage.removeItem("deus-search");
   if (location.search) history.replaceState(null, "", location.pathname);

@@ -82,6 +82,24 @@ pub fn consent_required() -> SiteResult {
     cant_check("confirmation required (tick \"This is my own email\")")
 }
 
+fn resolve_holehe_binary() -> String {
+    if let Ok(b) = env::var("HOLEHE_BINARY") {
+        if !b.trim().is_empty() {
+            return b;
+        }
+    }
+    if let Ok(home) = env::var("HOME") {
+        let pipx_bin = PathBuf::from(&home).join(".local/bin/holehe");
+        if pipx_bin.exists() {
+            return pipx_bin.to_string_lossy().to_string();
+        }
+    }
+    if Path::new("/usr/local/bin/holehe").exists() {
+        return "/usr/local/bin/holehe".to_string();
+    }
+    "holehe".to_string()
+}
+
 /// Runs holehe for `email` and returns one SiteResult per site it checked.
 /// On any failure (binary missing, timeout, no output) returns a single CantCheck row,
 /// never a NotRegistered.
@@ -92,7 +110,7 @@ pub async fn check(email: &str) -> Vec<SiteResult> {
         return vec![cant_check("invalid email for holehe")];
     }
 
-    let binary = env::var("HOLEHE_BINARY").unwrap_or_else(|_| "holehe".to_string());
+    let binary = resolve_holehe_binary();
     let password_recovery = env::var("HOLEHE_PASSWORD_RECOVERY")
         .map(|v| v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);

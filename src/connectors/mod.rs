@@ -2,7 +2,9 @@ pub mod adler;
 pub mod engine;
 pub mod fallback;
 pub mod github;
+pub mod phone;
 pub mod raven;
+pub mod web_search;
 pub mod website;
 
 use async_trait::async_trait;
@@ -84,6 +86,8 @@ pub fn build_all_connectors(github_token: Option<String>) -> Vec<Box<dyn OsintCo
         Box::new(adler::AdlerConnector::new()),
         Box::new(github::GitHubConnector::new(github_token)),
         Box::new(website::WebsiteConnector::new()),
+        Box::new(web_search::WebSearchConnector::new()),
+        Box::new(phone::PhoneConnector::new()),
         Box::new(fallback::SubprocessConnector::new("maigret")),
         Box::new(fallback::SubprocessConnector::new("sherlock")),
     ]

@@ -41,8 +41,6 @@
           <a href="#search-panel-section" class="active">Search</a>
           <a href="#view-overview">Results</a>
           <a href="#email-osint-section">Account Discovery</a>
-          <a href="#view-report">Report</a>
-          <a href="#docs" id="nav-docs">Docs</a>
         </nav>
       </div>
 
@@ -89,18 +87,35 @@
             <!-- Stream narrative rendered dynamically by fingerprint.js -->
           </div>
 
-          <!-- Signal Chips Container -->
+          <!-- Signal Chips Container (Non-Redundant Advanced Signals) -->
           <div id="fingerprint-signals" class="signal-cards-grid">
-            <div class="signal-chip"><span class="signal-chip-label">OS</span><span id="val-os" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Browser</span><span id="val-browser" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">CPU Cores</span><span id="val-cpu" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">GPU Vendor</span><span id="val-gpu-vendor" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">GPU Renderer</span><span id="val-gpu-model" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Display</span><span id="val-display" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Timezone</span><span id="val-timezone" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Location</span><span id="val-location-city" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Network / ISP</span><span id="val-network" class="signal-chip-val skeleton">Resolving...</span></div>
             <div class="signal-chip"><span class="signal-chip-label">Entropy / Unicity</span><span id="val-rarity" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">WebGL Caps</span><span id="val-webgl-caps" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Canvas Hash</span><span id="val-canvas-hash" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Touch & Pointer</span><span id="val-touch-pointer" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Languages & PDF</span><span id="val-languages-pdf" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Installed Fonts</span><span id="val-fonts-detected" class="signal-chip-val skeleton">Resolving...</span></div>
+          </div>
+
+          <!-- Typing Rhythm Challenge Widget -->
+          <div id="typing-widget-container" class="terminal-typing-widget">
+            <div class="terminal-subhead">
+              <span class="subhead-icon">⌨️</span>
+              <span>KEYSTROKE CADENCE & TYPING RHYTHM CHALLENGE</span>
+            </div>
+            <p class="typing-instruction">Type the phrase below to sample real-time keystroke dynamics & velocity:</p>
+            <div class="typing-target-phrase">"the quick brown fox jumps over the lazy dog"</div>
+            <div class="typing-input-wrapper">
+              <input id="typing-input" class="terminal-typing-input" type="text" placeholder="Type target phrase here..." autocomplete="off" spellcheck="false" aria-label="Typing Rhythm Challenge Input">
+            </div>
+            <div id="typing-results" class="typing-results-box" hidden>
+              <div class="typing-metrics-row">
+                <span id="type-wpm" class="typing-metric-badge">0 WPM</span>
+                <span id="type-time" class="typing-metric-badge">0.0s</span>
+                <span id="type-errors" class="typing-metric-badge">0 corrections</span>
+              </div>
+              <div id="type-readout" class="typing-readout-text"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -245,18 +260,6 @@
         <!-- Email OSINT & Account Discovery -->
         <section class="results-section case-card" id="email-osint-section" hidden aria-label="OSINT discovery results" aria-live="polite">
           <div id="email-result-container"></div>
-        </section>
-
-        <!-- Executive Report -->
-        <section id="view-report" class="results-section" hidden>
-          <div class="section-title-bar">
-            <div>
-              <span class="section-badge">$ executive-report</span>
-              <h2>Executive OSINT Identity Report</h2>
-            </div>
-            <button id="print-report" class="btn btn-secondary">Print / Save PDF ↗</button>
-          </div>
-          <div id="report" class="case-card report-card">An executive identity report appears when the investigation finishes.</div>
         </section>
 
       </div><!-- /stage3-lookup-tool -->

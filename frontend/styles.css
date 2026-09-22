@@ -324,25 +324,25 @@ html, body {
   margin-bottom: 14px;
 }
 
-/* Heading with Distinct Color Highlight (#00e5ff) */
+/* Heading with Subtle Green Light Shade (#4ade80) */
 .typewriter-heading {
   font-family: var(--font-mono);
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--cyan-heading);
+  color: #4ade80;
   font-weight: 700;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
   margin-bottom: 2px;
-  text-shadow: 0 0 8px rgba(0, 229, 255, 0.2) !important;
+  text-shadow: none !important;
 }
 
 .typewriter-heading::before {
   content: '❯ ';
-  color: #10b981;
+  color: #4ade80;
   font-weight: 700;
 }
 
@@ -408,6 +408,194 @@ html, body {
   font-family: var(--font-mono);
   font-size: 12px;
   color: #cbd5e1;
+}
+
+/* Terminal OpenRTB & Typing Widget Sub-Panels */
+.terminal-openrtb-panel, .terminal-typing-widget {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminal-subhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.terminal-json-code {
+  background: #04060c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #a7f3d0;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.typing-instruction {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.typing-target-phrase {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #fef08a;
+  background: rgba(254, 240, 138, 0.05);
+  padding: 8px 12px;
+  border: 1px dashed rgba(254, 240, 138, 0.3);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.terminal-typing-input {
+  width: 100%;
+  min-height: 44px;
+  background: #0b0f17;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: #ffffff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.terminal-typing-input:focus {
+  border-color: #00e5ff;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+
+.typing-results-box {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid #10b981;
+  border-radius: 6px;
+}
+
+.typing-metrics-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.typing-metric-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.typing-readout-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+/* Stage 2 Terminal Mobile Responsive Media Queries */
+@media (max-width: 640px) {
+  .linux-terminal-window {
+    margin-bottom: 24px;
+    border-radius: 6px !important;
+  }
+  .terminal-window-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .terminal-title-center {
+    text-align: left;
+    width: 100%;
+  }
+  .terminal-title-text {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+  .terminal-header-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .mono-data {
+    font-size: 10px;
+  }
+  .typewriter-skip-btn {
+    min-height: 44px;
+    padding: 8px 16px;
+    font-size: 11px;
+    touch-action: manipulation;
+  }
+  .terminal-console-body {
+    padding: 12px 14px;
+  }
+  .terminal-prompt-bar {
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .typewriter-stream-body {
+    font-size: 12px;
+    line-height: 1.6;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .typewriter-heading {
+    font-size: 12px;
+  }
+  .signal-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 6px;
+  }
+  .signal-chip {
+    padding: 6px 10px;
+  }
+  .signal-chip-label {
+    font-size: 9px;
+  }
+  .signal-chip-val {
+    font-size: 11px;
+    word-break: break-word;
+  }
+  .terminal-json-code {
+    font-size: 10px;
+    padding: 10px;
+    max-height: 180px;
+  }
+  .typing-target-phrase {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  .terminal-typing-input {
+    font-size: 16px;
+    min-height: 44px;
+    padding: 10px;
+  }
 }
 
 /* Stage 3 Hero Section */
@@ -1290,5 +1478,45 @@ html, body {
   color: var(--muted, #888);
   text-align: center;
   margin-top: 4px;
+}
+
+/* ── Mobile & Tablet View Polish (375px / 390px / 428px / 768px / 641-1024px) ── */
+@media (max-width: 1024px) {
+  .candidates-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .candidates-grid {
+    grid-template-columns: 1fr;
+  }
+  .section-title-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .photo-match-header-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .candidate-header-row {
+    flex-wrap: wrap;
+  }
+  .candidate-identity {
+    min-width: 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .photo-side-by-side {
+    flex-wrap: wrap;
+  }
+  .photo-side-by-side-img {
+    max-width: 100%;
+  }
 }
 

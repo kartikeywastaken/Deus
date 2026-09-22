@@ -28,6 +28,7 @@ pub fn get_signal_weight(signal_type: SignalType) -> f64 {
         SignalType::BiographicalContradiction => 15.0,
         SignalType::LocationConflict => 15.0,
         SignalType::OrganizationConflict => 15.0,
+        SignalType::NameSearchMention => 4.0,
     }
 }
 

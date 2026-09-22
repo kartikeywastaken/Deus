@@ -257,6 +257,65 @@ fn clean_handle_ref(s: &str) -> &str {
     }
 }
 
+pub fn normalize_canonical_url(url_str: &str) -> String {
+    let trimmed = url_str.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let url_with_scheme = if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        format!("https://{}", trimmed)
+    } else {
+        trimmed.to_string()
+    };
+
+    if let Ok(mut parsed) = url::Url::parse(&url_with_scheme) {
+        if parsed.scheme() == "http" {
+            let _ = parsed.set_scheme("https");
+        }
+
+        if parsed.query().is_some() {
+            let tracking_keys = [
+                "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+                "fbclid", "gclid", "ref", "ref_src", "s", "t", "igshid", "mkt_tok", "source"
+            ];
+            let pairs: Vec<(String, String)> = parsed
+                .query_pairs()
+                .filter(|(k, _)| {
+                    let k_lower = k.to_lowercase();
+                    !tracking_keys.contains(&k_lower.as_str()) && !k_lower.starts_with("utm_")
+                })
+                .map(|(k, v)| (k.into_owned(), v.into_owned()))
+                .collect();
+
+            if pairs.is_empty() {
+                parsed.set_query(None);
+            } else {
+                let mut serializer = parsed.query_pairs_mut();
+                serializer.clear();
+                for (k, v) in pairs {
+                    serializer.append_pair(&k, &v);
+                }
+            }
+        }
+
+        parsed.set_fragment(None);
+
+        let mut res = parsed.to_string();
+        let path = parsed.path().to_string();
+        if res.ends_with('/') && path != "/" {
+            res.pop();
+        }
+        res
+    } else {
+        let mut s = trimmed.to_string();
+        if s.ends_with('/') && s.len() > 1 {
+            s.pop();
+        }
+        s
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

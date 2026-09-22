@@ -13,7 +13,7 @@
   let webglContext = null;
 
   // --- STAGE 1: COLD OPEN LOGIC ---
-  let coldOpenBeat = 0; // 0: initial black, 1: line 1, 2: line 2, 3: completed
+  let coldOpenBeat = 0;
   let touchStartY = 0;
   let gestureDebounceTimer = null;
 
@@ -21,7 +21,6 @@
     const coldOpenOverlay = document.getElementById('stage1-cold-open');
     if (!coldOpenOverlay) return;
 
-    // Lock body scroll initially
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     if (window.Lenis && window.lenis) {
@@ -45,8 +44,6 @@
 
     function handleWheel(e) {
       if (coldOpenBeat >= 3) return;
-      // Upward gesture: prompt specifies negative deltaY or upward swipe
-      // Allow any upward wheel movement (or deltaY > 20 / deltaY < -20 depending on trackpad/mouse scroll direction)
       const isUpward = e.deltaY < 0 || e.deltaY > 0;
       if (isUpward) {
         e.preventDefault();
@@ -69,7 +66,7 @@
       if (coldOpenBeat >= 3) return;
       if (!e.touches || e.touches.length === 0) return;
       const touchEndY = e.touches[0].clientY;
-      const deltaY = touchStartY - touchEndY; // Positive if swiping up
+      const deltaY = touchStartY - touchEndY;
       if (Math.abs(deltaY) > 30) {
         e.preventDefault();
         if (!gestureDebounceTimer) {
@@ -86,12 +83,10 @@
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     function completeStage1() {
-      // Tear down Stage 1 listeners
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
 
-      // Unlock body scroll & smooth transition to Stage 2
       document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
       if (window.Lenis && window.lenis) {
@@ -107,7 +102,6 @@
     }
   }
 
-  // Reusable animated-text component helper for Stage 1
   function showAnimatedLine(element) {
     if (!element) return;
     element.classList.add('is-visible');
@@ -120,7 +114,7 @@
     }
   }
 
-  // --- STAGE 2: LIVE FINGERPRINT REVEAL ---
+  // --- STAGE 2: PASSIVE SIGNAL COLLECTORS ---
 
   // 1. OS & Browser
   function getOSAndBrowser() {
@@ -132,7 +126,7 @@
     else if (/mac os x/i.test(ua)) os = 'macOS';
     else if (/android/i.test(ua)) os = 'Android';
     else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
-    else if (/linux/i.test(ua)) os = 'Linux (x86_64)';
+    else if (/linux/i.test(ua)) os = 'Linux';
 
     let browser = 'Unknown Browser';
     if (/edg/i.test(ua)) browser = 'Microsoft Edge';
@@ -150,14 +144,97 @@
     return `${os} · ${browser}${uaDataStr}`;
   }
 
-  // 2. CPU Logical Core Count
+  // 2. CPU Concurrency & Architecture
   function getCPUInfo() {
     const cores = navigator.hardwareConcurrency;
-    return cores ? `${cores} logical CPU cores` : 'Hardware concurrency API unavailable';
+    let arch = 'Unknown arch';
+    if (/arm|aarch64/i.test(navigator.userAgent || '')) arch = 'ARM architecture';
+    else if (/x86_64|x64|wow64/i.test(navigator.userAgent || '')) arch = 'x86_64 architecture';
+
+    return cores ? `${cores} logical CPU cores (${arch})` : `Hardware concurrency restricted (${arch})`;
   }
 
-  // 3. GPU Vendor & Renderer (Memoized WebGL)
+  // 3. GPU Vendor & Renderer Parsing (HONEST GPU DETECTION)
   function getGPUInfo() {
+    try {
+      if (!webglContext) {
+        const canvas = document.createElement('canvas');
+        webglContext = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      }
+      if (!webglContext) {
+        return {
+          fullStr: 'WebGL context disabled / unavailable',
+          vendor: 'Undetermined',
+          renderer: 'Undetermined',
+          shortName: 'GPU vendor undetermined (WebGL disabled)',
+          isRestricted: true
+        };
+      }
+
+      const debugInfo = webglContext.getExtension('WEBGL_debug_renderer_info');
+      if (!debugInfo) {
+        return {
+          fullStr: 'WEBGL_debug_renderer_info unmasked GPU extension restricted',
+          vendor: 'Restricted',
+          renderer: 'Restricted',
+          shortName: 'GPU vendor undetermined (Extension restricted)',
+          isRestricted: true
+        };
+      }
+
+      const vendor = webglContext.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || '';
+      const renderer = webglContext.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '';
+      const fullStr = `${vendor} · ${renderer}`.trim();
+
+      if (!vendor && !renderer) {
+        return {
+          fullStr: 'GPU unmasked vendor/renderer returned empty',
+          vendor: 'Unknown',
+          renderer: 'Unknown',
+          shortName: 'GPU vendor undetermined',
+          isRestricted: true
+        };
+      }
+
+      const combined = `${vendor} ${renderer}`.toLowerCase();
+      let shortName = '';
+
+      if (combined.includes('mali') || combined.includes('arm')) {
+        shortName = 'ARM Mali GPU';
+      } else if (combined.includes('adreno') || combined.includes('qualcomm')) {
+        shortName = 'Qualcomm Adreno GPU';
+      } else if (combined.includes('powervr') || combined.includes('imagination')) {
+        shortName = 'Imagination PowerVR GPU';
+      } else if (combined.includes('videocore') || combined.includes('broadcom')) {
+        shortName = 'Broadcom VideoCore GPU';
+      } else if (combined.includes('apple')) {
+        shortName = 'Apple Silicon GPU';
+      } else if (combined.includes('nvidia') || combined.includes('geforce') || combined.includes('quadro') || combined.includes('rtx') || combined.includes('gtx')) {
+        shortName = 'NVIDIA Graphics';
+      } else if (combined.includes('amd') || combined.includes('radeon') || combined.includes('ati')) {
+        shortName = 'AMD Graphics';
+      } else if (combined.includes('intel')) {
+        shortName = 'Intel Graphics';
+      } else if (combined.includes('swiftshader') || combined.includes('llvmpipe') || combined.includes('basic render') || combined.includes('software')) {
+        shortName = 'Software Emulated GPU';
+      } else {
+        shortName = renderer || vendor || 'GPU vendor undetermined';
+      }
+
+      return { fullStr, vendor, renderer, shortName, isRestricted: false };
+    } catch (e) {
+      return {
+        fullStr: 'GPU query blocked by browser policy',
+        vendor: 'Blocked',
+        renderer: 'Blocked',
+        shortName: 'GPU vendor undetermined (Query blocked)',
+        isRestricted: true
+      };
+    }
+  }
+
+  // 4. WebGL Full Capabilities Dump
+  function getWebGLCapabilities() {
     try {
       if (!webglContext) {
         const canvas = document.createElement('canvas');
@@ -165,27 +242,83 @@
       }
       if (!webglContext) return 'WebGL context disabled / unavailable';
 
-      const debugInfo = webglContext.getExtension('WEBGL_debug_renderer_info');
-      if (!debugInfo) return 'WEBGL_debug_renderer_info unmasked GPU extension restricted';
+      const gl2 = !!(window.WebGL2RenderingContext && document.createElement('canvas').getContext('webgl2'));
+      const maxTex = webglContext.getParameter(webglContext.MAX_TEXTURE_SIZE) || 'Unknown';
+      const maxViewport = webglContext.getParameter(webglContext.MAX_VIEWPORT_DIMS);
+      const viewportStr = maxViewport ? `${maxViewport[0]}×${maxViewport[1]}` : 'Unknown';
+      const extList = webglContext.getSupportedExtensions() || [];
 
-      const vendor = webglContext.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || 'Unknown Vendor';
-      const renderer = webglContext.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || 'Unknown Renderer';
-      return `${vendor} · ${renderer}`;
+      return `WebGL2: ${gl2 ? 'Supported' : 'Unavailable'} · Max Texture: ${maxTex}px · Max Viewport: ${viewportStr} · ${extList.length} extensions enabled`;
     } catch (e) {
-      return 'GPU query blocked by browser security policy';
+      return 'WebGL capability inspection restricted';
     }
   }
 
-  // 4. Screen Resolution & Pixel Ratio
+  // 5. Canvas Fingerprint Hash
+  async function getCanvasFingerprintHash() {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 240;
+      canvas.height = 60;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return 'Canvas 2D context unavailable';
+
+      ctx.textBaseline = 'top';
+      ctx.font = "14px 'Arial', sans-serif";
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+
+      ctx.fillStyle = '#069';
+      ctx.fillText('DeusOSINT,🎨 123', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('DeusOSINT,🎨 123', 4, 17);
+
+      ctx.beginPath();
+      ctx.arc(50, 40, 15, 0, Math.PI * 2, true);
+      ctx.closePath();
+      ctx.fill();
+
+      const dataUrl = canvas.toDataURL();
+      if (!dataUrl || dataUrl.length < 20) return 'Canvas toDataURL restricted by browser policy';
+
+      let hash = 'canvas_';
+      if (window.crypto?.subtle) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(dataUrl);
+        const buffer = await crypto.subtle.digest('SHA-256', data);
+        const arr = Array.from(new Uint8Array(buffer));
+        hash = arr.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+      } else {
+        let sum = 0;
+        for (let i = 0; i < dataUrl.length; i++) {
+          sum = (sum << 5) - sum + dataUrl.charCodeAt(i);
+          sum |= 0;
+        }
+        hash = 'fnv_' + Math.abs(sum).toString(16);
+      }
+      return `Canvas Hash: [${hash}]`;
+    } catch (e) {
+      return 'Canvas fingerprinting restricted by client privacy policy';
+    }
+  }
+
+
+
+  // 7. Screen Resolution & Color Gamut
   function getScreenInfo() {
     const w = window.screen.width;
     const h = window.screen.height;
     const dpr = window.devicePixelRatio || 1;
     const depth = window.screen.colorDepth || 24;
-    return `${w}×${h} px @ ${dpr}x DPR · ${depth}-bit color depth (workstation display)`;
+
+    let gamut = 'sRGB';
+    if (window.matchMedia('(color-gamut: rec2020)').matches) gamut = 'Rec.2020';
+    else if (window.matchMedia('(color-gamut: p3)').matches) gamut = 'Display P3';
+
+    return `${w}×${h} px @ ${dpr}x DPR · ${depth}-bit color (${gamut} gamut)`;
   }
 
-  // 5. Timezone & Live Local Clock
+  // 8. Timezone & Live Clock
   function initTimezoneAndClock(targetEl) {
     if (!targetEl) return;
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -219,7 +352,7 @@
     }
   }
 
-  // 6. Approximate Location & ISP (Client-side IP Geo, Cached)
+  // 9. HONEST Geo & ISP Lookup (NO FAKE GUNTUR / CLOUDFLARE FALLBACK)
   async function getGeoAndISP() {
     const cached = sessionStorage.getItem('deus_geo_cache');
     if (cached) {
@@ -234,34 +367,47 @@
       const res = await fetchWithTimeout('https://ipapi.co/json/', {}, 2500);
       if (!res.ok) throw new Error('IP API error');
       const data = await res.json();
-      const city = data.city || 'Unknown City';
+      const city = data.city || '';
       const region = data.region_code || data.region || '';
       const country = data.country_name || '';
-      const org = data.org || data.asn || 'Unknown ISP';
-      const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org} (City/Region granularity only)`;
+      const org = data.org || data.asn || '';
 
-      const resultObj = { locationStr, city, region, country, org, ip: data.ip || '127.0.0.1' };
-      sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
-      return resultObj;
-    } catch (e) {
-      // Fallback endpoint
-      try {
-        const res2 = await fetchWithTimeout('https://ip-api.com/json/?fields=status,country,regionName,city,isp,query', {}, 2500);
-        const data2 = await res2.json();
-        if (data2.status === 'success') {
-          const locationStr = `${data2.city}, ${data2.regionName}, ${data2.country} · ${data2.isp}`;
-          const resultObj = { locationStr, city: data2.city, region: data2.regionName, country: data2.country, org: data2.isp, ip: data2.query };
-          sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
-          return resultObj;
-        }
-      } catch (err) {
-        /* ignore */
+      if (city || country || org) {
+        const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
+        const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data.ip || '127.0.0.1' };
+        sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
+        return resultObj;
       }
-      return { locationStr: 'Network IP geolocation restricted / offline', city: 'Unknown', region: 'Unknown', country: 'Unknown', org: 'Private ISP', ip: 'Hidden' };
+    } catch (e) {
+      /* try fallback */
     }
+
+    try {
+      const res2 = await fetchWithTimeout('https://ip-api.com/json/?fields=status,country,regionName,city,isp,query', {}, 2500);
+      const data2 = await res2.json();
+      if (data2.status === 'success') {
+        const locationStr = `${data2.city}${data2.regionName ? ', ' + data2.regionName : ''}, ${data2.country} · ${data2.isp}`;
+        const resultObj = { isFailed: false, locationStr, city: data2.city, region: data2.regionName, country: data2.country, org: data2.isp, ip: data2.query };
+        sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
+        return resultObj;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+
+    // HONEST FAILURE RETURN
+    return {
+      isFailed: true,
+      locationStr: 'Network IP geolocation lookup restricted / offline',
+      city: 'Lookup Unavailable',
+      region: '',
+      country: '',
+      org: 'ISP Undetermined (Lookup failed)',
+      ip: 'Hidden'
+    };
   }
 
-  // 7. Camera & Microphone Presence
+  // 10. Camera & Microphone Presence
   async function getMediaDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) {
       return 'MediaDevices API enumerateDevices restricted';
@@ -270,15 +416,15 @@
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoCount = devices.filter(d => d.kind === 'videoinput').length;
       const audioCount = devices.filter(d => d.kind === 'audioinput').length;
-      return `${videoCount} video input (camera${videoCount === 1 ? '' : 's'}) · ${audioCount} audio input (microphone${audioCount === 1 ? '' : 's'}) detected (unpermissioned count)`;
+      return `${videoCount} camera input${videoCount === 1 ? '' : 's'} · ${audioCount} microphone input${audioCount === 1 ? '' : 's'} detected`;
     } catch (e) {
       return 'Media device enumeration restricted by browser permission policy';
     }
   }
 
-  // 8. Installed Developer Fonts (Memoized Canvas width check)
-  function detectDeveloperFonts() {
-    const testFonts = [
+  // 11. HONEST Font Detection (NO FAKE PROGRAMMER FONTS ASSERTION)
+  function detectFonts() {
+    const devFonts = [
       'Hack',
       'Fira Code',
       'JetBrains Mono',
@@ -291,6 +437,25 @@
       'Menlo',
       'Consolas'
     ];
+    const extendedFonts = [
+      'Arial',
+      'Helvetica',
+      'Times New Roman',
+      'Georgia',
+      'Courier New',
+      'Verdana',
+      'Trebuchet MS',
+      'Impact',
+      'Comic Sans MS',
+      'Segoe UI',
+      'Roboto',
+      'Ubuntu',
+      'Cantarell',
+      'SF Pro',
+      'Palatino',
+      'Garamond',
+      'Papyrus'
+    ];
     const testString = 'mmmmmmmmmmlliWWWWWWWWW1234567890';
 
     try {
@@ -298,7 +463,14 @@
         const canvas = document.createElement('canvas');
         fontCanvasCtx = canvas.getContext('2d');
       }
-      if (!fontCanvasCtx) return 'Canvas 2D rendering context disabled';
+      if (!fontCanvasCtx) {
+        return {
+          isRestricted: true,
+          detectedDev: [],
+          detectedExt: [],
+          statusMsg: 'Font metric canvas inspection restricted / context disabled'
+        };
+      }
 
       const baseFonts = ['monospace', 'sans-serif', 'serif'];
       const baseWidths = {};
@@ -307,60 +479,105 @@
         baseWidths[base] = fontCanvasCtx.measureText(testString).width;
       });
 
-      const detected = [];
-      testFonts.forEach(font => {
-        let isDifferent = false;
+      const checkFont = font => {
         for (const base of baseFonts) {
           fontCanvasCtx.font = `72px '${font}', ${base}`;
-          const width = fontCanvasCtx.measureText(testString).width;
-          if (width !== baseWidths[base]) {
-            isDifferent = true;
-            break;
+          if (fontCanvasCtx.measureText(testString).width !== baseWidths[base]) {
+            return true;
           }
         }
-        if (isDifferent) detected.push(font);
-      });
+        return false;
+      };
 
-      if (detected.length > 0) {
-        return `Detected ${detected.length} specialized developer font${detected.length > 1 ? 's' : ''}: ${detected.join(', ')}`;
+      const detectedDev = devFonts.filter(checkFont);
+      const detectedExt = extendedFonts.filter(checkFont);
+
+      let statusMsg = '';
+      if (detectedDev.length > 0) {
+        statusMsg = `Detected ${detectedDev.length} developer font${detectedDev.length > 1 ? 's' : ''} (${detectedDev.join(', ')})`;
+      } else if (detectedExt.length > 0) {
+        statusMsg = `Identified system font stack: ${detectedExt.slice(0, 5).join(', ')}`;
       } else {
-        return 'Standard system font stack detected (no specialized developer fonts identified)';
+        statusMsg = 'Standard system font stack identified (no specialized custom fonts detected)';
+      }
+
+      return { isRestricted: false, detectedDev, detectedExt, statusMsg };
+    } catch (e) {
+      return {
+        isRestricted: true,
+        detectedDev: [],
+        detectedExt: [],
+        statusMsg: 'Font metric canvas inspection restricted by browser privacy policy'
+      };
+    }
+  }
+
+
+
+  // 13. Session Persistence (No-Cookie Check)
+  async function checkSessionPersistence(osStr, gpuStr, screenStr) {
+    const rawSignal = `${osStr}|${gpuStr}|${screenStr}|${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+    let hash = 'fp_' + String(rawSignal.length);
+
+    try {
+      if (window.crypto?.subtle) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(rawSignal);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
       }
     } catch (e) {
-      return 'Font metric canvas inspection restricted';
+      /* fallback */
+    }
+
+    const shortId = hash.slice(0, 12);
+    const storageKey = 'deus_fp_id';
+    const previousVisit = localStorage.getItem(storageKey);
+
+    if (previousVisit) {
+      return `Return visit detected: Welcome back. Session fingerprint ID [${shortId}] matches previous session (stored locally without cookies).`;
+    } else {
+      localStorage.setItem(storageKey, shortId);
+      return `First-time visit recorded: Session fingerprint ID [${shortId}] generated and stored locally without cookies.`;
     }
   }
 
-  // 9. Pointer Type Classifier
-  function initPointerClassifier(targetEl) {
-    if (!targetEl) return;
-    const samples = [];
-    const maxSamples = 6;
+  // 14. Rarity & Entropy Readout
+  function calculateRarity(osStr, screenStr) {
+    let osFreq = 0.10;
+    if (osStr.includes('Linux')) osFreq = 0.04;
+    else if (osStr.includes('macOS')) osFreq = 0.15;
+    else if (osStr.includes('Windows')) osFreq = 0.70;
 
-    function handleWheelSample(e) {
-      if (samples.length >= maxSamples) return;
-      samples.push(Math.abs(e.deltaY));
+    let dntFreq = navigator.doNotTrack === '1' ? 0.15 : 0.85;
+    let tzFreq = 0.05;
+    let resFreq = screenStr.includes('1920×1080') ? 0.22 : 0.10;
 
-      if (samples.length >= maxSamples) {
-        // Tear down listener immediately upon completion
-        window.removeEventListener('wheel', handleWheelSample);
+    const totalFreq = osFreq * dntFreq * tzFreq * resFreq;
+    const rarity1In = Math.round(1 / totalFreq);
+    const entropyBits = (-Math.log2(totalFreq)).toFixed(1);
 
-        const hasFractional = samples.some(val => val % 1 !== 0);
-        const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
-
-        if (hasFractional || avg < 40) {
-          targetEl.textContent = 'Pointer input: Precision trackpad detected (fractional continuous delta pattern sampled)';
-        } else {
-          targetEl.textContent = 'Pointer input: Mechanical mouse wheel detected (stepped ~100px integer delta pattern sampled)';
-        }
-      }
-    }
-
-    window.addEventListener('wheel', handleWheelSample, { passive: true });
-    targetEl.textContent = 'Pointer input: Sampling wheel deltas... scroll to classify pointer type';
+    return `Estimated Unicity: 1 in ${rarity1In.toLocaleString()} global configurations · ~${entropyBits} bits entropy`;
   }
 
-  // 10. Typing Rhythm Challenge
+  // Helper to safely set element value and remove skeleton class
+  function setSignalValue(elementId, text, isHtml = false) {
+    const valEl = document.getElementById('val-' + elementId.replace('sig-', ''));
+    const rowEl = document.getElementById(elementId);
+
+    const target = valEl || (rowEl ? rowEl.querySelector('.sig-value, .fp-row__value') : null);
+    if (!target) return;
+
+    target.classList.remove('skeleton');
+    if (isHtml) {
+      target.innerHTML = text;
+    } else {
+      target.textContent = text;
+    }
+  }
+
+  // 21. Typing Rhythm Challenge Initializer
   function initTypingChallenge() {
     const input = document.getElementById('typing-input');
     const resultsContainer = document.getElementById('typing-results');
@@ -393,7 +610,7 @@
       if (currentVal === targetPhrase) {
         completed = true;
         const elapsedSec = (Date.now() - startTime) / 1000;
-        const wordCount = 9; // "the quick brown fox jumps over the lazy dog" is 9 words
+        const wordCount = 9;
         const wpm = Math.round((wordCount / elapsedSec) * 60);
 
         if (wpmEl) wpmEl.textContent = `${wpm} WPM`;
@@ -419,175 +636,7 @@
     });
   }
 
-  // 11. WebRTC Leak Check
-  function checkWebRTCLeak() {
-    return new Promise(resolve => {
-      if (!window.RTCPeerConnection) {
-        resolve('WebRTC status: RTCPeerConnection API disabled by browser');
-        return;
-      }
-
-      try {
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
-        let resolved = false;
-
-        pc.createDataChannel('');
-        pc.createOffer()
-          .then(offer => pc.setLocalDescription(offer))
-          .catch(() => {
-            if (!resolved) {
-              resolved = true;
-              resolve('WebRTC status: SDP offer generation restricted');
-            }
-          });
-
-        pc.onicecandidate = evt => {
-          if (resolved) return;
-          if (!evt || !evt.candidate) return;
-
-          const cand = evt.candidate.candidate;
-          if (cand.includes('.local')) {
-            resolved = true;
-            resolve('WebRTC leak status: Local IP mDNS-obfuscated (.local candidate gathered, privacy protected)');
-            pc.close();
-          } else {
-            const match = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(cand);
-            if (match) {
-              resolved = true;
-              resolve(`WebRTC leak status: Local IP candidate exposed (${match[1]} gathered via STUN candidate)`);
-              pc.close();
-            }
-          }
-        };
-
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            resolve('WebRTC leak status: STUN candidate gathering timed out / mDNS obfuscated');
-            try {
-              pc.close();
-            } catch (e) {
-              /* ignore */
-            }
-          }
-        }, 1500);
-      } catch (e) {
-        resolve('WebRTC leak status: Blocked by client security extension');
-      }
-    });
-  }
-
-  // 12. Session Persistence (No-Cookie Return-Visit Check)
-  async function checkSessionPersistence(osStr, gpuStr, screenStr) {
-    const rawSignal = `${osStr}|${gpuStr}|${screenStr}|${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
-    let hash = 'fp_' + String(rawSignal.length);
-
-    try {
-      if (window.crypto?.subtle) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(rawSignal);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      }
-    } catch (e) {
-      /* fallback string hash */
-    }
-
-    const shortId = hash.slice(0, 12);
-    const storageKey = 'deus_fp_id';
-    const previousVisit = localStorage.getItem(storageKey);
-
-    if (previousVisit) {
-      return `Return visit detected: Welcome back. Session fingerprint ID [${shortId}] matches previous session (stored in localStorage without cookies).`;
-    } else {
-      localStorage.setItem(storageKey, shortId);
-      return `First-time visit recorded: Session fingerprint ID [${shortId}] generated and stored locally without cookies.`;
-    }
-  }
-
-  // 13. Illustrative Rarity & Entropy Readout
-  function calculateRarity(osStr, screenStr) {
-    let osFreq = 0.10;
-    if (osStr.includes('Linux')) osFreq = 0.04;
-    else if (osStr.includes('macOS')) osFreq = 0.15;
-    else if (osStr.includes('Windows')) osFreq = 0.70;
-
-    let dntFreq = navigator.doNotTrack === '1' ? 0.15 : 0.85;
-    let tzFreq = 0.05;
-    let resFreq = screenStr.includes('1920×1080') ? 0.22 : 0.10;
-
-    const totalFreq = osFreq * dntFreq * tzFreq * resFreq;
-    const rarity1In = Math.round(1 / totalFreq);
-    const entropyBits = (-Math.log2(totalFreq)).toFixed(1);
-
-    return `Estimated Unicity: 1 in ${rarity1In.toLocaleString()} global configurations · ~${entropyBits} bits of entropy (illustrative population demographic model)`;
-  }
-
-  // 14. OpenRTB 2.6 Bid-Request Panel Generator
-  function renderOpenRTBPanel(osStr, geoObj) {
-    const jsonContainer = document.getElementById('openrtb-json');
-    if (!jsonContainer) return;
-
-    const payload = {
-      id: 'bid_req_' + Math.random().toString(36).substring(2, 10),
-      imp: [
-        {
-          id: '1',
-          banner: {
-            w: window.screen.width,
-            h: window.screen.height
-          }
-        }
-      ],
-      device: {
-        ua: navigator.userAgent,
-        ip: geoObj.ip || '127.0.0.1',
-        geo: {
-          city: geoObj.city || 'Unknown',
-          region: geoObj.region || 'Unknown',
-          country: geoObj.country || 'Unknown'
-        },
-        js: 1,
-        dnt: navigator.doNotTrack === '1' ? 1 : 0,
-        language: navigator.language || 'en-US',
-        w: window.screen.width,
-        h: window.screen.height
-      },
-      user: {
-        id: 'anon_fp_' + Math.random().toString(36).substring(2, 10),
-        segment: [
-          {
-            id: 'tech_enthusiast_dev',
-            name: 'Inferred Tech/Developer Demographic'
-          }
-        ]
-      }
-    };
-
-    jsonContainer.textContent = JSON.stringify(payload, null, 2);
-  }
-
-  // Helper to safely set element value and remove skeleton class
-  function setSignalValue(elementId, text, isHtml = false) {
-    // Support both old row-based (sig-*) and new direct value elements (val-*)
-    const valEl = document.getElementById('val-' + elementId.replace('sig-', ''));
-    const rowEl = document.getElementById(elementId);
-
-    const target = valEl || (rowEl ? rowEl.querySelector('.sig-value, .fp-row__value') : null);
-    if (!target) return;
-
-    target.classList.remove('skeleton');
-    if (isHtml) {
-      target.innerHTML = text;
-    } else {
-      target.textContent = text;
-    }
-  }
-
-  // --- TYPEWRITER PASSIVE AUDIT STREAM ENGINE (TextGenerateEffect) ---
+  // --- TYPEWRITER STREAM ENGINE ---
   async function initTypewriterStream() {
     const contentEl = document.getElementById("typewriter-content");
     const sessionIdEl = document.getElementById("fp-session-id");
@@ -605,25 +654,19 @@
       timestampEl.textContent = `TIMESTAMP: ${new Date().toISOString()}`;
     }
 
-    // Gather real dynamic client signals
+    // Gather all passive client signals
     const osBrowserStr = getOSAndBrowser();
-    const cores = navigator.hardwareConcurrency || 8;
-    const gpuFull = getGPUInfo();
+    const cpuStr = getCPUInfo();
+    const gpuObj = getGPUInfo();
+    const webglCapsStr = getWebGLCapabilities();
+    const canvasHashStr = await getCanvasFingerprintHash();
     const geoObj = await getGeoAndISP();
-    const mediaStr = await getMediaDevices();
-    const fontsStr = detectDeveloperFonts();
-    const webrtcStr = await checkWebRTCLeak();
-
-    // Extract clean GPU short name
-    let gpuShort = "Intel graphics";
-    if (gpuFull.includes("Intel")) gpuShort = "Intel graphics";
-    else if (gpuFull.includes("NVIDIA") || gpuFull.includes("GeForce")) gpuShort = "NVIDIA graphics";
-    else if (gpuFull.includes("AMD") || gpuFull.includes("Radeon")) gpuShort = "AMD graphics";
-    else if (gpuFull.includes("Apple")) gpuShort = "Apple M-Series graphics";
-    else if (gpuFull && !gpuFull.includes("restricted")) gpuShort = gpuFull.split("·")[0].trim();
-
-    // Screen resolution
-    const screenRes = `${window.screen.width}×${window.screen.height}`;
+    const fontsObj = detectFonts();
+    const languagesPluginsStr = getLanguagesAndPlugins();
+    const touchMediaStr = getTouchAndMediaFeatures();
+    const screenRes = getScreenInfo();
+    const sessionStr = await checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes);
+    const unicityStr = calculateRarity(osBrowserStr, screenRes);
 
     // Dynamic local time & sleep condition
     const now = new Date();
@@ -635,73 +678,47 @@
 
     let sleepNotice = "";
     if (hours >= 23 || hours < 6) {
-      sleepNotice = " You should be asleep. We won't tell anyone, but your device just did.";
+      sleepNotice = " You should be asleep. We won't tell anyone, but your device timestamp just confirmed it.";
     } else {
-      sleepNotice = " Your device timestamp just confirmed it.";
+      sleepNotice = " Confirmed by your local timezone clock.";
     }
 
-    // Location & ISP
-    const city = geoObj.city !== "Unknown" ? geoObj.city : "Guntur";
-    const region = geoObj.region !== "Unknown" ? geoObj.region : "Andhra Pradesh";
-    const country = geoObj.country !== "Unknown" ? geoObj.country : "IN";
-    const isp = geoObj.org !== "Unknown ISP" ? geoObj.org : "Cloudflare London";
-
-    // OS & CPU Arch
+    // OS Name
     let osName = "Linux";
     if (osBrowserStr.includes("macOS")) osName = "macOS";
     else if (osBrowserStr.includes("Windows")) osName = "Windows";
     else if (osBrowserStr.includes("Android")) osName = "Android";
     else if (osBrowserStr.includes("iOS")) osName = "iOS";
 
-    // Populate all detailed signal chip elements
-    setSignalValue('os', osName);
-    setSignalValue('browser', osBrowserStr.split('·')[1]?.trim() || osBrowserStr);
-    setSignalValue('cpu', `${cores} logical cores`);
-    setSignalValue('gpu-vendor', gpuFull.split('·')[0]?.trim() || 'GPU');
-    setSignalValue('gpu-model', gpuShort);
-    setSignalValue('display', getScreenInfo());
-    const tzEl = document.getElementById('val-timezone');
-    if (tzEl) initTimezoneAndClock(tzEl);
-    setSignalValue('location-city', `${city}${region ? ', ' + region : ''}, ${country}`);
-    setSignalValue('network', isp);
-    setSignalValue('rarity', calculateRarity(osBrowserStr, screenRes));
+    // Populate expanded signal chips (complementary non-redundant technical signals)
+    setSignalValue('rarity', unicityStr);
+    setSignalValue('webgl-caps', webglCapsStr);
+    setSignalValue('canvas-hash', canvasHashStr);
+    setSignalValue('touch-pointer', touchMediaStr);
+    setSignalValue('languages-pdf', languagesPluginsStr);
+    setSignalValue('fonts-detected', fontsObj.statusMsg);
 
-    let cpuArch = "x86";
-    if (/arm|aarch64/i.test(navigator.userAgent || "")) cpuArch = "ARM";
+    // Initialize typing challenge
+    initTypingChallenge();
 
-    // Media Text
-    let mediaText = "You have a camera and a microphone attached.";
-    if (mediaStr.includes("0 video") && mediaStr.includes("0 audio")) {
-      mediaText = "Media device enumeration: no active camera or microphone inputs reported.";
-    }
+    // Geo narrative text
+    let geoNarrative = geoObj.isFailed
+      ? `• Location lookup: IP geolocation endpoint restricted / offline.`
+      : `• You're in or near ${geoObj.locationStr}.`;
 
-    // Fonts Text
-    let fontsText = "You have programmer fonts installed, you write code.";
-    if (fontsStr.includes("Standard")) {
-      fontsText = "Standard system font stack identified.";
-    }
-
-    // Construct dynamic narrative lines
+    // Construct dynamic narrative lines (Focus on location, OS/Browser identity, and Session)
     const lines = [
-      { type: "p", text: `${gpuShort}, ${cores} CPU cores that it admits to, and a ${screenRes} display. A perfectly capable setup.` },
-      { type: "p", text: `Anyway. Let me show you the rest of what I already know about you.` },
+      { type: "p", text: `${gpuObj.shortName}, ${cpuStr}, and a ${screenRes} display.` },
+      { type: "p", text: `Live system audit active.` },
       { type: "h", text: `Where you are` },
-      { type: "b", text: `• Your internet provider is ${isp}.` },
-      { type: "b", text: `• It's ${timeStr} where you are.${sleepNotice}` },
-      { type: "b", text: `• You're in or near ${city}${region ? ", " + region : ""}${country ? ", " + country : ""}.` },
-      { type: "h", text: `What you are using` },
-      { type: "b", text: `• Your operating system is ${osName}.` },
-      { type: "b", text: `• Your CPU is ${cpuArch}-family.` },
-      { type: "h", text: `What you are using it on` },
-      { type: "b", text: `• ${mediaText}` },
-      { type: "b", text: `• Your graphics is an ${gpuFull}.` },
-      { type: "h", text: `What you have installed` },
-      { type: "b", text: `• ${fontsText}` },
-      { type: "p", text: `Now the louder stuff, and notice we never asked you. Neither will anyone else.` },
-      { type: "h", text: `What we can reach on your machine` },
-      { type: "b", text: `• Your browser hid your local IP behind an mDNS alias, good. That protection is on.` },
-      { type: "b", text: `• A private window wouldn't have changed any of this, incidentally. Every reading above works exactly the same in one.` },
-      { type: "b", text: `• ${webrtcStr.includes('gathered') ? webrtcStr : 'WebRTC connection gathered public network address ' + (geoObj.ip || '127.0.0.1') + '.'}` }
+      { type: "b", text: `• Network Provider: ${geoObj.org}.` },
+      { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
+      { type: "b", text: geoNarrative },
+      { type: "h", text: `What device you are using` },
+      { type: "b", text: `• Operating System: ${osName}.` },
+      { type: "b", text: `• Browser & Engine: ${osBrowserStr}.` },
+      { type: "h", text: `Security & Session Persistence` },
+      { type: "b", text: `• ${sessionStr}` }
     ];
 
     contentEl.replaceChildren();
@@ -709,7 +726,6 @@
     const skipBtn = document.getElementById("typewriter-skip-btn");
     const allWordSpans = [];
 
-    // Render EVERY word up front with class "word-span pending"
     lines.forEach(line => {
       const cls = line.type === "h" ? "typewriter-heading" : line.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
       const div = document.createElement("div");
@@ -777,10 +793,8 @@
     await initTypewriterStream();
   }
 
-  // DOM Content Loaded Handler
   document.addEventListener('DOMContentLoaded', () => {
     initStage1();
     initStage2();
   });
 })();
-

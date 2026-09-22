@@ -9,7 +9,11 @@ pub struct AdlerConnector {
 impl AdlerConnector {
     pub fn new() -> Self {
         Self {
-            engine: SiteEngine::load_from_dataset("adler-core", "adler_sites.json"),
+            engine: SiteEngine::load_from_dataset(
+                "adler-core",
+                "adler_sites.json",
+                include_str!("../../data/sites/adler_sites.json"),
+            ),
         }
     }
 }
@@ -41,5 +45,17 @@ impl OsintConnector for AdlerConnector {
 
     async fn search_username(&self, username: &str) -> ConnectorOutput {
         self.engine.run_search(username).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_adler_connector_rules_loaded() {
+        let conn = AdlerConnector::new();
+        assert!(conn.engine.load_error().is_none());
+        assert!(conn.engine.rules_count() > 100);
     }
 }
