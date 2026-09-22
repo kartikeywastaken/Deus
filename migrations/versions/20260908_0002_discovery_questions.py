@@ -17,9 +17,20 @@ def upgrade():
             "context", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")
         ),
     )
-    op.drop_constraint(
-        op.f("ck_investigation_questions_question_type"), "investigation_questions", type_="check"
-    )
+    op.execute("""
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'ck_investigation_questions_question_type'
+            AND conrelid = 'investigation_questions'::regclass
+        ) THEN
+            ALTER TABLE investigation_questions
+            DROP CONSTRAINT ck_investigation_questions_question_type;
+        END IF;
+    END $$;
+    """)
     op.create_check_constraint(
         op.f("ck_investigation_questions_question_type"),
         "investigation_questions",

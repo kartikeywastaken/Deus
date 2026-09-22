@@ -63,7 +63,20 @@ def upgrade():
     )
     op.create_index("ix_investigation_jobs_search_run_id", "investigation_jobs", ["search_run_id"])
     op.create_index("ix_jobs_claim", "investigation_jobs", ["status", "available_at"])
-    op.drop_constraint(op.f("ck_connector_runs_connector_status"), "connector_runs", type_="check")
+    op.execute("""
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'ck_connector_runs_connector_status'
+            AND conrelid = 'connector_runs'::regclass
+        ) THEN
+            ALTER TABLE connector_runs
+            DROP CONSTRAINT ck_connector_runs_connector_status;
+        END IF;
+    END $$;
+    """)
     op.create_check_constraint(
         op.f("ck_connector_runs_connector_status"),
         "connector_runs",
