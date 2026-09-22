@@ -254,8 +254,8 @@
     }
   }
 
-  // 5. Canvas Fingerprint Hash
-  async function getCanvasFingerprintHash() {
+  // 5. Canvas Fingerprint Hash (Synchronous & Fast)
+  function getCanvasFingerprintHashSync() {
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 240;
@@ -281,25 +281,20 @@
       const dataUrl = canvas.toDataURL();
       if (!dataUrl || dataUrl.length < 20) return 'Canvas toDataURL restricted by browser policy';
 
-      let hash = 'canvas_';
-      if (window.crypto?.subtle) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(dataUrl);
-        const buffer = await crypto.subtle.digest('SHA-256', data);
-        const arr = Array.from(new Uint8Array(buffer));
-        hash = arr.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
-      } else {
-        let sum = 0;
-        for (let i = 0; i < dataUrl.length; i++) {
-          sum = (sum << 5) - sum + dataUrl.charCodeAt(i);
-          sum |= 0;
-        }
-        hash = 'fnv_' + Math.abs(sum).toString(16);
+      let sum = 0;
+      for (let i = 0; i < dataUrl.length; i++) {
+        sum = (sum << 5) - sum + dataUrl.charCodeAt(i);
+        sum |= 0;
       }
-      return `Canvas Hash: [${hash}]`;
+      const hash = Math.abs(sum).toString(16).slice(0, 12);
+      return `Canvas Hash: [fnv_${hash}]`;
     } catch (e) {
       return 'Canvas fingerprinting restricted by client privacy policy';
     }
+  }
+
+  async function getCanvasFingerprintHash() {
+    return getCanvasFingerprintHashSync();
   }
 
 
@@ -681,7 +676,8 @@
       setSignalValue('touch-pointer', touchMediaStr);
       setSignalValue('languages-pdf', languagesPluginsStr);
       setSignalValue('fonts-detected', fontsObj.statusMsg);
-      setSignalValue('canvas-hash', 'Canvas Hash: [computing...]');
+      const canvasHashStr = getCanvasFingerprintHashSync();
+      setSignalValue('canvas-hash', canvasHashStr);
 
       // Initialize typing challenge widget
       initTypingChallenge();
@@ -693,6 +689,7 @@
       const ampm = hours >= 12 ? "p.m." : "a.m.";
       const displayHour = hours % 12 || 12;
       const timeStr = `${displayHour}:${minutes} ${ampm}`;
+      const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Client Local';
 
       let sleepNotice = (hours >= 23 || hours < 6)
         ? " You should be asleep. We won't tell anyone, but your device timestamp just confirmed it."
@@ -710,9 +707,9 @@
         { type: "p", text: `${gpuObj.shortName}, ${cpuStr}, and a ${screenRes} display.` },
         { type: "p", text: `Live system audit active.` },
         { type: "h", text: `Where you are` },
-        { type: "b", id: "stream-line-isp", text: `• Network Provider: Resolving...` },
+        { type: "b", id: "stream-line-isp", text: `• Network Provider: Primary Client Network.` },
         { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
-        { type: "b", id: "stream-line-geo", text: `• Location: Resolving network IP...` },
+        { type: "b", id: "stream-line-geo", text: `• Location: Timezone Region (${tzName}).` },
         { type: "h", text: `What device you are using` },
         { type: "b", text: `• Operating System: ${osName}.` },
         { type: "b", text: `• Browser & Engine: ${osBrowserStr}.` },
@@ -784,29 +781,19 @@
         }, 40);
       }
 
-      // ASYNCHRONOUSLY UPDATE RESOLVING LINES AS SOON AS ASYNC PROMISES RETURN
-      getCanvasFingerprintHash()
-        .then(hashStr => setSignalValue('canvas-hash', hashStr))
-        .catch(() => setSignalValue('canvas-hash', 'Canvas Hash: [unavailable]'));
-
+      // ASYNCHRONOUSLY UPDATE GEOLOCATION WHEN RETURNED
       getGeoAndISP()
         .then(geoObj => {
           const ispEl = document.getElementById("stream-line-isp");
           const geoEl = document.getElementById("stream-line-geo");
-          if (ispEl) {
-            ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${geoObj.org || 'ISP Undetermined'}.</span>`;
+          if (ispEl && geoObj.org) {
+            ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${geoObj.org}.</span>`;
           }
-          if (geoEl) {
-            const locText = geoObj.isFailed
-              ? `• Location lookup: IP geolocation endpoint restricted / offline.`
-              : `• You're in or near ${geoObj.locationStr}.`;
-            geoEl.innerHTML = `<span class="word-span revealed">${locText}</span>`;
+          if (geoEl && !geoObj.isFailed) {
+            geoEl.innerHTML = `<span class="word-span revealed">• You're in or near ${geoObj.locationStr}.</span>`;
           }
         })
-        .catch(() => {
-          const locEl = document.getElementById("stream-line-geo");
-          if (locEl) locEl.innerHTML = `<span class="word-span revealed">• Location lookup: IP geolocation endpoint restricted / offline.</span>`;
-        });
+        .catch(() => {});
 
       checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes)
         .then(sessionStr => {
@@ -825,8 +812,14 @@
     initTypewriterStream();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function runInit() {
     initStage1();
     initStage2();
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runInit);
+  } else {
+    runInit();
+  }
 })();

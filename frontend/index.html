@@ -21,7 +21,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <link rel="stylesheet" href="/styles.css?v=35">
+  <link rel="stylesheet" href="/styles.css?v=40">
 </head>
 <body>
 
@@ -68,7 +68,7 @@
             <span class="terminal-title-text">bash — deus@audit: ~ (passive-browser-audit)</span>
           </div>
           <div class="terminal-header-right">
-            <span id="fp-timestamp" class="mono-data">TIMESTAMP: RESOLVING...</span>
+            <span id="fp-timestamp" class="mono-data">TIMESTAMP: LIVE ACTIVE</span>
             <button id="typewriter-skip-btn" class="typewriter-skip-btn" type="button">Fast Forward ⚡</button>
           </div>
         </div>
@@ -89,12 +89,12 @@
 
           <!-- Signal Chips Container (Non-Redundant Advanced Signals) -->
           <div id="fingerprint-signals" class="signal-cards-grid">
-            <div class="signal-chip"><span class="signal-chip-label">Entropy / Unicity</span><span id="val-rarity" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">WebGL Caps</span><span id="val-webgl-caps" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Canvas Hash</span><span id="val-canvas-hash" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Touch & Pointer</span><span id="val-touch-pointer" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Languages & PDF</span><span id="val-languages-pdf" class="signal-chip-val skeleton">Resolving...</span></div>
-            <div class="signal-chip"><span class="signal-chip-label">Installed Fonts</span><span id="val-fonts-detected" class="signal-chip-val skeleton">Resolving...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Entropy / Unicity</span><span id="val-rarity" class="signal-chip-val skeleton">Configuring...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">WebGL Caps</span><span id="val-webgl-caps" class="signal-chip-val skeleton">Scanning GPU...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Canvas Hash</span><span id="val-canvas-hash" class="signal-chip-val skeleton">Generating Hash...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Touch & Pointer</span><span id="val-touch-pointer" class="signal-chip-val skeleton">Detecting...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Languages & PDF</span><span id="val-languages-pdf" class="signal-chip-val skeleton">Reading Environment...</span></div>
+            <div class="signal-chip"><span class="signal-chip-label">Installed Fonts</span><span id="val-fonts-detected" class="signal-chip-val skeleton">Analyzing Metrics...</span></div>
           </div>
 
           <!-- Typing Rhythm Challenge Widget -->
@@ -281,8 +281,8 @@
   </div>
 </div>
 
-<script src="/fingerprint.js?v=35"></script>
-<script src="/app.js?v=35" defer></script>
+<script src="/fingerprint.js?v=40"></script>
+<script src="/app.js?v=40" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
