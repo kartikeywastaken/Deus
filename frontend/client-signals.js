@@ -1,5 +1,5 @@
 /**
- * Deus OSINT Toolkit — Fingerprint Reveal Engine
+ * Deus OSINT Toolkit — Client Signals & Browser Audit Engine
  * Gathers passive client browser signals in real time without cookies or permissions.
  */
 
@@ -7,6 +7,19 @@
   'use strict';
 
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  // --- ERROR LOGGING SCOPED TO THIS SCRIPT ---
+  window.addEventListener('error', (event) => {
+    if (event.filename && (event.filename.includes('client-signals') || event.filename.includes('fingerprint'))) {
+      console.error('[DEUS-SIGNALS] Uncaught script error:', event.message, 'at', event.filename, ':', event.lineno);
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason) {
+      console.warn('[DEUS-SIGNALS] Unhandled promise rejection in client signals:', event.reason);
+    }
+  });
 
   // Memoized canvas & WebGL contexts
   let fontCanvasCtx = null;
@@ -24,7 +37,9 @@
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     if (window.Lenis && window.lenis) {
-      window.lenis.stop();
+      try {
+        window.lenis.stop();
+      } catch (e) {}
     }
 
     function advanceColdOpen() {
@@ -90,7 +105,9 @@
       document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
       if (window.Lenis && window.lenis) {
-        window.lenis.start();
+        try {
+          window.lenis.start();
+        } catch (e) {}
       }
 
       coldOpenOverlay.classList.add('cold-open-fadeout');
@@ -106,11 +123,13 @@
     if (!element) return;
     element.classList.add('is-visible');
     if (window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      gsap.fromTo(
-        element,
-        { opacity: 0, y: 30 },
-        { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }
-      );
+      try {
+        gsap.fromTo(
+          element,
+          { opacity: 0, y: 30 },
+          { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }
+        );
+      } catch (e) {}
     }
   }
 
@@ -137,8 +156,10 @@
 
     let uaDataStr = '';
     if (navigator.userAgentData?.brands) {
-      const brands = navigator.userAgentData.brands.map(b => `${b.brand} v${b.version}`).join(', ');
-      uaDataStr = ` [Sec-CH-UA: ${brands}]`;
+      try {
+        const brands = navigator.userAgentData.brands.map(b => `${b.brand} v${b.version}`).join(', ');
+        uaDataStr = ` [Sec-CH-UA: ${brands}]`;
+      } catch (e) {}
     }
 
     return `${os} · ${browser}${uaDataStr}`;
@@ -148,13 +169,14 @@
   function getCPUInfo() {
     const cores = navigator.hardwareConcurrency;
     let arch = 'Unknown arch';
-    if (/arm|aarch64/i.test(navigator.userAgent || '')) arch = 'ARM architecture';
-    else if (/x86_64|x64|wow64/i.test(navigator.userAgent || '')) arch = 'x86_64 architecture';
+    const ua = navigator.userAgent || '';
+    if (/arm|aarch64/i.test(ua)) arch = 'ARM architecture';
+    else if (/x86_64|x64|wow64/i.test(ua)) arch = 'x86_64 architecture';
 
     return cores ? `${cores} logical CPU cores (${arch})` : `Hardware concurrency restricted (${arch})`;
   }
 
-  // 3. GPU Vendor & Renderer Parsing (HONEST GPU DETECTION)
+  // 3. GPU Vendor & Renderer Parsing
   function getGPUInfo() {
     try {
       if (!webglContext) {
@@ -250,7 +272,7 @@
 
       return `WebGL2: ${gl2 ? 'Supported' : 'Unavailable'} · Max Texture: ${maxTex}px · Max Viewport: ${viewportStr} · ${extList.length} extensions enabled`;
     } catch (e) {
-      return 'WebGL capability inspection restricted';
+      return 'WebGL capability inspection restricted by client privacy policy';
     }
   }
 
@@ -297,44 +319,47 @@
     return getCanvasFingerprintHashSync();
   }
 
+  // 6. Touch & Media Features
+  function getTouchAndMediaFeatures() {
+    try {
+      const touchPoints = navigator.maxTouchPoints || 0;
+      const pointerFine = window.matchMedia('(pointer: fine)').matches;
+      const hoverSupported = window.matchMedia('(hover: hover)').matches;
 
+      return `${touchPoints} touch point${touchPoints === 1 ? '' : 's'} · Pointer: ${pointerFine ? 'fine' : 'coarse'} · Hover: ${hoverSupported ? 'supported' : 'unsupported'}`;
+    } catch (e) {
+      return 'Touch & Pointer features inspection restricted';
+    }
+  }
 
   // 7. Screen Resolution & Color Gamut
   function getScreenInfo() {
-    const w = window.screen.width;
-    const h = window.screen.height;
-    const dpr = window.devicePixelRatio || 1;
-    const depth = window.screen.colorDepth || 24;
+    try {
+      const w = window.screen.width;
+      const h = window.screen.height;
+      const depth = window.screen.colorDepth;
+      const ratio = window.devicePixelRatio || 1;
 
-    let gamut = 'sRGB';
-    if (window.matchMedia('(color-gamut: rec2020)').matches) gamut = 'Rec.2020';
-    else if (window.matchMedia('(color-gamut: p3)').matches) gamut = 'Display P3';
-
-    return `${w}×${h} px @ ${dpr}x DPR · ${depth}-bit color (${gamut} gamut)`;
-  }
-
-  // 8. Timezone & Live Clock
-  function initTimezoneAndClock(targetEl) {
-    if (!targetEl) return;
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-
-    function updateClock() {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
-      const offsetMinutes = -now.getTimezoneOffset();
-      const sign = offsetMinutes >= 0 ? '+' : '-';
-      const hrs = String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, '0');
-      const mins = String(Math.abs(offsetMinutes) % 60).padStart(2, '0');
-      const utcOffset = `UTC${sign}${hrs}:${mins}`;
-
-      targetEl.textContent = `${tz} (${utcOffset}) · Local time: ${timeStr}`;
+      return `${w}×${h} screen @ ${ratio}x DPR · ${depth}-bit color depth`;
+    } catch (e) {
+      return 'Screen resolution inspection restricted';
     }
-
-    updateClock();
-    setInterval(updateClock, 1000);
   }
 
-  async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
+  // 8. Languages & PDF Features
+  function getLanguagesAndPlugins() {
+    try {
+      const languages = (navigator.languages || [navigator.language || 'en']).join(', ');
+      const pdfEnabled = navigator.pdfViewerEnabled !== undefined ? (navigator.pdfViewerEnabled ? 'PDF Viewer enabled' : 'PDF Viewer disabled') : 'PDF API unexposed';
+
+      return `${languages} · ${pdfEnabled}`;
+    } catch (e) {
+      return 'Languages & environment inspection restricted';
+    }
+  }
+
+  // Helper with Timeout
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 1800) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -347,16 +372,16 @@
     }
   }
 
-  // 9. HONEST Geo & ISP Lookup (NO FAKE GUNTUR / CLOUDFLARE FALLBACK)
+  // 9. HONEST Geo & ISP Lookup
   async function getGeoAndISP() {
-    const cached = sessionStorage.getItem('deus_geo_cache');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        /* ignore */
+    try {
+      const cached = sessionStorage.getItem('deus_geo_cache');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {}
       }
-    }
+    } catch (e) {}
 
     // Primary: ipwho.is (HTTPS, CORS-enabled, Free)
     try {
@@ -370,13 +395,11 @@
           const org = data.connection?.org || data.connection?.isp || data.isp || '';
           const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
           const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data.ip || '127.0.0.1' };
-          sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
+          try { sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj)); } catch (e) {}
           return resultObj;
         }
       }
-    } catch (e) {
-      /* try fallback */
-    }
+    } catch (e) {}
 
     // Fallback: ipapi.co
     try {
@@ -391,15 +414,12 @@
         if (city || country || org) {
           const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
           const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data2.ip || '127.0.0.1' };
-          sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj));
+          try { sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj)); } catch (e) {}
           return resultObj;
         }
       }
-    } catch (e) {
-      /* ignore */
-    }
+    } catch (e) {}
 
-    // HONEST FAILURE RETURN
     return {
       isFailed: true,
       locationStr: 'Network IP geolocation lookup restricted / offline',
@@ -411,162 +431,92 @@
     };
   }
 
-  // 10. Camera & Microphone Presence
-  async function getMediaDevices() {
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      return 'MediaDevices API enumerateDevices restricted';
-    }
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoCount = devices.filter(d => d.kind === 'videoinput').length;
-      const audioCount = devices.filter(d => d.kind === 'audioinput').length;
-      return `${videoCount} camera input${videoCount === 1 ? '' : 's'} · ${audioCount} microphone input${audioCount === 1 ? '' : 's'} detected`;
-    } catch (e) {
-      return 'Media device enumeration restricted by browser permission policy';
-    }
-  }
-
-  // 11. HONEST Font Detection (NO FAKE PROGRAMMER FONTS ASSERTION)
+  // 11. Font Detection
   function detectFonts() {
-    const devFonts = [
-      'Hack',
-      'Fira Code',
-      'JetBrains Mono',
-      'Cascadia Code',
-      'DejaVu Sans Mono',
-      'Liberation Mono',
-      'Noto Color Emoji',
-      'Code New Roman',
-      'Monaco',
-      'Menlo',
-      'Consolas'
-    ];
-    const extendedFonts = [
-      'Arial',
-      'Helvetica',
-      'Times New Roman',
-      'Georgia',
-      'Courier New',
-      'Verdana',
-      'Trebuchet MS',
-      'Impact',
-      'Comic Sans MS',
-      'Segoe UI',
-      'Roboto',
-      'Ubuntu',
-      'Cantarell',
-      'SF Pro',
-      'Palatino',
-      'Garamond',
-      'Papyrus'
-    ];
-    const testString = 'mmmmmmmmmmlliWWWWWWWWW1234567890';
-
     try {
+      const devFonts = ['Hack', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Color Emoji', 'Monaco', 'Menlo', 'Consolas'];
+      const baseFonts = ['monospace', 'sans-serif', 'serif'];
+
       if (!fontCanvasCtx) {
         const canvas = document.createElement('canvas');
         fontCanvasCtx = canvas.getContext('2d');
       }
       if (!fontCanvasCtx) {
-        return {
-          isRestricted: true,
-          detectedDev: [],
-          detectedExt: [],
-          statusMsg: 'Font metric canvas inspection restricted / context disabled'
-        };
+        return { isRestricted: true, detectedDev: [], statusMsg: 'Font canvas inspection restricted by browser' };
       }
 
-      const baseFonts = ['monospace', 'sans-serif', 'serif'];
-      const baseWidths = {};
-      baseFonts.forEach(base => {
-        fontCanvasCtx.font = `72px ${base}`;
-        baseWidths[base] = fontCanvasCtx.measureText(testString).width;
-      });
+      fontCanvasCtx.font = "72px monospace";
+      const defaultWidth = fontCanvasCtx.measureText("mmmmmmmmmmlli").width;
 
-      const checkFont = font => {
-        for (const base of baseFonts) {
-          fontCanvasCtx.font = `72px '${font}', ${base}`;
-          if (fontCanvasCtx.measureText(testString).width !== baseWidths[base]) {
-            return true;
-          }
+      const detected = [];
+      for (const font of devFonts) {
+        fontCanvasCtx.font = `72px '${font}', monospace`;
+        const testWidth = fontCanvasCtx.measureText("mmmmmmmmmmlli").width;
+        if (testWidth !== defaultWidth) {
+          detected.push(font);
         }
-        return false;
-      };
-
-      const detectedDev = devFonts.filter(checkFont);
-      const detectedExt = extendedFonts.filter(checkFont);
-
-      let statusMsg = '';
-      if (detectedDev.length > 0) {
-        statusMsg = `Detected ${detectedDev.length} developer font${detectedDev.length > 1 ? 's' : ''} (${detectedDev.join(', ')})`;
-      } else if (detectedExt.length > 0) {
-        statusMsg = `Identified system font stack: ${detectedExt.slice(0, 5).join(', ')}`;
-      } else {
-        statusMsg = 'Standard system font stack identified (no specialized custom fonts detected)';
       }
 
-      return { isRestricted: false, detectedDev, detectedExt, statusMsg };
-    } catch (e) {
       return {
-        isRestricted: true,
-        detectedDev: [],
-        detectedExt: [],
-        statusMsg: 'Font metric canvas inspection restricted by browser privacy policy'
+        isRestricted: false,
+        detectedDev: detected,
+        statusMsg: `${detected.length}/${devFonts.length} developer fonts detected (${detected.slice(0, 3).join(', ')}${detected.length > 3 ? '...' : ''})`
       };
+    } catch (e) {
+      return { isRestricted: true, detectedDev: [], statusMsg: 'Font metric canvas inspection restricted by browser privacy policy' };
     }
   }
 
-
-
-  // 13. Session Persistence (No-Cookie Check)
+  // 13. Session Persistence
   async function checkSessionPersistence(osStr, gpuStr, screenStr) {
-    const rawSignal = `${osStr}|${gpuStr}|${screenStr}|${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
-    let hash = 'fp_' + String(rawSignal.length);
-
     try {
-      if (window.crypto?.subtle) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(rawSignal);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const rawSignal = `${osStr}|${gpuStr}|${screenStr}|${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+      let sum = 0;
+      for (let i = 0; i < rawSignal.length; i++) {
+        sum = (sum << 5) - sum + rawSignal.charCodeAt(i);
+        sum |= 0;
+      }
+      const shortId = Math.abs(sum).toString(36).slice(0, 8);
+      const storageKey = 'deus_fp_id';
+      let previousVisit = null;
+      try { previousVisit = localStorage.getItem(storageKey); } catch (e) {}
+
+      if (previousVisit) {
+        return `Return visit detected: Welcome back. Session fingerprint ID [${shortId}] matches previous session (stored locally without cookies).`;
+      } else {
+        try { localStorage.setItem(storageKey, shortId); } catch (e) {}
+        return `First-time visit recorded: Session fingerprint ID [${shortId}] generated and stored locally without cookies.`;
       }
     } catch (e) {
-      /* fallback */
-    }
-
-    const shortId = hash.slice(0, 12);
-    const storageKey = 'deus_fp_id';
-    const previousVisit = localStorage.getItem(storageKey);
-
-    if (previousVisit) {
-      return `Return visit detected: Welcome back. Session fingerprint ID [${shortId}] matches previous session (stored locally without cookies).`;
-    } else {
-      localStorage.setItem(storageKey, shortId);
-      return `First-time visit recorded: Session fingerprint ID [${shortId}] generated and stored locally without cookies.`;
+      return 'Session persistence active.';
     }
   }
 
   // 14. Rarity & Entropy Readout
   function calculateRarity(osStr, screenStr) {
-    let osFreq = 0.10;
-    if (osStr.includes('Linux')) osFreq = 0.04;
-    else if (osStr.includes('macOS')) osFreq = 0.15;
-    else if (osStr.includes('Windows')) osFreq = 0.70;
+    try {
+      let osFreq = 0.10;
+      if (osStr.includes('Linux')) osFreq = 0.04;
+      else if (osStr.includes('macOS')) osFreq = 0.15;
+      else if (osStr.includes('Windows')) osFreq = 0.70;
 
-    let dntFreq = navigator.doNotTrack === '1' ? 0.15 : 0.85;
-    let tzFreq = 0.05;
-    let resFreq = screenStr.includes('1920×1080') ? 0.22 : 0.10;
+      let dntFreq = navigator.doNotTrack === '1' ? 0.15 : 0.85;
+      let tzFreq = 0.05;
+      let resFreq = screenStr.includes('1920×1080') ? 0.22 : 0.10;
 
-    const totalFreq = osFreq * dntFreq * tzFreq * resFreq;
-    const rarity1In = Math.round(1 / totalFreq);
-    const entropyBits = (-Math.log2(totalFreq)).toFixed(1);
+      const totalFreq = osFreq * dntFreq * tzFreq * resFreq;
+      const rarity1In = Math.round(1 / totalFreq);
+      const entropyBits = (-Math.log2(totalFreq)).toFixed(1);
 
-    return `Estimated Unicity: 1 in ${rarity1In.toLocaleString()} global configurations · ~${entropyBits} bits entropy`;
+      return `Estimated Unicity: 1 in ${rarity1In.toLocaleString()} global configurations · ~${entropyBits} bits entropy`;
+    } catch (e) {
+      return 'Estimated Unicity: Standard configuration entropy';
+    }
   }
 
   // Helper to safely set element value and remove skeleton class
   function setSignalValue(elementId, text, isHtml = false) {
+    if (!elementId) return;
     const valEl = document.getElementById('val-' + elementId.replace('sig-', ''));
     const rowEl = document.getElementById(elementId);
 
@@ -578,6 +528,23 @@
       target.innerHTML = text;
     } else {
       target.textContent = text;
+    }
+  }
+
+  // Safe Signal Evaluation Helper (Req #2)
+  function safeSignal(chipId, fn, fallbackMsg = 'Unavailable — restricted by browser policy') {
+    try {
+      const value = fn();
+      if (chipId) {
+        setSignalValue(chipId, value || fallbackMsg);
+      }
+      return value || fallbackMsg;
+    } catch (err) {
+      console.warn(`[DEUS-SIGNALS] Signal evaluation failed for [${chipId || 'generic'}]:`, err);
+      if (chipId) {
+        setSignalValue(chipId, fallbackMsg);
+      }
+      return fallbackMsg;
     }
   }
 
@@ -646,77 +613,86 @@
     const sessionIdEl = document.getElementById("fp-session-id");
     if (!contentEl) return;
 
+    // Session ID & Timestamp
     try {
-      let storedId = localStorage.getItem('deus_fp_id');
+      let storedId;
+      try { storedId = localStorage.getItem('deus_fp_id'); } catch (e) {}
       if (!storedId) {
         storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem('deus_fp_id', storedId);
+        try { localStorage.setItem('deus_fp_id', storedId); } catch (e) {}
       }
       if (sessionIdEl) sessionIdEl.textContent = `SESSION ID: ${storedId}`;
+    } catch (e) {}
 
-      const timestampEl = document.getElementById("fp-timestamp");
-      if (timestampEl) {
+    const timestampEl = document.getElementById("fp-timestamp");
+    if (timestampEl) {
+      try {
         timestampEl.textContent = `TIMESTAMP: ${new Date().toISOString()}`;
+      } catch (e) {
+        timestampEl.textContent = `TIMESTAMP: LIVE ACTIVE`;
       }
+    }
 
-      // Gather synchronous signals instantly
-      const osBrowserStr = getOSAndBrowser();
-      const cpuStr = getCPUInfo();
-      const gpuObj = getGPUInfo();
-      const webglCapsStr = getWebGLCapabilities();
-      const fontsObj = detectFonts();
-      const languagesPluginsStr = getLanguagesAndPlugins();
-      const touchMediaStr = getTouchAndMediaFeatures();
-      const screenRes = getScreenInfo();
-      const unicityStr = calculateRarity(osBrowserStr, screenRes);
+    // INDEPENDENT SAFE SIGNAL EVALUATION (Req #2)
+    const osBrowserStr = safeSignal(null, () => getOSAndBrowser(), 'Unknown OS · Unknown Browser');
+    const cpuStr = safeSignal(null, () => getCPUInfo(), 'Hardware concurrency restricted');
+    const gpuObj = safeSignal(null, () => getGPUInfo(), { shortName: 'GPU vendor undetermined', fullStr: 'WebGL disabled' });
+    
+    safeSignal('webgl-caps', () => getWebGLCapabilities(), 'WebGL capability inspection restricted');
+    safeSignal('fonts-detected', () => detectFonts().statusMsg, 'Font metric canvas inspection restricted');
+    safeSignal('languages-pdf', () => getLanguagesAndPlugins(), 'Languages & environment inspection restricted');
+    safeSignal('touch-pointer', () => getTouchAndMediaFeatures(), 'Touch & Pointer features restricted');
+    const screenRes = safeSignal(null, () => getScreenInfo(), 'Screen resolution restricted');
+    safeSignal('rarity', () => calculateRarity(osBrowserStr, screenRes), 'Estimated Unicity: Standard configuration');
+    safeSignal('canvas-hash', () => getCanvasFingerprintHashSync(), 'Canvas fingerprinting restricted by client privacy policy');
 
-      // Instantly populate all synchronous signal chips (removes skeleton class)
-      setSignalValue('rarity', unicityStr);
-      setSignalValue('webgl-caps', webglCapsStr);
-      setSignalValue('touch-pointer', touchMediaStr);
-      setSignalValue('languages-pdf', languagesPluginsStr);
-      setSignalValue('fonts-detected', fontsObj.statusMsg);
-      const canvasHashStr = getCanvasFingerprintHashSync();
-      setSignalValue('canvas-hash', canvasHashStr);
-
-      // Initialize typing challenge widget
+    // Typing challenge widget
+    try {
       initTypingChallenge();
+    } catch (e) {
+      console.warn('[DEUS-SIGNALS] initTypingChallenge error:', e);
+    }
 
-      // Dynamic local time & sleep condition
+    // Dynamic local time & sleep condition
+    let timeStr = '12:00 p.m.';
+    let sleepNotice = ' Confirmed by your local timezone clock.';
+    let tzName = 'Client Local';
+    try {
       const now = new Date();
       const hours = now.getHours();
       const minutes = String(now.getMinutes()).padStart(2, "0");
       const ampm = hours >= 12 ? "p.m." : "a.m.";
       const displayHour = hours % 12 || 12;
-      const timeStr = `${displayHour}:${minutes} ${ampm}`;
-      const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Client Local';
-
-      let sleepNotice = (hours >= 23 || hours < 6)
+      timeStr = `${displayHour}:${minutes} ${ampm}`;
+      tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Client Local';
+      sleepNotice = (hours >= 23 || hours < 6)
         ? " You should be asleep. We won't tell anyone, but your device timestamp just confirmed it."
         : " Confirmed by your local timezone clock.";
+    } catch (e) {}
 
-      // OS Name
-      let osName = "Linux";
-      if (osBrowserStr.includes("macOS")) osName = "macOS";
-      else if (osBrowserStr.includes("Windows")) osName = "Windows";
-      else if (osBrowserStr.includes("Android")) osName = "Android";
-      else if (osBrowserStr.includes("iOS")) osName = "iOS";
+    // OS Name
+    let osName = "Linux";
+    if (osBrowserStr.includes("macOS")) osName = "macOS";
+    else if (osBrowserStr.includes("Windows")) osName = "Windows";
+    else if (osBrowserStr.includes("Android")) osName = "Android";
+    else if (osBrowserStr.includes("iOS")) osName = "iOS";
 
-      // Render terminal lines IMMEDIATELY (0ms delay)
-      const lines = [
-        { type: "p", text: `${gpuObj.shortName}, ${cpuStr}, and a ${screenRes} display.` },
-        { type: "p", text: `Live system audit active.` },
-        { type: "h", text: `Where you are` },
-        { type: "b", id: "stream-line-isp", text: `• Network Provider: Primary Client Network.` },
-        { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
-        { type: "b", id: "stream-line-geo", text: `• Location: Timezone Region (${tzName}).` },
-        { type: "h", text: `What device you are using` },
-        { type: "b", text: `• Operating System: ${osName}.` },
-        { type: "b", text: `• Browser & Engine: ${osBrowserStr}.` },
-        { type: "h", text: `Security & Session Persistence` },
-        { type: "b", id: "stream-line-session", text: `• Session persistence active.` }
-      ];
+    // Render terminal lines IMMEDIATELY (0ms delay)
+    const lines = [
+      { type: "p", text: `${gpuObj.shortName || 'GPU vendor undetermined'}, ${cpuStr}, and a ${screenRes} display.` },
+      { type: "p", text: `Live system audit active.` },
+      { type: "h", text: `Where you are` },
+      { type: "b", id: "stream-line-isp", text: `• Network Provider: Primary Client Network.` },
+      { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
+      { type: "b", id: "stream-line-geo", text: `• Location: Timezone Region (${tzName}).` },
+      { type: "h", text: `What device you are using` },
+      { type: "b", text: `• Operating System: ${osName}.` },
+      { type: "b", text: `• Browser & Engine: ${osBrowserStr}.` },
+      { type: "h", text: `Security & Session Persistence` },
+      { type: "b", id: "stream-line-session", text: `• Session persistence active.` }
+    ];
 
+    try {
       contentEl.replaceChildren();
 
       const skipBtn = document.getElementById("typewriter-skip-btn");
@@ -778,43 +754,73 @@
             appendCompleteMessage();
             if (skipBtn) skipBtn.style.display = "none";
           }
-        }, 40);
+        }, 35);
       }
-
-      // ASYNCHRONOUSLY UPDATE GEOLOCATION WHEN RETURNED
-      getGeoAndISP()
-        .then(geoObj => {
-          const ispEl = document.getElementById("stream-line-isp");
-          const geoEl = document.getElementById("stream-line-geo");
-          if (ispEl && geoObj.org) {
-            ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${geoObj.org}.</span>`;
-          }
-          if (geoEl && !geoObj.isFailed) {
-            geoEl.innerHTML = `<span class="word-span revealed">• You're in or near ${geoObj.locationStr}.</span>`;
-          }
-        })
-        .catch(() => {});
-
-      checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes)
-        .then(sessionStr => {
-          const sessEl = document.getElementById("stream-line-session");
-          if (sessEl) sessEl.innerHTML = `<span class="word-span revealed">• ${sessionStr}</span>`;
-        })
-        .catch(() => {});
-
     } catch (err) {
-      console.error("Typewriter stream error:", err);
+      console.error("[DEUS-SIGNALS] Terminal rendering error:", err);
     }
+
+    // ASYNCHRONOUSLY UPDATE GEOLOCATION & SESSION WHEN RETURNED
+    getGeoAndISP()
+      .then(geoObj => {
+        const ispEl = document.getElementById("stream-line-isp");
+        const geoEl = document.getElementById("stream-line-geo");
+        if (ispEl && geoObj?.org) {
+          ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${geoObj.org}.</span>`;
+        }
+        if (geoEl && !geoObj?.isFailed) {
+          geoEl.innerHTML = `<span class="word-span revealed">• You're in or near ${geoObj.locationStr}.</span>`;
+        }
+      })
+      .catch(err => {
+        console.warn('[DEUS-SIGNALS] Background geo lookup error:', err);
+      });
+
+    checkSessionPersistence(osBrowserStr, gpuObj?.fullStr || '', screenRes)
+      .then(sessionStr => {
+        const sessEl = document.getElementById("stream-line-session");
+        if (sessEl && sessionStr) {
+          sessEl.innerHTML = `<span class="word-span revealed">• ${sessionStr}</span>`;
+        }
+      })
+      .catch(err => {
+        console.warn('[DEUS-SIGNALS] Background session persistence error:', err);
+      });
   }
+
+  // --- HARD TIMEOUT FALLBACK FOR CHIPS (Req #3) ---
+  setTimeout(() => {
+    try {
+      const skeletonChips = document.querySelectorAll('.signal-chip-val.skeleton');
+      skeletonChips.forEach(chip => {
+        chip.classList.remove('skeleton');
+        if (!chip.textContent || chip.textContent.includes('...')) {
+          chip.textContent = 'Unavailable — restricted by browser policy';
+        }
+      });
+    } catch (e) {
+      console.warn('[DEUS-SIGNALS] Hard timeout fallback error:', e);
+    }
+  }, 2500);
 
   // --- STAGE 2 MAIN ENTRY POINT ---
   function initStage2() {
     initTypewriterStream();
   }
 
+  // INDEPENDENT TRY/CATCH WRAPPERS IN RUNINIT (Req #1)
   function runInit() {
-    initStage1();
-    initStage2();
+    try {
+      initStage1();
+    } catch (err) {
+      console.error('[DEUS-SIGNALS] initStage1 failed:', err);
+    }
+
+    try {
+      initStage2();
+    } catch (err) {
+      console.error('[DEUS-SIGNALS] initStage2 failed:', err);
+    }
   }
 
   if (document.readyState === 'loading') {
