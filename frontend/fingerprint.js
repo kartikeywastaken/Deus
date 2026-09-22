@@ -646,175 +646,183 @@
   }
 
   // --- TYPEWRITER STREAM ENGINE ---
-  async function initTypewriterStream() {
+  function initTypewriterStream() {
     const contentEl = document.getElementById("typewriter-content");
     const sessionIdEl = document.getElementById("fp-session-id");
     if (!contentEl) return;
 
-    let storedId = localStorage.getItem('deus_fp_id');
-    if (!storedId) {
-      storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
-      localStorage.setItem('deus_fp_id', storedId);
-    }
-    if (sessionIdEl) sessionIdEl.textContent = `SESSION ID: ${storedId}`;
+    try {
+      let storedId = localStorage.getItem('deus_fp_id');
+      if (!storedId) {
+        storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('deus_fp_id', storedId);
+      }
+      if (sessionIdEl) sessionIdEl.textContent = `SESSION ID: ${storedId}`;
 
-    const timestampEl = document.getElementById("fp-timestamp");
-    if (timestampEl) {
-      timestampEl.textContent = `TIMESTAMP: ${new Date().toISOString()}`;
-    }
+      const timestampEl = document.getElementById("fp-timestamp");
+      if (timestampEl) {
+        timestampEl.textContent = `TIMESTAMP: ${new Date().toISOString()}`;
+      }
 
-    // 1. Gather all FAST synchronous local client signals
-    const osBrowserStr = getOSAndBrowser();
-    const cpuStr = getCPUInfo();
-    const gpuObj = getGPUInfo();
-    const webglCapsStr = getWebGLCapabilities();
-    const fontsObj = detectFonts();
-    const languagesPluginsStr = getLanguagesAndPlugins();
-    const touchMediaStr = getTouchAndMediaFeatures();
-    const screenRes = getScreenInfo();
-    const unicityStr = calculateRarity(osBrowserStr, screenRes);
+      // Gather synchronous signals instantly
+      const osBrowserStr = getOSAndBrowser();
+      const cpuStr = getCPUInfo();
+      const gpuObj = getGPUInfo();
+      const webglCapsStr = getWebGLCapabilities();
+      const fontsObj = detectFonts();
+      const languagesPluginsStr = getLanguagesAndPlugins();
+      const touchMediaStr = getTouchAndMediaFeatures();
+      const screenRes = getScreenInfo();
+      const unicityStr = calculateRarity(osBrowserStr, screenRes);
 
-    // Populate synchronous signal chips immediately (remove skeleton placeholders)
-    setSignalValue('rarity', unicityStr);
-    setSignalValue('webgl-caps', webglCapsStr);
-    setSignalValue('touch-pointer', touchMediaStr);
-    setSignalValue('languages-pdf', languagesPluginsStr);
-    setSignalValue('fonts-detected', fontsObj.statusMsg);
+      // Instantly populate all synchronous signal chips (removes skeleton class)
+      setSignalValue('rarity', unicityStr);
+      setSignalValue('webgl-caps', webglCapsStr);
+      setSignalValue('touch-pointer', touchMediaStr);
+      setSignalValue('languages-pdf', languagesPluginsStr);
+      setSignalValue('fonts-detected', fontsObj.statusMsg);
+      setSignalValue('canvas-hash', 'Canvas Hash: [computing...]');
 
-    // Dynamic local time & sleep condition
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const ampm = hours >= 12 ? "p.m." : "a.m.";
-    const displayHour = hours % 12 || 12;
-    const timeStr = `${displayHour}:${minutes} ${ampm}`;
+      // Initialize typing challenge widget
+      initTypingChallenge();
 
-    let sleepNotice = "";
-    if (hours >= 23 || hours < 6) {
-      sleepNotice = " You should be asleep. We won't tell anyone, but your device timestamp just confirmed it.";
-    } else {
-      sleepNotice = " Confirmed by your local timezone clock.";
-    }
+      // Dynamic local time & sleep condition
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, "0");
+      const ampm = hours >= 12 ? "p.m." : "a.m.";
+      const displayHour = hours % 12 || 12;
+      const timeStr = `${displayHour}:${minutes} ${ampm}`;
 
-    // OS Name
-    let osName = "Linux";
-    if (osBrowserStr.includes("macOS")) osName = "macOS";
-    else if (osBrowserStr.includes("Windows")) osName = "Windows";
-    else if (osBrowserStr.includes("Android")) osName = "Android";
-    else if (osBrowserStr.includes("iOS")) osName = "iOS";
+      let sleepNotice = (hours >= 23 || hours < 6)
+        ? " You should be asleep. We won't tell anyone, but your device timestamp just confirmed it."
+        : " Confirmed by your local timezone clock.";
 
-    // Initialize typing challenge
-    initTypingChallenge();
+      // OS Name
+      let osName = "Linux";
+      if (osBrowserStr.includes("macOS")) osName = "macOS";
+      else if (osBrowserStr.includes("Windows")) osName = "Windows";
+      else if (osBrowserStr.includes("Android")) osName = "Android";
+      else if (osBrowserStr.includes("iOS")) osName = "iOS";
 
-    // 2. Start async tasks in parallel with safe fallbacks
-    const canvasHashPromise = getCanvasFingerprintHash().catch(() => 'Canvas Hash: [unavailable]');
-    const sessionPromise = checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes).catch(() => 'Session persistence active.');
-    const geoPromise = getGeoAndISP().catch(() => ({
-      isFailed: true,
-      locationStr: 'Network IP geolocation lookup restricted / offline',
-      org: 'ISP Undetermined'
-    }));
+      // Render terminal lines IMMEDIATELY (0ms delay)
+      const lines = [
+        { type: "p", text: `${gpuObj.shortName}, ${cpuStr}, and a ${screenRes} display.` },
+        { type: "p", text: `Live system audit active.` },
+        { type: "h", text: `Where you are` },
+        { type: "b", id: "stream-line-isp", text: `• Network Provider: Resolving...` },
+        { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
+        { type: "b", id: "stream-line-geo", text: `• Location: Resolving network IP...` },
+        { type: "h", text: `What device you are using` },
+        { type: "b", text: `• Operating System: ${osName}.` },
+        { type: "b", text: `• Browser & Engine: ${osBrowserStr}.` },
+        { type: "h", text: `Security & Session Persistence` },
+        { type: "b", id: "stream-line-session", text: `• Session persistence active.` }
+      ];
 
-    // Update canvas chip as soon as calculated
-    canvasHashPromise.then(canvasHashStr => setSignalValue('canvas-hash', canvasHashStr));
+      contentEl.replaceChildren();
 
-    // Await async signals for narrative stream text with short timeout resilience
-    const [canvasHashStr, sessionStr, geoObj] = await Promise.all([
-      canvasHashPromise,
-      sessionPromise,
-      geoPromise
-    ]);
+      const skipBtn = document.getElementById("typewriter-skip-btn");
+      const allWordSpans = [];
 
-    // Geo narrative text
-    let geoNarrative = geoObj.isFailed
-      ? `• Location lookup: IP geolocation endpoint restricted / offline.`
-      : `• You're in or near ${geoObj.locationStr}.`;
+      lines.forEach(line => {
+        const cls = line.type === "h" ? "typewriter-heading" : line.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
+        const div = document.createElement("div");
+        if (line.id) div.id = line.id;
+        div.className = cls;
 
-    // Construct dynamic narrative lines
-    const lines = [
-      { type: "p", text: `${gpuObj.shortName}, ${cpuStr}, and a ${screenRes} display.` },
-      { type: "p", text: `Live system audit active.` },
-      { type: "h", text: `Where you are` },
-      { type: "b", text: `• Network Provider: ${geoObj.org || 'ISP Undetermined'}.` },
-      { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
-      { type: "b", text: geoNarrative },
-      { type: "h", text: `What device you are using` },
-      { type: "b", text: `• Operating System: ${osName}.` },
-      { type: "b", text: `• Browser & Engine: ${osBrowserStr}.` },
-      { type: "h", text: `Security & Session Persistence` },
-      { type: "b", text: `• ${sessionStr}` }
-    ];
+        const words = line.text.split(" ");
+        words.forEach((word, wIdx) => {
+          const span = document.createElement("span");
+          span.className = "word-span pending";
+          span.textContent = word + (wIdx < words.length - 1 ? " " : "");
+          div.appendChild(span);
+          allWordSpans.push(span);
+        });
 
-    contentEl.replaceChildren();
-
-    const skipBtn = document.getElementById("typewriter-skip-btn");
-    const allWordSpans = [];
-
-    lines.forEach(line => {
-      const cls = line.type === "h" ? "typewriter-heading" : line.type === "b" ? "typewriter-bullet" : "typewriter-paragraph";
-      const div = document.createElement("div");
-      div.className = cls;
-
-      const words = line.text.split(" ");
-      words.forEach((word, wIdx) => {
-        const span = document.createElement("span");
-        span.className = "word-span pending";
-        span.textContent = word + (wIdx < words.length - 1 ? " " : "");
-        div.appendChild(span);
-        allWordSpans.push(span);
+        contentEl.appendChild(div);
       });
 
-      contentEl.appendChild(div);
-    });
+      let revealTimer = null;
 
-    let revealTimer = null;
-
-    function revealAllInstantly() {
-      if (revealTimer) clearInterval(revealTimer);
-      allWordSpans.forEach(span => {
-        span.className = "word-span revealed";
-      });
-      appendCompleteMessage();
-      if (skipBtn) skipBtn.style.display = "none";
-    }
-
-    function appendCompleteMessage() {
-      if (document.getElementById("typewriter-complete-msg")) return;
-      const completeDiv = document.createElement("div");
-      completeDiv.id = "typewriter-complete-msg";
-      completeDiv.className = "typewriter-complete-msg";
-      completeDiv.textContent = "→ PASSIVE AUDIT COMPLETE. OSINT ENGINE READY BELOW.";
-      contentEl.appendChild(completeDiv);
-    }
-
-    if (skipBtn) {
-      skipBtn.style.display = "inline-block";
-      skipBtn.onclick = () => {
-        revealAllInstantly();
-      };
-    }
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      revealAllInstantly();
-      return;
-    }
-
-    let wordIdx = 0;
-    revealTimer = setInterval(() => {
-      if (wordIdx < allWordSpans.length) {
-        allWordSpans[wordIdx].className = "word-span revealed";
-        wordIdx++;
-      } else {
-        clearInterval(revealTimer);
+      function revealAllInstantly() {
+        if (revealTimer) clearInterval(revealTimer);
+        allWordSpans.forEach(span => {
+          span.className = "word-span revealed";
+        });
         appendCompleteMessage();
         if (skipBtn) skipBtn.style.display = "none";
       }
-    }, 65);
+
+      function appendCompleteMessage() {
+        if (document.getElementById("typewriter-complete-msg")) return;
+        const completeDiv = document.createElement("div");
+        completeDiv.id = "typewriter-complete-msg";
+        completeDiv.className = "typewriter-complete-msg";
+        completeDiv.textContent = "→ PASSIVE AUDIT COMPLETE. OSINT ENGINE READY BELOW.";
+        contentEl.appendChild(completeDiv);
+      }
+
+      if (skipBtn) {
+        skipBtn.style.display = "inline-block";
+        skipBtn.onclick = () => revealAllInstantly();
+      }
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        revealAllInstantly();
+      } else {
+        let wordIdx = 0;
+        revealTimer = setInterval(() => {
+          if (wordIdx < allWordSpans.length) {
+            allWordSpans[wordIdx].className = "word-span revealed";
+            wordIdx++;
+          } else {
+            clearInterval(revealTimer);
+            appendCompleteMessage();
+            if (skipBtn) skipBtn.style.display = "none";
+          }
+        }, 40);
+      }
+
+      // ASYNCHRONOUSLY UPDATE RESOLVING LINES AS SOON AS ASYNC PROMISES RETURN
+      getCanvasFingerprintHash()
+        .then(hashStr => setSignalValue('canvas-hash', hashStr))
+        .catch(() => setSignalValue('canvas-hash', 'Canvas Hash: [unavailable]'));
+
+      getGeoAndISP()
+        .then(geoObj => {
+          const ispEl = document.getElementById("stream-line-isp");
+          const geoEl = document.getElementById("stream-line-geo");
+          if (ispEl) {
+            ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${geoObj.org || 'ISP Undetermined'}.</span>`;
+          }
+          if (geoEl) {
+            const locText = geoObj.isFailed
+              ? `• Location lookup: IP geolocation endpoint restricted / offline.`
+              : `• You're in or near ${geoObj.locationStr}.`;
+            geoEl.innerHTML = `<span class="word-span revealed">${locText}</span>`;
+          }
+        })
+        .catch(() => {
+          const locEl = document.getElementById("stream-line-geo");
+          if (locEl) locEl.innerHTML = `<span class="word-span revealed">• Location lookup: IP geolocation endpoint restricted / offline.</span>`;
+        });
+
+      checkSessionPersistence(osBrowserStr, gpuObj.fullStr, screenRes)
+        .then(sessionStr => {
+          const sessEl = document.getElementById("stream-line-session");
+          if (sessEl) sessEl.innerHTML = `<span class="word-span revealed">• ${sessionStr}</span>`;
+        })
+        .catch(() => {});
+
+    } catch (err) {
+      console.error("Typewriter stream error:", err);
+    }
   }
 
   // --- STAGE 2 MAIN ENTRY POINT ---
-  async function initStage2() {
-    await initTypewriterStream();
+  function initStage2() {
+    initTypewriterStream();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
