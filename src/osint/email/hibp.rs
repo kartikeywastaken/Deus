@@ -14,7 +14,10 @@ pub async fn check(ctx: &EmailCtx) -> Vec<BreachExposure> {
 
     let email = &ctx.normalized_email;
     let encoded_email = form_urlencoded::byte_serialize(email.as_bytes()).collect::<String>();
-    let url = format!("{}/{}?truncateResponse=false", ctx.endpoints.hibp_api_url, encoded_email);
+    let url = format!(
+        "{}/{}?truncateResponse=false",
+        ctx.endpoints.hibp_api_url, encoded_email
+    );
 
     let resp = ctx
         .client
@@ -30,8 +33,16 @@ pub async fn check(ctx: &EmailCtx) -> Vec<BreachExposure> {
                 if let Some(arr) = json.as_array() {
                     let mut breaches = Vec::new();
                     for item in arr {
-                        let name = item.get("Name").and_then(|v| v.as_str()).unwrap_or("Unknown Breach").to_string();
-                        let domain = item.get("Domain").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let name = item
+                            .get("Name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown Breach")
+                            .to_string();
+                        let domain = item
+                            .get("Domain")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         breaches.push(BreachExposure { name, domain });
                     }
                     return breaches;

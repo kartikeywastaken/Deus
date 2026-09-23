@@ -35,8 +35,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install migration dependencies
-RUN pip install --no-cache-dir alembic sqlalchemy asyncpg pgvector
+# Install migration dependencies and the Holehe CLI used by /api/osint/email.
+# The virtualenv is already on PATH, so the Rust service can launch `holehe`
+# directly without relying on a user-specific pipx installation.
+RUN pip install --no-cache-dir alembic sqlalchemy asyncpg pgvector holehe
 
 WORKDIR /app
 

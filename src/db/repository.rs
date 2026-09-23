@@ -120,10 +120,36 @@ impl Repository {
     pub async fn get_profiles(&self, search_run_id: Uuid) -> Result<Vec<ProfileRecord>, sqlx::Error> {
         sqlx::query_as::<_, ProfileRecord>(
             r#"
-            SELECT DISTINCT p.* FROM profiles p
-            JOIN profile_observations o ON p.id = o.profile_id
-            WHERE o.search_run_id = $1
-            ORDER BY p.first_seen_at ASC
+            SELECT *
+            FROM (
+                SELECT DISTINCT ON (p.id)
+                    p.id,
+                    p.platform,
+                    p.platform_account_id,
+                    COALESCE(
+                        NULLIF(o.normalized_data ->> 'username', ''),
+                        p.username
+                    ) AS username,
+                    COALESCE(
+                        LOWER(NULLIF(o.normalized_data ->> 'username', '')),
+                        p.normalized_username
+                    ) AS normalized_username,
+                    p.display_name,
+                    p.normalized_display_name,
+                    p.canonical_url,
+                    p.avatar_url,
+                    p.current_bio,
+                    p.current_location,
+                    p.current_organization,
+                    p.first_seen_at,
+                    p.last_seen_at,
+                    p.created_at
+                FROM profiles p
+                JOIN profile_observations o ON p.id = o.profile_id
+                WHERE o.search_run_id = $1
+                ORDER BY p.id, o.observed_at DESC
+            ) AS search_profiles
+            ORDER BY first_seen_at ASC
             "#
         )
         .bind(search_run_id)
@@ -167,6 +193,8 @@ impl Repository {
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11)
             ON CONFLICT (platform, canonical_url) DO UPDATE SET
+                username = COALESCE(EXCLUDED.username, profiles.username),
+                normalized_username = COALESCE(EXCLUDED.normalized_username, profiles.normalized_username),
                 display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
                 avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
                 current_bio = COALESCE(EXCLUDED.current_bio, profiles.current_bio),

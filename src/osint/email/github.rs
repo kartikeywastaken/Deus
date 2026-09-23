@@ -6,14 +6,24 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
     let email = &ctx.normalized_email;
     let encoded_email = form_urlencoded::byte_serialize(email.as_bytes()).collect::<String>();
 
-    let user_search_url = format!("{}/search/users?q={}+in:email", ctx.endpoints.github_api_url, encoded_email);
-    let commit_search_url = format!("{}/search/commits?q=author-email:{}", ctx.endpoints.github_api_url, encoded_email);
+    let user_search_url = format!(
+        "{}/search/users?q={}+in:email",
+        ctx.endpoints.github_api_url, encoded_email
+    );
+    let commit_search_url = format!(
+        "{}/search/commits?q=author-email:{}",
+        ctx.endpoints.github_api_url, encoded_email
+    );
 
-    let mut req_user = ctx.client.get(&user_search_url)
+    let mut req_user = ctx
+        .client
+        .get(&user_search_url)
         .header("User-Agent", "Deus-OSINT-Engine/1.0")
         .header("Accept", "application/vnd.github.v3+json");
 
-    let mut req_commit = ctx.client.get(&commit_search_url)
+    let mut req_commit = ctx
+        .client
+        .get(&commit_search_url)
         .header("User-Agent", "Deus-OSINT-Engine/1.0")
         .header("Accept", "application/vnd.github.cloak-preview+json");
 
@@ -44,8 +54,14 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
         } else if let Ok(json) = r.json::<Value>().await {
             if let Some(items) = json.get("items").and_then(|v| v.as_array()) {
                 if let Some(first_user) = items.first() {
-                    login = first_user.get("login").and_then(|v| v.as_str()).map(String::from);
-                    profile_url = first_user.get("html_url").and_then(|v| v.as_str()).map(String::from);
+                    login = first_user
+                        .get("login")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    profile_url = first_user
+                        .get("html_url")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
                     detail = Some("public email on GitHub profile".to_string());
                 }
             }
@@ -60,16 +76,26 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
                 if let Ok(json) = r.json::<Value>().await {
                     if let Some(items) = json.get("items").and_then(|v| v.as_array()) {
                         if let Some(first_commit) = items.first() {
-                            let repo_name = first_commit.get("repository").and_then(|v| v.get("full_name")).and_then(|v| v.as_str());
-                            let author_login = first_commit.get("author").and_then(|v| v.get("login")).and_then(|v| v.as_str());
-                            
+                            let repo_name = first_commit
+                                .get("repository")
+                                .and_then(|v| v.get("full_name"))
+                                .and_then(|v| v.as_str());
+                            let author_login = first_commit
+                                .get("author")
+                                .and_then(|v| v.get("login"))
+                                .and_then(|v| v.as_str());
+
                             if login.is_none() {
                                 login = author_login.map(String::from);
                             }
                             if profile_url.is_none() {
-                                profile_url = login.as_ref().map(|u| format!("https://github.com/{}", u));
+                                profile_url =
+                                    login.as_ref().map(|u| format!("https://github.com/{}", u));
                             }
-                            detail = Some(format!("commit author in {}", repo_name.unwrap_or("public repository")));
+                            detail = Some(format!(
+                                "commit author in {}",
+                                repo_name.unwrap_or("public repository")
+                            ));
                         }
                     }
                 }

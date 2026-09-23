@@ -42,7 +42,9 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
                 }];
             }
 
-            if status_code == reqwest::StatusCode::TOO_MANY_REQUESTS || status_code == reqwest::StatusCode::FORBIDDEN {
+            if status_code == reqwest::StatusCode::TOO_MANY_REQUESTS
+                || status_code == reqwest::StatusCode::FORBIDDEN
+            {
                 return vec![SiteResult {
                     id: "gravatar".to_string(),
                     label: "Gravatar".to_string(),
@@ -69,11 +71,26 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
             }
 
             if let Ok(json) = r.json::<Value>().await {
-                if let Some(entry) = json.get("entry").and_then(|v| v.as_array()).and_then(|arr| arr.first()) {
+                if let Some(entry) = json
+                    .get("entry")
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| arr.first())
+                {
                     let mut out = Vec::new();
-                    let preferred_username = entry.get("preferredUsername").and_then(|v| v.as_str()).map(String::from);
-                    let canonical_url = entry.get("profileUrl").and_then(|v| v.as_str()).map(String::from)
-                        .unwrap_or_else(|| format!("https://gravatar.com/{}", preferred_username.as_deref().unwrap_or(&sha256_hash)));
+                    let preferred_username = entry
+                        .get("preferredUsername")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    let canonical_url = entry
+                        .get("profileUrl")
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                        .unwrap_or_else(|| {
+                            format!(
+                                "https://gravatar.com/{}",
+                                preferred_username.as_deref().unwrap_or(&sha256_hash)
+                            )
+                        });
 
                     out.push(SiteResult {
                         id: "gravatar".to_string(),
@@ -88,10 +105,19 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
 
                     if let Some(accounts) = entry.get("accounts").and_then(|v| v.as_array()) {
                         for acc in accounts {
-                            let domain = acc.get("domain").and_then(|v| v.as_str()).unwrap_or("linked account");
-                            let shortname = acc.get("shortname").and_then(|v| v.as_str()).unwrap_or(domain);
+                            let domain = acc
+                                .get("domain")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("linked account");
+                            let shortname = acc
+                                .get("shortname")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or(domain);
                             let acc_url = acc.get("url").and_then(|v| v.as_str()).map(String::from);
-                            let acc_user = acc.get("username").and_then(|v| v.as_str()).map(String::from);
+                            let acc_user = acc
+                                .get("username")
+                                .and_then(|v| v.as_str())
+                                .map(String::from);
                             let label = format!("Gravatar linked: {}", shortname);
 
                             out.push(SiteResult {

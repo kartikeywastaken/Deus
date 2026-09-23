@@ -23,7 +23,9 @@ pub fn normalize_email(input: &str) -> Result<NormalizedEmail, String> {
         return Err("Email address exceeds maximum length of 254 characters".to_string());
     }
 
-    let last_at = trimmed.rfind('@').ok_or_else(|| "Invalid email format: missing '@'".to_string())?;
+    let last_at = trimmed
+        .rfind('@')
+        .ok_or_else(|| "Invalid email format: missing '@'".to_string())?;
     let local_part = &trimmed[..last_at];
     let domain = &trimmed[last_at + 1..];
 

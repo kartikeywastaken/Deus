@@ -57,9 +57,17 @@ impl SiteEngine {
         let data_dir = env::var("SITES_DATA_DIR").unwrap_or_else(|_| "data/sites".to_string());
         let path = PathBuf::from(&data_dir).join(filename);
 
-        match fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|content| Self::parse_rules_from_str(&content).map_err(|e| e.to_string())) {
+        match fs::read_to_string(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|content| Self::parse_rules_from_str(&content).map_err(|e| e.to_string()))
+        {
             Ok(rules) => {
-                info!("Loaded {} site rules for {} from runtime file {:?}", rules.len(), source_name, path);
+                info!(
+                    "Loaded {} site rules for {} from runtime file {:?}",
+                    rules.len(),
+                    source_name,
+                    path
+                );
                 Self {
                     source_name,
                     rules,
@@ -78,11 +86,17 @@ impl SiteEngine {
                             };
                         }
                         Err(emb_err) => {
-                            warn!("Failed to parse embedded site rules for {}: {}", source_name, emb_err);
+                            warn!(
+                                "Failed to parse embedded site rules for {}: {}",
+                                source_name, emb_err
+                            );
                         }
                     }
                 }
-                warn!("Failed to load site rules for {} at {:?}: {}", source_name, path, e);
+                warn!(
+                    "Failed to load site rules for {} at {:?}: {}",
+                    source_name, path, e
+                );
                 Self {
                     source_name,
                     rules: vec![],
@@ -108,7 +122,9 @@ impl SiteEngine {
         self.rules.len()
     }
 
-    fn parse_rules_from_str(content: &str) -> Result<Vec<SiteRule>, Box<dyn std::error::Error + Send + Sync>> {
+    fn parse_rules_from_str(
+        content: &str,
+    ) -> Result<Vec<SiteRule>, Box<dyn std::error::Error + Send + Sync>> {
         let json_val: serde_json::Value = serde_json::from_str(content)?;
 
         let mut rules = Vec::new();
@@ -141,7 +157,10 @@ impl SiteEngine {
 
     fn parse_sherlock_site(name: &str, item: &serde_json::Value) -> Option<SiteRule> {
         let url = item.get("url")?.as_str()?;
-        let error_type_str = item.get("errorType").and_then(|v| v.as_str()).unwrap_or("status_code");
+        let error_type_str = item
+            .get("errorType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("status_code");
 
         let detection_type = match error_type_str {
             "message" => DetectionType::MessageInBody,
@@ -162,14 +181,31 @@ impl SiteEngine {
             }
         }
 
-        let regex_check = item.get("regexCheck").and_then(|v| v.as_str()).map(String::from);
-        let nsfw = item.get("isNSFW").and_then(|v| v.as_bool()).unwrap_or(false);
+        let regex_check = item
+            .get("regexCheck")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let nsfw = item
+            .get("isNSFW")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        // `urlMain` in Sherlock datasets is normally the provider homepage, not a
+        // user profile URL. Treating it as a pretty URL makes every username on a
+        // provider share the same canonical URL and causes the first stored
+        // username to leak into later searches. Only accept it when it is itself
+        // a username template.
+        let uri_pretty = item
+            .get("urlMain")
+            .and_then(|v| v.as_str())
+            .filter(|url| contains_username_placeholder(url))
+            .map(String::from);
 
         Some(SiteRule {
             name: name.to_string(),
             category: "social".to_string(),
             uri_check: url.to_string(),
-            uri_pretty: item.get("urlMain").and_then(|v| v.as_str()).map(String::from),
+            uri_pretty,
             valid_username_regex: regex_check,
             detection_type,
             expected_status_codes: vec![200],
@@ -206,7 +242,10 @@ impl SiteEngine {
                     }
                     "status_found" => {
                         if let Some(codes) = sig.get("codes").and_then(|v| v.as_array()) {
-                            expected_codes = codes.iter().filter_map(|c| c.as_u64().map(|n| n as u16)).collect();
+                            expected_codes = codes
+                                .iter()
+                                .filter_map(|c| c.as_u64().map(|n| n as u16))
+                                .collect();
                         }
                     }
                     _ => {}
@@ -214,7 +253,10 @@ impl SiteEngine {
             }
         }
 
-        let regex_check = item.get("regex_check").and_then(|v| v.as_str()).map(String::from);
+        let regex_check = item
+            .get("regex_check")
+            .and_then(|v| v.as_str())
+            .map(String::from);
 
         Some(SiteRule {
             name: name.to_string(),
@@ -236,7 +278,10 @@ impl SiteEngine {
         }
 
         if self.rules.is_empty() {
-            return ConnectorOutput::unavailable(format!("No site rules configured for {}", self.source_name));
+            return ConnectorOutput::unavailable(format!(
+                "No site rules configured for {}",
+                self.source_name
+            ));
         }
 
         let concurrency: usize = env::var("CONNECTOR_CONCURRENCY")
@@ -329,6 +374,13 @@ impl SiteEngine {
         username: &str,
         source_name: &'static str,
     ) -> SiteCheckResult {
+        // Rules that require a request body or a separate probe URL cannot be
+        // evaluated by this GET-only engine. Hitting their static homepage would
+        // create a false candidate shared by every username.
+        if !contains_username_placeholder(&rule.uri_check) {
+            return SiteCheckResult::Skipped;
+        }
+
         // Step 1: Username regex validation
         if let Some(ref reg_str) = rule.valid_username_regex {
             if let Ok(reg) = Regex::new(reg_str) {
@@ -338,30 +390,40 @@ impl SiteEngine {
             }
         }
 
-        let target_url = rule.uri_check.replace("{}", username).replace("{username}", username);
+        let target_url = rule
+            .uri_check
+            .replace("{}", username)
+            .replace("{username}", username);
 
         // Step 2: Target request
         let target_res = Self::send_http_request(client, &target_url).await;
         match target_res {
-            Ok((status_code, body, final_url)) => {
+            Ok((status_code, body, _final_url)) => {
                 if status_code == 429 {
                     return SiteCheckResult::RateLimited;
                 }
                 if Self::eval_site_hit(rule, status_code, &body) {
                     // Target hit! Now run false-positive baseline verification
                     let random_user = format!("rnd_{}", generate_random_alphanumeric(20));
-                    let baseline_url = rule.uri_check.replace("{}", &random_user).replace("{username}", &random_user);
+                    let baseline_url = rule
+                        .uri_check
+                        .replace("{}", &random_user)
+                        .replace("{username}", &random_user);
 
-                    if let Ok((b_status, ref b_body, _)) = Self::send_http_request(client, &baseline_url).await {
+                    if let Ok((b_status, ref b_body, _)) =
+                        Self::send_http_request(client, &baseline_url).await
+                    {
                         if Self::eval_site_hit(rule, b_status, b_body) {
-                            // Baseline also returned positive for random non-existent user -> provider blocks automated checks!
+                            // Baseline also returned positive for random non-existent user -> provider returns 200/redirects for all endpoints.
+                            // Produce profile lead with the exact searched username canonical URL.
+                            let canonical_url = Self::clean_to_web_profile_url(rule, username, &target_url);
                             let blocked_prof = DiscoveredProfile {
                                 platform: rule.name.clone(),
                                 username: username.to_string(),
-                                canonical_url: Self::clean_to_web_profile_url(rule, username, &target_url),
-                                display_name: Some(format!("{} (Verification Blocked)", rule.name)),
+                                canonical_url,
+                                display_name: Some(rule.name.clone()),
                                 avatar_url: None,
-                                bio: Some("Could not verify — provider blocks automated checks".to_string()),
+                                bio: Some(format!("Public profile endpoint observed on {}", rule.name)),
                                 location: None,
                                 organization: None,
                                 raw_json: json!({
@@ -370,15 +432,17 @@ impl SiteEngine {
                                     "category": rule.category,
                                     "http_status": status_code,
                                     "blocked": true,
-                                    "verification_note": "Could not verify — provider blocks automated checks",
+                                    "verified": false,
                                 }),
                             };
                             return SiteCheckResult::Blocked(blocked_prof);
                         }
                     }
 
-                    let raw_url = final_url.unwrap_or(target_url);
-                    let canonical_url = Self::clean_to_web_profile_url(rule, username, &raw_url);
+                    // A successful probe may redirect to a login page or provider
+                    // homepage. The requested username URL is the stable candidate
+                    // identity; the redirect destination is not.
+                    let canonical_url = Self::clean_to_web_profile_url(rule, username, &target_url);
                     let meta = Self::extract_html_metadata(&body);
                     let display_name = meta.display_name.filter(|d| d != username && !d.is_empty());
 
@@ -478,7 +542,9 @@ impl SiteEngine {
 
     pub fn clean_to_web_profile_url(rule: &SiteRule, username: &str, raw_url: &str) -> String {
         if let Some(ref pretty) = rule.uri_pretty {
-            let p = pretty.replace("{}", username).replace("{username}", username);
+            let p = pretty
+                .replace("{}", username)
+                .replace("{username}", username);
             if !p.is_empty() {
                 return p;
             }
@@ -561,6 +627,10 @@ fn generate_random_alphanumeric(len: usize) -> String {
         .collect()
 }
 
+fn contains_username_placeholder(template: &str) -> bool {
+    template.contains("{}") || template.contains("{username}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,9 +669,21 @@ mod tests {
             nsfw: false,
         };
 
-        assert!(SiteEngine::eval_site_hit(&rule, 200, "<html>User Profile</html>"));
-        assert!(!SiteEngine::eval_site_hit(&rule, 200, "<html>Page Not Found</html>"));
-        assert!(!SiteEngine::eval_site_hit(&rule, 404, "<html>User Profile</html>"));
+        assert!(SiteEngine::eval_site_hit(
+            &rule,
+            200,
+            "<html>User Profile</html>"
+        ));
+        assert!(!SiteEngine::eval_site_hit(
+            &rule,
+            200,
+            "<html>Page Not Found</html>"
+        ));
+        assert!(!SiteEngine::eval_site_hit(
+            &rule,
+            404,
+            "<html>User Profile</html>"
+        ));
     }
 
     #[test]
@@ -630,6 +712,42 @@ mod tests {
         assert!(engine.load_error.is_none());
         assert_eq!(engine.rules.len(), 1);
         assert_eq!(engine.rules[0].name, "github");
+        assert_eq!(engine.rules[0].uri_pretty, None);
         std::env::remove_var("SITES_DATA_DIR");
+    }
+
+    #[test]
+    fn canonical_profile_url_keeps_the_searched_username() {
+        let rule = SiteRule {
+            name: "Example".into(),
+            category: "social".into(),
+            uri_check: "https://example.com/users/{}".into(),
+            // A homepage must never replace the username-specific URL.
+            uri_pretty: None,
+            valid_username_regex: None,
+            detection_type: DetectionType::StatusCode,
+            expected_status_codes: vec![200],
+            error_messages: vec![],
+            success_messages: vec![],
+            nsfw: false,
+        };
+
+        assert_eq!(
+            SiteEngine::clean_to_web_profile_url(
+                &rule,
+                "new_user",
+                "https://example.com/users/new_user",
+            ),
+            "https://example.com/users/new_user"
+        );
+    }
+
+    #[test]
+    fn only_username_specific_rules_are_probeable() {
+        assert!(contains_username_placeholder("https://example.com/{}"));
+        assert!(contains_username_placeholder(
+            "https://example.com/u/{username}"
+        ));
+        assert!(!contains_username_placeholder("https://example.com"));
     }
 }

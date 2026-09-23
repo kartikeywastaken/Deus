@@ -25,7 +25,10 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
             if let Ok(json) = resp.json::<Value>().await {
                 if let Some(them) = json.get("them").and_then(|v| v.as_array()) {
                     if let Some(user) = them.first() {
-                        let username = user.get("basename").and_then(|v| v.as_str()).map(String::from);
+                        let username = user
+                            .get("basename")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
                         let full_name = user
                             .get("profile")
                             .and_then(|v| v.get("full_name"))
@@ -44,7 +47,8 @@ pub async fn check(ctx: &EmailCtx) -> Vec<SiteResult> {
                             reason: None,
                             username,
                             profile_url,
-                            detail: full_name.or_else(|| Some("Verified Keybase profile".to_string())),
+                            detail: full_name
+                                .or_else(|| Some("Verified Keybase profile".to_string())),
                         });
                         return results;
                     }

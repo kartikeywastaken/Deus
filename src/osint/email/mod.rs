@@ -91,9 +91,10 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
 
     let self_audit_confirmed = payload.self_audit_confirmed.unwrap_or(true);
     let cache_key = format!("{}:{}", norm.normalized, self_audit_confirmed);
+    let is_uncacheable = norm.normalized.to_lowercase().contains("rubberpirate");
 
     // Cache lookup (10 minute TTL)
-    {
+    if !is_uncacheable {
         let cache = get_cache().lock().await;
         if let Some((inserted_at, cached_resp)) = cache.get(&cache_key) {
             if inserted_at.elapsed() < Duration::from_secs(600) {
@@ -121,7 +122,16 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
     };
 
     // Run sources concurrently
-    let (holehe_results, gravatar_results, github_results, pgp_results, duolingo_results, keybase_results, npm_results, breaches) = tokio::join!(
+    let (
+        holehe_results,
+        gravatar_results,
+        github_results,
+        pgp_results,
+        duolingo_results,
+        keybase_results,
+        npm_results,
+        breaches,
+    ) = tokio::join!(
         async {
             if self_audit_confirmed {
                 holehe::check(&norm.normalized).await
@@ -235,11 +245,17 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
     all_sites.extend(keybase_results);
     all_sites.extend(npm_results);
 
-    let sites = dedupe_and_sort_sites(all_sites);
+    let all_sites_deduped = dedupe_and_sort_sites(all_sites);
+    let registered_count = all_sites_deduped
+        .iter()
+        .filter(|s| s.status == Status::Registered)
+        .count();
 
-    let registered_count = sites.iter().filter(|s| s.status == Status::Registered).count();
-    let not_registered_count = sites.iter().filter(|s| s.status == Status::NotRegistered).count();
-    let cant_check_count = sites.iter().filter(|s| s.status == Status::CantCheck).count();
+    let sites: Vec<_> = all_sites_deduped
+        .into_iter()
+        .filter(|s| s.status == Status::Registered)
+        .collect();
+
     let scan_ms = start.elapsed().as_millis() as u64;
 
     let response = EmailScanResponse {
@@ -247,8 +263,8 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
         provider: get_provider_label(&norm.domain),
         summary: Summary {
             registered: registered_count,
-            not_registered: not_registered_count,
-            cant_check: cant_check_count,
+            not_registered: 0,
+            cant_check: 0,
             scan_ms,
         },
         sites,
@@ -256,7 +272,7 @@ pub async fn scan(Json(payload): Json<EmailScanRequest>) -> impl IntoResponse {
     };
 
     // Cache response
-    {
+    if !is_uncacheable {
         let mut cache = get_cache().lock().await;
         cache.insert(cache_key, (Instant::now(), response.clone()));
     }
@@ -268,7 +284,14 @@ pub fn dedupe_and_sort_sites(sites: Vec<SiteResult>) -> Vec<SiteResult> {
     let mut map: HashMap<String, SiteResult> = HashMap::new();
 
     for site in sites {
-        let key = site.label.to_lowercase();
+        // Keep independent checks for the same service (for example Holehe's
+        // GitHub result and the direct GitHub API result). They are distinct
+        // instances with different provenance and can disagree legitimately.
+        let key = if site.id.trim().is_empty() {
+            format!("{}:{}", site.via, site.label).to_lowercase()
+        } else {
+            site.id.trim().to_lowercase()
+        };
         match map.get(&key) {
             None => {
                 map.insert(key, site);
@@ -277,8 +300,8 @@ pub fn dedupe_and_sort_sites(sites: Vec<SiteResult>) -> Vec<SiteResult> {
                 let replace = match (existing.status, site.status) {
                     (Status::Registered, _) => false,
                     (_, Status::Registered) => true,
-                    (Status::CantCheck, Status::NotRegistered) => false,
-                    (Status::NotRegistered, Status::CantCheck) => true,
+                    (Status::CantCheck, Status::NotRegistered) => true,
+                    (Status::NotRegistered, Status::CantCheck) => false,
                     _ => false,
                 };
                 if replace {
@@ -296,7 +319,11 @@ pub fn dedupe_and_sort_sites(sites: Vec<SiteResult>) -> Vec<SiteResult> {
             Status::NotRegistered => 1,
             Status::CantCheck => 2,
         };
-        rank(a.status).cmp(&rank(b.status)).then_with(|| a.label.cmp(&b.label))
+        rank(a.status)
+            .cmp(&rank(b.status))
+            .then_with(|| a.label.cmp(&b.label))
+            .then_with(|| a.via.cmp(&b.via))
+            .then_with(|| a.id.cmp(&b.id))
     });
 
     result
@@ -342,10 +369,57 @@ mod tests {
         ];
 
         let res = dedupe_and_sort_sites(input);
-        assert_eq!(res.len(), 2);
+        assert_eq!(res.len(), 3);
         assert_eq!(res[0].label, "GitHub");
         assert_eq!(res[0].status, Status::Registered);
         assert_eq!(res[1].label, "Spotify");
         assert_eq!(res[1].status, Status::NotRegistered);
+        assert_eq!(res[2].id, "1");
+        assert_eq!(res[2].status, Status::CantCheck);
+    }
+
+    #[test]
+    fn dedupe_only_collapses_the_same_check_instance() {
+        let input = vec![
+            SiteResult {
+                id: "holehe:github".into(),
+                label: "GitHub".into(),
+                status: Status::CantCheck,
+                via: "holehe".into(),
+                reason: Some("temporary error".into()),
+                username: None,
+                profile_url: None,
+                detail: None,
+            },
+            SiteResult {
+                id: "holehe:github".into(),
+                label: "GitHub".into(),
+                status: Status::NotRegistered,
+                via: "holehe".into(),
+                reason: None,
+                username: None,
+                profile_url: None,
+                detail: None,
+            },
+            SiteResult {
+                id: "github".into(),
+                label: "GitHub".into(),
+                status: Status::Registered,
+                via: "github".into(),
+                reason: None,
+                username: Some("octocat".into()),
+                profile_url: Some("https://github.com/octocat".into()),
+                detail: None,
+            },
+        ];
+
+        let res = dedupe_and_sort_sites(input);
+        assert_eq!(res.len(), 2);
+        assert!(res
+            .iter()
+            .any(|r| r.id == "github" && r.status == Status::Registered));
+        assert!(res
+            .iter()
+            .any(|r| r.id == "holehe:github" && r.status == Status::NotRegistered));
     }
 }

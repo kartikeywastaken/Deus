@@ -577,10 +577,10 @@ function renderCandidates() {
   const handleSeed = currentSeedValue || "target";
   const rawCandidatesList = latest?.candidates || [];
 
-  // Filter out candidates with raw API/JSON URLs or synthetic search URLs
+  // Filter out synthetic search engine result URLs
   const filteredCandidates = rawCandidatesList.filter(cand => {
     const url = String(cand.canonical_url || "").toLowerCase();
-    if (url.includes("/api/") || url.includes("api.") || url.endsWith(".json") || url.includes("google.com/search")) {
+    if (url.includes("google.com/search") || url.includes("duckduckgo.com/?q=") || url.includes("bing.com/search")) {
       return false;
     }
     return true;
@@ -698,64 +698,96 @@ function renderEmailResult(data) {
   const header = node("div", "", "email-result-header");
   header.append(
     node("h2", `Account Discovery for ${data.email || currentSeedValue}`, "email-result-title"),
-    node("p", `Provider: ${data.provider || 'Unknown'} — Automated registration & breach checks.`, "email-result-sub")
+    node("p", `Provider: ${data.provider || "Unknown"} — Complete registration and breach check results.`, "email-result-sub")
   );
 
-  if (data.summary) {
-    const summaryRow = node("div", "", "email-summary-row");
-    summaryRow.style.cssText = "display:flex;gap:12px;margin:16px 0;flex-wrap:wrap;";
-
-    const regBadge = node("span", `Registered: ${data.summary.registered}`, "badge badge-success");
-    regBadge.style.cssText = "padding:6px 12px;background:rgba(34,197,94,0.15);color:#4ade80;border-radius:6px;font-weight:600;";
-
-    summaryRow.append(regBadge);
-    if (data.summary.scan_ms) {
-      const timeTag = node("span", `Scan duration: ${data.summary.scan_ms}ms`, "mono-data");
-      timeTag.style.cssText = "padding:6px 12px;color:#71717a;font-size:12px;align-self:center;";
-      summaryRow.append(timeTag);
-    }
-    header.append(summaryRow);
+  const rawSites = Array.isArray(data.sites) ? data.sites : [];
+  const sites = rawSites.filter(s => s.status === "REGISTERED" || !s.status);
+  const summaryRow = node("div", "", "email-summary-row");
+  summaryRow.append(
+    node("span", `Registered: ${sites.length}`, "email-summary-badge email-summary-registered")
+  );
+  if (Number.isFinite(Number(data.summary?.scan_ms))) {
+    summaryRow.append(node("span", `Scan duration: ${data.summary.scan_ms}ms`, "email-scan-duration mono-data"));
   }
+  header.append(summaryRow);
 
   container.append(header);
 
-  const sites = data.sites || [];
-  const registered = sites.filter(s => s.status === "REGISTERED");
-
   const resultsGrid = node("div", "", "email-sites-grid");
-  resultsGrid.style.cssText = "display:flex;flex-direction:column;gap:16px;margin-top:16px;";
+  const checksBlock = node("div", "", "case-card email-group-card");
+  checksBlock.append(node("h3", `Discovered Accounts (${sites.length})`, "email-group-title"));
 
-  if (registered.length > 0) {
-    const regBlock = node("div", "", "case-card email-group-card");
-    regBlock.append(node("h3", `Registered Accounts (${registered.length})`, "email-group-title"));
-    const list = node("div", "", "email-sites-list");
-    list.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:10px;margin-top:10px;";
-    registered.forEach(s => {
-      const item = node("div", "", "email-site-item registered");
-      item.style.cssText = "padding:10px 14px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:6px;";
-      let html = `<strong>${s.label || s.id}</strong>`;
-      if (s.username) html += `<br><span style="font-size:12px;color:#a1a1aa">@${s.username}</span>`;
-      if (s.profile_url) html += `<br><a href="${s.profile_url}" target="_blank" rel="noopener" style="font-size:12px;color:#38bdf8">View Profile</a>`;
-      item.innerHTML = html;
-      list.append(item);
+  if (sites.length > 0) {
+    const tableWrap = node("div", "", "email-results-table-wrap");
+    const table = node("table", "", "email-sites-table");
+    const thead = document.createElement("thead");
+    const headingRow = document.createElement("tr");
+    ["Service", "Status", "Account / details", "Source"].forEach(text => {
+      headingRow.append(node("th", text));
     });
-    regBlock.append(list);
-    resultsGrid.append(regBlock);
-  } else {
-    const emptyBlock = node("div", "", "case-card email-group-card");
-    emptyBlock.append(node("p", "No registered accounts found across verified services.", "email-result-sub"));
-    resultsGrid.append(emptyBlock);
-  }
+    thead.append(headingRow);
 
-  const breaches = data.breaches || [];
+    const tbody = document.createElement("tbody");
+    const statusPresentation = {
+      REGISTERED: { label: "Registered", className: "email-status-registered" },
+      NOT_REGISTERED: { label: "Not registered", className: "email-status-not-registered" },
+      CANT_CHECK: { label: "Could not check", className: "email-status-cant-check" },
+    };
+
+    sites.forEach(site => {
+      const row = document.createElement("tr");
+      const serviceCell = document.createElement("td");
+      serviceCell.append(node("strong", site.label || site.id || "Unknown service"));
+
+      const statusCell = document.createElement("td");
+      const presentation = statusPresentation[site.status] || {
+        label: String(site.status || "Unknown").replaceAll("_", " ").toLowerCase(),
+        className: "email-status-cant-check",
+      };
+      statusCell.append(node("span", presentation.label, `email-status-pill ${presentation.className}`));
+
+      const detailsCell = document.createElement("td");
+      if (site.username) {
+        detailsCell.append(node("div", `@${site.username}`, "email-result-username"));
+      }
+      if (site.detail) {
+        detailsCell.append(node("div", site.detail, "email-result-detail"));
+      }
+      if (site.reason) {
+        detailsCell.append(node("div", site.reason, "email-result-reason"));
+      }
+      if (site.profile_url) {
+        const linkLine = node("div", "", "email-result-link");
+        linkLine.append(safeLink(site.profile_url, "View profile"));
+        detailsCell.append(linkLine);
+      }
+      if (!detailsCell.childNodes.length) {
+        detailsCell.append(node("span", "—", "email-result-empty"));
+      }
+
+      const sourceCell = document.createElement("td");
+      sourceCell.append(node("span", site.via || "unknown", "email-source-label"));
+      row.append(serviceCell, statusCell, detailsCell, sourceCell);
+      tbody.append(row);
+    });
+
+    table.append(thead, tbody);
+    tableWrap.append(table);
+    checksBlock.append(tableWrap);
+  } else {
+    checksBlock.append(node("p", "No service checks were returned.", "email-result-sub"));
+  }
+  resultsGrid.append(checksBlock);
+
+  const breaches = Array.isArray(data.breaches) ? data.breaches : [];
   const breachBlock = node("div", "", "case-card email-group-card");
   breachBlock.append(node("h3", `Breach Exposures (${breaches.length})`, "email-group-title"));
   if (breaches.length > 0) {
     const list = node("div", "", "email-breach-list");
-    list.style.cssText = "display:flex;flex-direction:column;gap:6px;margin-top:10px;";
     breaches.forEach(b => {
-      const item = node("div", `${b.name} (${b.domain})`, "email-breach-item");
-      item.style.cssText = "padding:8px 12px;background:rgba(239,68,68,0.1);border-left:3px solid #ef4444;border-radius:4px;color:#fca5a5;font-size:13px;";
+      const domain = b.domain ? ` (${b.domain})` : "";
+      const item = node("div", `${b.name || "Unknown breach"}${domain}`, "email-breach-item");
       list.append(item);
     });
     breachBlock.append(list);

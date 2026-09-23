@@ -20,22 +20,26 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct HoleheRow {
+    #[serde(default)]
     name: String,
+    #[serde(default)]
     domain: String,
-    #[serde(rename = "rateLimit")]
+    #[serde(default, rename = "rateLimit", alias = "rate_limit")]
     rate_limit: String,
+    #[serde(default)]
     exists: String,
-    #[serde(rename = "emailrecovery")]
+    #[serde(default, rename = "emailrecovery", alias = "email_recovery")]
     email_recovery: String,
-    #[serde(rename = "phoneNumber")]
+    #[serde(default, rename = "phoneNumber", alias = "phone_number")]
     phone_number: String,
+    #[serde(default)]
     others: String,
 }
 
 fn parse_bool(s: &str) -> Option<bool> {
-    match s.trim() {
-        "True" => Some(true),
-        "False" => Some(false),
+    match s.trim().to_ascii_lowercase().as_str() {
+        "true" | "1" | "yes" => Some(true),
+        "false" | "0" | "no" => Some(false),
         _ => None,
     }
 }
@@ -204,7 +208,15 @@ async fn run_once(
         if !output.status.success() {
             warn!("holehe exited with {}: {}", output.status, stderr.trim());
         }
-        let hint: String = stderr.trim().chars().rev().take(200).collect::<Vec<_>>().into_iter().rev().collect();
+        let hint: String = stderr
+            .trim()
+            .chars()
+            .rev()
+            .take(200)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
         return RunOutcome::Failed(if hint.is_empty() {
             "holehe produced no output".to_string()
         } else {
@@ -250,11 +262,19 @@ pub(crate) fn parse_csv(content: &str) -> Vec<SiteResult> {
             }
         };
 
+        if row.name.trim().is_empty() && row.domain.trim().is_empty() {
+            warn!("skipping holehe CSV row without a service name or domain");
+            continue;
+        }
+
         let rate_limited = parse_bool(&row.rate_limit).unwrap_or(false);
         let exists = parse_bool(&row.exists);
 
         let (status, reason) = match (rate_limited, exists) {
-            (true, _) => (Status::CantCheck, Some("site error or rate limit".to_string())),
+            (true, _) => (
+                Status::CantCheck,
+                Some("site error or rate limit".to_string()),
+            ),
             (false, Some(true)) => (Status::Registered, None),
             (false, Some(false)) => (Status::NotRegistered, None),
             (false, None) => (Status::CantCheck, Some("no verdict returned".to_string())),
@@ -271,9 +291,20 @@ pub(crate) fn parse_csv(content: &str) -> Vec<SiteResult> {
         }
         let _ = &row.others; // intentionally not surfaced
 
+        let service_id = if row.name.trim().is_empty() {
+            row.domain.trim()
+        } else {
+            row.name.trim()
+        };
+        let service_label = if row.name.trim().is_empty() {
+            human_label(&row.domain)
+        } else {
+            human_label(&row.name)
+        };
+
         results.push(SiteResult {
-            id: format!("holehe:{}", row.name),
-            label: human_label(&row.domain),
+            id: format!("holehe:{service_id}"),
+            label: service_label,
             status,
             via: "holehe".to_string(),
             reason,
@@ -317,7 +348,10 @@ twitter,twitter.com,register,False,False,True,ex****e@gmail.com,None,\"{'FullNam
     #[test]
     fn rate_limited_is_never_not_registered() {
         let rows = parse_csv(SAMPLE);
-        assert!(rows.iter().filter(|r| r.id == "holehe:adobe").all(|r| r.status != Status::NotRegistered));
+        assert!(rows
+            .iter()
+            .filter(|r| r.id == "holehe:adobe")
+            .all(|r| r.status != Status::NotRegistered));
     }
 
     #[test]
@@ -336,6 +370,16 @@ twitter,twitter.com,register,False,False,True,ex****e@gmail.com,None,\"{'FullNam
             assert_eq!(rows.len(), 1);
             assert_eq!(rows[0].status, Status::CantCheck);
         }
+    }
+
+    #[test]
+    fn accepts_common_boolean_and_header_variants() {
+        let input = "name,domain,rate_limit,exists,email_recovery,phone_number,others\n\
+example,example.com,0,yes,None,None,None\n";
+        let rows = parse_csv(input);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "holehe:example");
+        assert_eq!(rows[0].status, Status::Registered);
     }
 
     #[tokio::test]

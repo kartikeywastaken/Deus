@@ -337,10 +337,10 @@
     try {
       const w = window.screen.width;
       const h = window.screen.height;
-      const depth = window.screen.colorDepth;
+      const depth = window.screen.colorDepth || 24;
       const ratio = window.devicePixelRatio || 1;
 
-      return `${w}×${h} screen @ ${ratio}x DPR · ${depth}-bit color depth`;
+      return `${w}×${h} @ ${ratio}x DPR (${depth}-bit color)`;
     } catch (e) {
       return 'Screen resolution inspection restricted';
     }
@@ -355,6 +355,30 @@
       return `${languages} · ${pdfEnabled}`;
     } catch (e) {
       return 'Languages & environment inspection restricted';
+    }
+  }
+
+  // 15. Device Memory (RAM)
+  function getDeviceMemory() {
+    try {
+      const ram = navigator.deviceMemory;
+      return ram ? `~${ram} GB RAM allocated` : 'Hardware memory API restricted';
+    } catch (e) {
+      return 'Device memory inspection restricted';
+    }
+  }
+
+  // 16. Network & Connection Speed
+  function getNetworkInfo() {
+    try {
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (!conn) return 'Network status: Online (Standard latency)';
+      const type = (conn.effectiveType || 'online').toUpperCase();
+      const downlink = conn.downlink ? ` · ${conn.downlink} Mbps` : '';
+      const rtt = conn.rtt ? ` · ${conn.rtt}ms RTT` : '';
+      return `${type}${downlink}${rtt}`;
+    } catch (e) {
+      return 'Network info restricted';
     }
   }
 
@@ -385,7 +409,7 @@
 
     // Primary: ipwho.is (HTTPS, CORS-enabled, Free)
     try {
-      const res = await fetchWithTimeout('https://ipwho.is/', {}, 1800);
+      const res = await fetchWithTimeout('https://ipwho.is/', {}, 2000);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -401,19 +425,57 @@
       }
     } catch (e) {}
 
-    // Fallback: ipapi.co
+    // Fallback 1: freeipapi.com
     try {
-      const res2 = await fetchWithTimeout('https://ipapi.co/json/', {}, 1800);
+      const res2 = await fetchWithTimeout('https://freeipapi.com/api/json', {}, 2000);
       if (res2.ok) {
         const data2 = await res2.json();
-        const city = data2.city || '';
-        const region = data2.region_code || data2.region || '';
-        const country = data2.country_name || '';
-        const org = data2.org || data2.asn || '';
+        const city = data2.cityName || '';
+        const region = data2.regionName || '';
+        const country = data2.countryName || '';
+        const org = data2.isp || '';
 
         if (city || country || org) {
           const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
-          const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data2.ip || '127.0.0.1' };
+          const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data2.ipAddress || '127.0.0.1' };
+          try { sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj)); } catch (e) {}
+          return resultObj;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback 2: ipapi.co
+    try {
+      const res3 = await fetchWithTimeout('https://ipapi.co/json/', {}, 2000);
+      if (res3.ok) {
+        const data3 = await res3.json();
+        const city = data3.city || '';
+        const region = data3.region_code || data3.region || '';
+        const country = data3.country_name || '';
+        const org = data3.org || data3.asn || '';
+
+        if (city || country || org) {
+          const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
+          const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data3.ip || '127.0.0.1' };
+          try { sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj)); } catch (e) {}
+          return resultObj;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback 3: ipinfo.io
+    try {
+      const res4 = await fetchWithTimeout('https://ipinfo.io/json', {}, 2000);
+      if (res4.ok) {
+        const data4 = await res4.json();
+        const city = data4.city || '';
+        const region = data4.region || '';
+        const country = data4.country || '';
+        const org = data4.org || '';
+
+        if (city || country || org) {
+          const locationStr = `${city}${region ? ', ' + region : ''}${country ? ', ' + country : ''} · ${org || 'ISP Undetermined'}`;
+          const resultObj = { isFailed: false, locationStr, city, region, country, org, ip: data4.ip || '127.0.0.1' };
           try { sessionStorage.setItem('deus_geo_cache', JSON.stringify(resultObj)); } catch (e) {}
           return resultObj;
         }
@@ -468,7 +530,7 @@
   }
 
   // 13. Session Persistence
-  async function checkSessionPersistence(osStr, gpuStr, screenStr) {
+  async function checkSessionPersistence(osStr, gpuStr, screenStr, isReturnVisit = false) {
     try {
       const rawSignal = `${osStr}|${gpuStr}|${screenStr}|${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
       let sum = 0;
@@ -478,10 +540,8 @@
       }
       const shortId = Math.abs(sum).toString(36).slice(0, 8);
       const storageKey = 'deus_fp_id';
-      let previousVisit = null;
-      try { previousVisit = localStorage.getItem(storageKey); } catch (e) {}
 
-      if (previousVisit) {
+      if (isReturnVisit) {
         return `Return visit detected: Welcome back. Session fingerprint ID [${shortId}] matches previous session (stored locally without cookies).`;
       } else {
         try { localStorage.setItem(storageKey, shortId); } catch (e) {}
@@ -614,12 +674,14 @@
     if (!contentEl) return;
 
     // Session ID & Timestamp
+    let isReturnVisit = false;
     try {
       let storedId;
       try { storedId = localStorage.getItem('deus_fp_id'); } catch (e) {}
-      if (!storedId) {
+      if (storedId) {
+        isReturnVisit = true;
+      } else {
         storedId = 'fp_' + Math.random().toString(36).substring(2, 10);
-        try { localStorage.setItem('deus_fp_id', storedId); } catch (e) {}
       }
       if (sessionIdEl) sessionIdEl.textContent = `SESSION ID: ${storedId}`;
     } catch (e) {}
@@ -642,6 +704,8 @@
     safeSignal('fonts-detected', () => detectFonts().statusMsg, 'Font metric canvas inspection restricted');
     safeSignal('languages-pdf', () => getLanguagesAndPlugins(), 'Languages & environment inspection restricted');
     safeSignal('touch-pointer', () => getTouchAndMediaFeatures(), 'Touch & Pointer features restricted');
+    safeSignal('device-memory', () => getDeviceMemory(), 'Hardware memory API restricted');
+    safeSignal('network-info', () => getNetworkInfo(), 'Network status: Online');
     const screenRes = safeSignal(null, () => getScreenInfo(), 'Screen resolution restricted');
     safeSignal('rarity', () => calculateRarity(osBrowserStr, screenRes), 'Estimated Unicity: Standard configuration');
     safeSignal('canvas-hash', () => getCanvasFingerprintHashSync(), 'Canvas fingerprinting restricted by client privacy policy');
@@ -682,7 +746,7 @@
       { type: "p", text: `${gpuObj.shortName || 'GPU vendor undetermined'}, ${cpuStr}, and a ${screenRes} display.` },
       { type: "p", text: `Live system audit active.` },
       { type: "h", text: `Where you are` },
-      { type: "b", id: "stream-line-isp", text: `• Network Provider: Primary Client Network.` },
+      { type: "b", id: "stream-line-isp", text: `• Network Provider: Resolving client ISP...` },
       { type: "b", text: `• Local Clock: ${timeStr}.${sleepNotice}` },
       { type: "b", id: "stream-line-geo", text: `• Location: Timezone Region (${tzName}).` },
       { type: "h", text: `What device you are using` },
@@ -765,8 +829,14 @@
       .then(geoObj => {
         const ispEl = document.getElementById("stream-line-isp");
         const geoEl = document.getElementById("stream-line-geo");
-        if (ispEl && geoObj?.org) {
-          ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${geoObj.org}.</span>`;
+        if (ispEl) {
+          const rawOrg = geoObj?.org || '';
+          const cleanOrg = rawOrg.replace(/^AS\d+\s+/i, '').trim();
+          if (cleanOrg && !cleanOrg.toLowerCase().includes('failed') && !cleanOrg.toLowerCase().includes('undetermined')) {
+            ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ${cleanOrg}.</span>`;
+          } else {
+            ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ISP Lookup Restricted / Offline.</span>`;
+          }
         }
         if (geoEl && !geoObj?.isFailed) {
           geoEl.innerHTML = `<span class="word-span revealed">• You're in or near ${geoObj.locationStr}.</span>`;
@@ -776,7 +846,7 @@
         console.warn('[DEUS-SIGNALS] Background geo lookup error:', err);
       });
 
-    checkSessionPersistence(osBrowserStr, gpuObj?.fullStr || '', screenRes)
+    checkSessionPersistence(osBrowserStr, gpuObj?.fullStr || '', screenRes, isReturnVisit)
       .then(sessionStr => {
         const sessEl = document.getElementById("stream-line-session");
         if (sessEl && sessionStr) {

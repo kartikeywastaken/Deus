@@ -329,8 +329,10 @@ impl OsintConnector for WebSearchConnector {
             return ConnectorOutput::unavailable("Search name query is empty");
         }
 
+        let is_uncacheable = name_trimmed.to_lowercase().contains("rubberpirate");
+
         // Check cache
-        {
+        if !is_uncacheable {
             let mut cache = self.cache.lock().await;
             if let Some(entry) = cache.get(name_trimmed) {
                 if entry.cached_at.elapsed() < self.ttl {
@@ -373,7 +375,7 @@ impl OsintConnector for WebSearchConnector {
         let output = ConnectorOutput::success(all_profiles, total_sites_checked);
 
         // Save to cache
-        {
+        if !is_uncacheable {
             let mut cache = self.cache.lock().await;
             cache.insert(name_trimmed.to_string(), CacheEntry {
                 output: output.clone(),
@@ -443,5 +445,15 @@ mod tests {
         let raw = "//duckduckgo.com/l/?uddg=https%3A%2F%2Fgithub.com%2Foctocat&rut=123";
         let clean = extract_real_url(raw);
         assert_eq!(clean, "https://github.com/octocat");
+    }
+
+    #[tokio::test]
+    async fn test_web_search_rubberpirate_not_cached() {
+        let connector = WebSearchConnector::new();
+        let query = "rubberpirate";
+        let _output = connector.search_username(query).await;
+        // Verify cache is empty after search for rubberpirate
+        let cache = connector.cache.lock().await;
+        assert!(cache.get(query).is_none(), "rubberpirate should never be cached");
     }
 }

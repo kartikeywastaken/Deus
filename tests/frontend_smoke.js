@@ -68,7 +68,7 @@ async function runSmokeTests() {
         return { ok: true, status: 200, json: async () => ({ id: "search-smoke-1" }) };
       }
       if (url === "/api/osint/email") {
-        return { ok: true, status: 200, text: async () => JSON.stringify({ email: c.input, sites: [], breaches: [] }) };
+        return { ok: true, status: 200, json: async () => ({ email: c.input, sites: [], breaches: [] }) };
       }
       return { ok: true, json: async () => ({ status: "COMPLETED", items: [] }) };
     };
@@ -102,6 +102,59 @@ async function runSmokeTests() {
     }
 
     console.log(`✓ Seed test passed for: "${c.input}" -> ${c.expectedEndpoint} [${c.expectedSeedType}]`);
+  }
+
+  // --- Test Case: Complete email result rendering ---
+  {
+    console.log("\nTesting complete Holehe/email result rendering...");
+    const dom = createDomEnv();
+    const window = dom.window;
+    const document = window.document;
+
+    window.fetch = async url => {
+      if (url === "/api/osint/email") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            email: "user@example.com",
+            provider: "example.com",
+            summary: { registered: 1, not_registered: 1, cant_check: 1, scan_ms: 42 },
+            sites: [
+              { id: "holehe:github", label: "GitHub", status: "REGISTERED", via: "holehe", username: "user", profile_url: "https://github.com/user", detail: "recovery email on file" },
+              { id: "holehe:spotify", label: "Spotify", status: "NOT_REGISTERED", via: "holehe" },
+              { id: "holehe:adobe", label: "Adobe", status: "CANT_CHECK", via: "holehe", reason: "site error or rate limit" },
+            ],
+            breaches: [],
+          }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    window.EventSource = class { addEventListener() {} close() {} };
+
+    const scriptEl = document.createElement("script");
+    scriptEl.textContent = appJsContent;
+    document.body.appendChild(scriptEl);
+    document.dispatchEvent(new window.Event("DOMContentLoaded"));
+
+    const seedInput = document.getElementById("seed");
+    seedInput.value = "user@example.com";
+    document.getElementById("search-form").dispatchEvent(
+      new window.Event("submit", { bubbles: true, cancelable: true })
+    );
+    await new Promise(r => setTimeout(r, 50));
+
+    const resultText = document.getElementById("email-result-container").textContent;
+    assert(resultText.includes("Registered: 1"), "Registered summary must be visible");
+    assert(resultText.includes("Not registered: 1"), "Not-registered summary must be visible");
+    assert(resultText.includes("Could not check: 1"), "Unavailable summary must be visible");
+    assert(resultText.includes("Spotify"), "Not-registered Holehe checks must be rendered");
+    assert(resultText.includes("Adobe"), "Failed Holehe checks must be rendered");
+    assert(resultText.includes("site error or rate limit"), "Failure reason must be rendered");
+    assert.strictEqual(document.querySelectorAll(".email-sites-table tbody tr").length, 3, "Every returned check instance must have a row");
+
+    console.log("✓ Complete email result rendering test passed");
   }
 
   // --- Test Case: HTTP 500 Error display ---

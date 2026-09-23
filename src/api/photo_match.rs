@@ -216,14 +216,18 @@ pub async fn get_photo_matches_internal<F: AvatarFetcher + 'static>(
                 _ => return (spec, Some(PhotoMatchResult { verdict: Verdict::NoMatch, strength: 0.0, method: MatchMethod::CropMatch })),
             };
 
-            // Check cache
-            let cached = {
-                let guard = store_clone.lock().unwrap();
-                guard.get_cached_result(&token_clone, &avatar_url)
-            };
+            let is_uncacheable = avatar_url.to_lowercase().contains("rubberpirate") || token_clone.to_lowercase().contains("rubberpirate");
 
-            if let Some(res) = cached {
-                return (spec, Some(res));
+            // Check cache
+            if !is_uncacheable {
+                let cached = {
+                    let guard = store_clone.lock().unwrap();
+                    guard.get_cached_result(&token_clone, &avatar_url)
+                };
+
+                if let Some(res) = cached {
+                    return (spec, Some(res));
+                }
             }
 
             // Fetch avatar with 8s timeout
@@ -236,8 +240,10 @@ pub async fn get_photo_matches_internal<F: AvatarFetcher + 'static>(
                         strength: 0.0,
                         method: MatchMethod::CropMatch,
                     };
-                    let mut guard = store_clone.lock().unwrap();
-                    guard.cache_result(&token_clone, avatar_url, res.clone());
+                    if !is_uncacheable {
+                        let mut guard = store_clone.lock().unwrap();
+                        guard.cache_result(&token_clone, avatar_url, res.clone());
+                    }
                     return (spec, Some(res));
                 }
             };
@@ -253,7 +259,7 @@ pub async fn get_photo_matches_internal<F: AvatarFetcher + 'static>(
                 method: MatchMethod::CropMatch,
             });
 
-            {
+            if !is_uncacheable {
                 let mut guard = store_clone.lock().unwrap();
                 guard.cache_result(&token_clone, avatar_url, match_res.clone());
             }
