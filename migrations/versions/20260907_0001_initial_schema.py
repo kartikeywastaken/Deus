@@ -36,7 +36,17 @@ def string_enum(name: str, *values: str) -> sa.Enum:
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    conn = op.get_bind()
+    vector_available = bool(
+        conn.execute(sa.text("SELECT 1 FROM pg_available_extensions WHERE name = 'vector'")).scalar()
+    )
+    if vector_available:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        embedding_type_384 = Vector(dim=384)
+        embedding_type_512 = Vector(dim=512)
+    else:
+        embedding_type_384 = sa.JSON()
+        embedding_type_512 = sa.JSON()
 
     op.create_table(
         "search_runs",
@@ -664,7 +674,7 @@ def upgrade() -> None:
         sa.Column("source_field", sa.String(length=128), nullable=False),
         sa.Column("model_name", sa.String(length=255), nullable=False),
         sa.Column("model_version", sa.String(length=128), nullable=False),
-        sa.Column("embedding", Vector(dim=384), nullable=False),
+        sa.Column("embedding", embedding_type_384, nullable=False),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
@@ -696,7 +706,7 @@ def upgrade() -> None:
         ),
         sa.Column("model_name", sa.String(length=255), nullable=False),
         sa.Column("model_version", sa.String(length=128), nullable=False),
-        sa.Column("embedding", Vector(dim=512), nullable=False),
+        sa.Column("embedding", embedding_type_512, nullable=False),
         sa.Column("quality_score", sa.Float(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -773,5 +783,9 @@ def downgrade() -> None:
     op.drop_index("ix_profiles_platform", table_name="profiles")
     op.drop_table("profiles")
     op.drop_index("ix_search_runs_status", table_name="search_runs")
-    op.drop_table("search_runs")
-    op.execute("DROP EXTENSION IF EXISTS vector")
+    conn = op.get_bind()
+    vector_installed = bool(
+        conn.execute(sa.text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")).scalar()
+    )
+    if vector_installed:
+        op.execute("DROP EXTENSION IF EXISTS vector")
