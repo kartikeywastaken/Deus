@@ -838,8 +838,12 @@
             ispEl.innerHTML = `<span class="word-span revealed">• Network Provider: ISP Lookup Restricted / Offline.</span>`;
           }
         }
-        if (geoEl && !geoObj?.isFailed) {
-          geoEl.innerHTML = `<span class="word-span revealed">• You're in or near ${geoObj.locationStr}.</span>`;
+        if (geoEl) {
+          if (!geoObj?.isFailed) {
+            geoEl.innerHTML = `<span class="word-span revealed">• You're in or near ${geoObj.locationStr}.</span>`;
+          } else {
+            geoEl.innerHTML = `<span class="word-span revealed">• Location: ${geoObj?.locationStr || 'Unavailable — IP lookup restricted'}.</span>`;
+          }
         }
       })
       .catch(err => {

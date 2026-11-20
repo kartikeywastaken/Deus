@@ -701,11 +701,16 @@ function renderEmailResult(data) {
     node("p", `Provider: ${data.provider || "Unknown"} — Complete registration and breach check results.`, "email-result-sub")
   );
 
-  const rawSites = Array.isArray(data.sites) ? data.sites : [];
-  const sites = rawSites.filter(s => s.status === "REGISTERED" || !s.status);
+  const sites = Array.isArray(data.sites) ? data.sites : [];
+  const registeredCount = data.summary?.registered ?? sites.filter(s => s.status === "REGISTERED").length;
+  const notRegisteredCount = data.summary?.not_registered ?? sites.filter(s => s.status === "NOT_REGISTERED").length;
+  const cantCheckCount = data.summary?.cant_check ?? sites.filter(s => s.status === "CANT_CHECK").length;
+
   const summaryRow = node("div", "", "email-summary-row");
   summaryRow.append(
-    node("span", `Registered: ${sites.length}`, "email-summary-badge email-summary-registered")
+    node("span", `Registered: ${registeredCount}`, "email-summary-badge email-summary-registered"),
+    node("span", `Not registered: ${notRegisteredCount}`, "email-summary-badge email-summary-not-registered"),
+    node("span", `Could not check: ${cantCheckCount}`, "email-summary-badge email-summary-cant-check")
   );
   if (Number.isFinite(Number(data.summary?.scan_ms))) {
     summaryRow.append(node("span", `Scan duration: ${data.summary.scan_ms}ms`, "email-scan-duration mono-data"));

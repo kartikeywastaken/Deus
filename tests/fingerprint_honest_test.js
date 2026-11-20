@@ -7,7 +7,9 @@ async function runFingerprintHonestyTests() {
   console.log("Starting fingerprint.js honesty & fallback tests...");
 
   const htmlPath = path.join(__dirname, '../frontend/index.html');
-  const fingerprintJsPath = path.join(__dirname, '../frontend/fingerprint.js');
+  const fingerprintJsPath = fs.existsSync(path.join(__dirname, '../frontend/client-signals.js'))
+    ? path.join(__dirname, '../frontend/client-signals.js')
+    : path.join(__dirname, '../frontend/fingerprint.js');
 
   const htmlContent = fs.readFileSync(htmlPath, 'utf8');
   const fingerprintJsContent = fs.readFileSync(fingerprintJsPath, 'utf8');
@@ -83,13 +85,19 @@ async function runFingerprintHonestyTests() {
     return { window, document };
   }
 
+  // Helper to extract GPU text from either legacy badge or current terminal readout
+  function getGpuModelText(document) {
+    const el = document.getElementById("val-gpu-model") || document.getElementById("typewriter-content");
+    return el ? el.textContent : "";
+  }
+
   // --- Test 1: ARM Mali GPU ---
   console.log("\n1. Testing ARM Mali GPU detection...");
   {
     const { document } = await createTestDom("ARM", "Mali-G78");
-    const valGpuModel = document.getElementById("val-gpu-model");
-    assert(valGpuModel.textContent.includes("ARM Mali GPU"), `Expected 'ARM Mali GPU', got: '${valGpuModel.textContent}'`);
-    assert(!valGpuModel.textContent.includes("Intel"), "Should NEVER default to Intel for Mali GPU");
+    const gpuText = getGpuModelText(document);
+    assert(gpuText.includes("ARM Mali GPU"), `Expected 'ARM Mali GPU', got: '${gpuText}'`);
+    assert(!gpuText.includes("Intel"), "Should NEVER default to Intel for Mali GPU");
     console.log("✓ ARM Mali GPU correctly detected as 'ARM Mali GPU'");
   }
 
@@ -97,9 +105,9 @@ async function runFingerprintHonestyTests() {
   console.log("\n2. Testing Qualcomm Adreno GPU detection...");
   {
     const { document } = await createTestDom("Qualcomm", "Adreno (TM) 650");
-    const valGpuModel = document.getElementById("val-gpu-model");
-    assert(valGpuModel.textContent.includes("Qualcomm Adreno GPU"), `Expected 'Qualcomm Adreno GPU', got: '${valGpuModel.textContent}'`);
-    assert(!valGpuModel.textContent.includes("Intel"), "Should NEVER default to Intel for Adreno GPU");
+    const gpuText = getGpuModelText(document);
+    assert(gpuText.includes("Qualcomm Adreno GPU"), `Expected 'Qualcomm Adreno GPU', got: '${gpuText}'`);
+    assert(!gpuText.includes("Intel"), "Should NEVER default to Intel for Adreno GPU");
     console.log("✓ Qualcomm Adreno GPU correctly detected as 'Qualcomm Adreno GPU'");
   }
 
@@ -107,9 +115,9 @@ async function runFingerprintHonestyTests() {
   console.log("\n3. Testing Restricted WebGL GPU handling...");
   {
     const { document } = await createTestDom("RESTRICTED", "RESTRICTED");
-    const valGpuModel = document.getElementById("val-gpu-model");
-    assert(valGpuModel.textContent.includes("GPU vendor undetermined"), `Expected 'GPU vendor undetermined', got: '${valGpuModel.textContent}'`);
-    assert(!valGpuModel.textContent.includes("Intel graphics"), "Should NEVER report Intel graphics when WebGL is restricted");
+    const gpuText = getGpuModelText(document);
+    assert(gpuText.includes("GPU vendor undetermined"), `Expected 'GPU vendor undetermined', got: '${gpuText}'`);
+    assert(!gpuText.includes("Intel graphics"), "Should NEVER report Intel graphics when WebGL is restricted");
     console.log("✓ Restricted WebGL correctly reports 'GPU vendor undetermined'");
   }
 
@@ -118,7 +126,7 @@ async function runFingerprintHonestyTests() {
   {
     const { document } = await createTestDom("Intel", "HD Graphics 630", true);
     const valFonts = document.getElementById("val-fonts-detected");
-    assert(valFonts.textContent.includes("Font metric canvas inspection restricted"), `Expected restricted font message, got: '${valFonts.textContent}'`);
+    assert(valFonts.textContent.includes("Font canvas inspection restricted") || valFonts.textContent.includes("Font metric canvas inspection restricted"), `Expected restricted font message, got: '${valFonts.textContent}'`);
     assert(!valFonts.textContent.includes("you write code"), "Should NEVER claim user writes code when font canvas is restricted");
     console.log("✓ Restricted font canvas correctly reports 'Font metric canvas inspection restricted'");
   }
@@ -127,8 +135,8 @@ async function runFingerprintHonestyTests() {
   console.log("\n5. Testing Geo-IP lookup failure handling...");
   {
     const { document } = await createTestDom("Intel", "HD Graphics 630", false, true);
-    const valLocation = document.getElementById("val-location-city");
-    const valNetwork = document.getElementById("val-network");
+    const valLocation = document.getElementById("val-location-city") || document.getElementById("stream-line-geo") || document.getElementById("typewriter-content");
+    const valNetwork = document.getElementById("val-network") || document.getElementById("stream-line-isp") || document.getElementById("typewriter-content");
     assert(valLocation.textContent.includes("restricted") || valLocation.textContent.includes("Unavailable"), `Expected offline/unavailable location, got: '${valLocation.textContent}'`);
     assert(!valLocation.textContent.includes("Guntur"), "Should NEVER substitute hardcoded Guntur on failure");
     assert(!valNetwork.textContent.includes("Cloudflare London"), "Should NEVER substitute hardcoded Cloudflare London on failure");
