@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: deus-engine
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deus-db
+          property: connectionString
+      - key: AI_ADVISER_ENABLED
+        value: "false"
+
+databases:
+  - name: deus-db
+    databaseName: deus
+    user: deus
+    plan: free
+    region: oregon
